@@ -288,20 +288,17 @@ def commandhandler(command):
 							if (MOTORCURRENT>HMCURR):
 								#Motor is ON but current is high - turn off the Motor
 								GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
-								for ws in clients:
-									ws.sendMessage(u'STATUS-ERROR=MOTORHIGHCURRENT')
+								sendchangedstatus("ERROR=MOTORHIGHCURRENT")
 								error_handler(commandhandler.__name__,"MOTORHIGHCURRENT")
 								time.sleep(3) # Wait for 3 seconds
 								if (MOTOR=="OFF"): # If motor turned off
 									GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
 						else:#Motor didn't start,
 							GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
-							for ws in clients:
-								ws.sendMessage(u'STATUS-ERROR=MOTORSTART')
+							sendchangedstatus("ERROR=MOTORSTART")
 							error_handler(commandhandler.__name__,"MOTORSTART")
 					else:# Doesn't meet voltage criteria - unstable or too low/too high
-						for ws in clients:
-							ws.sendMessage(u'STATUS-ERROR=MOTORNOTSTABLEVOLTAGE')
+						sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
 						error_handler(commandhandler.__name__,"MOTORNOTSTABLEVOLTAGE")
 			if (command.split("=")[1]=="OFF"):
 				if (MOTOR=="ON"):
@@ -311,8 +308,7 @@ def commandhandler(command):
 						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
 					else: # Motor didn't stop
 						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
-						for ws in clients:
-							ws.sendMessage(u'STATUS-ERROR=MOTORSTOP')
+						sendchangedstatus("ERROR=MOTORSTOP")
 						error_handler(commandhandler.__name__,"MOTORSTOP")
 						#TURN OFF A MASTER POWER SWITCH TO PROTECT THE MOTOR
 	if (command.split("=")[0]=="TANK"):
@@ -334,8 +330,7 @@ def commandhandler(command):
 					if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
 						GPIO.output(SWSTARTPB,GPIO.HIGH)
 					else:# Doesn't meet voltage criteria - unstable or too low/too high
-						for ws in clients:
-							ws.sendMessage(u'STATUS-ERROR=MOTORNOTSTABLEVOLTAGE')
+						sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
 			if (command.split("=")[1]=="OFF"):
 				if (MOTOR=="ON"):
 					GPIO.output(SWSTARTPB,GPIO.LOW)
@@ -1094,8 +1089,7 @@ def watchdoghandler(param,timeout):
 				commandQ.append("MOTOR=OFF")
 				#If SOFTMODE is auto then switch it to manual - Let the client do it - on receiving the error message
 				#Send an error message to 
-				for ws in clients:
-					ws.sendMessage(u'STATUS-ERROR=MOTORNOTSTABLEVOLTAGE')
+				sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
 				error_handler(watchdoghandler.__name__,"MOTORNOTSTABLEVOLTAGE")
 				watchdog_flag=False
 			else:
@@ -1109,8 +1103,7 @@ def watchdoghandler(param,timeout):
 			#Then reassess the current draw
 			if (MOTORCURRENT>HMCURR):
 				commandQ.append("MOTOR=OFF")
-				for ws in clients:
-					ws.sendMessage(u'STATUS-ERROR=MOTORHIGHCURRENT')
+				sendchangedstatus("ERROR=MOTORHIGHCURRENT")
 				error_handler(watchdoghandler.__name__,"MOTORHIGHCURRENT")
 				watchdog_flag=False
 			else:
@@ -1124,8 +1117,7 @@ def error_handler(calling_function_name,data):
 	#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
 	if (SOFTMODE=="Auto"):
 		SOFTMODE="Manual"
-		for ws in clients:
-			ws.sendMessage(u'STATUS-SOFTMODE='+SOFTMODE)
+		sendchangedstatus("SOFTMODE='+SOFTMODE")
 	fobj = open("/home/pi/errorlog", 'a')
 	fobj.write(str(time.asctime()))
 	fobj.write(",")
@@ -1438,25 +1430,21 @@ def watchdogthread():
 		if (time.time()-SENSOR1TIME>SENSORTIMEOUT): #Sensor 1 timed out
 			if (IsSENSOR1UP):
 				IsSENSOR1UP=False
+				sendchangedstatus("SENSORDOWN=1,SENSORTIME="+str(SENSOR1TIME))
 				error_handler("Watchdogthread","SENSORDOWN=1")
-				for ws in clients:
-					ws.sendMessage(u'STATUS-SENSORDOWN=1,SENSORTIME='+str(SENSOR1TIME))
 		else: #Sensor 1 not timed out
 			if not (IsSENSOR1UP):
 				IsSENSOR1UP=True
-				for ws in clients:
-					ws.sendMessage(u'STATUS-SENSORUP=1')
+				sendchangedstatus("SENSORUP=1")
 		if (time.time()-SENSOR2TIME>SENSORTIMEOUT): #Sensor 2 timed out
 			if (IsSENSOR2UP):
 				IsSENSOR2UP=False
+				sendchangedstatus("SENSORDOWN=2,SENSORTIME="+str(SENSOR2TIME))
 				error_handler("Watchdogthread","SENSORDOWN=2")
-				for ws in clients:
-					ws.sendMessage(u'STATUS-SENSORDOWN=2,SENSORTIME='+str(SENSOR2TIME))
 		else: #Sensor 2 not timed out
 			if not (IsSENSOR2UP):
 				IsSENSOR2UP=True
-				for ws in clients:
-					ws.sendMessage(u'STATUS-SENSORUP=2')
+				sendchangedstatus("SENSORUP=2")
 		#Then - let's look at the last two sensor readings - if difference is > SENSORACCURACY - mark that sensor as Down so if the autothread is evaluating - will see it as down and act accrordingly. 
 		#appears challenging to implement - will need synchronization of autothread with sensor times.
 		#Watch for increase in that tank's water level (if water being used at the same time - level might not rise).
@@ -1488,7 +1476,7 @@ if __name__ == '__main__':
 		t5.daemon=True
 		t6.daemon=True
 		t7.daemon=True
-		#Start the threads
+		#Start the threads 
 		t1.start()
 		t2.start()
 		t3.start()
