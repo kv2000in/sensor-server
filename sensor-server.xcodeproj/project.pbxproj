@@ -8,19 +8,19 @@
 
 /* Begin PBXFileReference section */
 		2A62712A21E1990B00930500 /* sensor-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sensor-server.py"; sourceTree = "<group>"; };
-		2A62712C21E5618800930500 /* sensor-currently-installed-version-3-9-18.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; name = "sensor-currently-installed-version-3-9-18.html"; path = "../../../sensor-html/sensor-currently-installed-version-3-9-18.html"; sourceTree = "<group>"; };
-		2A62712D21E561A800930500 /* plotly.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; name = plotly.js; path = "../../../sensor-html/plotly.js"; sourceTree = "<group>"; };
-		2A62713121E5791E00930500 /* en */ = {isa = PBXFileReference; lastKnownFileType = text; name = en; path = "../../../Documents/Arduino/ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0/en.lproj/ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino"; sourceTree = "<group>"; };
+		2A62713321E933C900930500 /* ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino"; sourceTree = "<group>"; };
+		2A62713421E934CD00930500 /* sensor-currently-installed-version-3-9-18.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "sensor-currently-installed-version-3-9-18.html"; sourceTree = "<group>"; };
+		2A62713521E934F600930500 /* plotly.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = plotly.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
-				2A62713021E5791E00930500 /* ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino */,
+				2A62713521E934F600930500 /* plotly.js */,
+				2A62713421E934CD00930500 /* sensor-currently-installed-version-3-9-18.html */,
+				2A62713321E933C900930500 /* ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino */,
 				2A62712A21E1990B00930500 /* sensor-server.py */,
-				2A62712D21E561A800930500 /* plotly.js */,
-				2A62712C21E5618800930500 /* sensor-currently-installed-version-3-9-18.html */,
 			);
 			sourceTree = "<group>";
 		};
@@ -46,17 +46,6 @@
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXVariantGroup section */
-		2A62713021E5791E00930500 /* ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino */ = {
-			isa = PBXVariantGroup;
-			children = (
-				2A62713121E5791E00930500 /* en */,
-			);
-			name = "ESP8266-TCP-NewPing-HCSR04-SanatanDharma-DeepSleep-ADC-3.0.ino";
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		2A62712721E1985200930500 /* Debug */ = {
