@@ -4,9 +4,9 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "********";
-const char* WIFI_PASS = "********";
-const char* host = "192.168.1.110";  // TCP Server IP
+const char* WIFI_SSID = "****";
+const char* WIFI_PASS = "******";
+const char* host = "192.168.1.118";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
 //unsigned long currentmillis=millis();
@@ -47,7 +47,7 @@ void connect() {
  // WiFi.mode(WIFI_OFF);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  WiFi.config(IPAddress(192,168,1,201), IPAddress(192,168,1,2), IPAddress(255,255,255,0),IPAddress(192,168,1,2));
+  WiFi.config(IPAddress(192,168,1,203), IPAddress(192,168,1,2), IPAddress(255,255,255,0),IPAddress(192,168,1,2));
   unsigned long wifiConnectStart = millis();
 
   while (WiFi.status() != WL_CONNECTED) {

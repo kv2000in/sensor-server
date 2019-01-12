@@ -19,9 +19,17 @@
 			children = (
 				2A62713521E934F600930500 /* plotly.js */,
 				2A62713421E934CD00930500 /* sensor.html */,
-				2A62713321E933C900930500 /* ESP8266-HCSR04.ino */,
+				2A62713621E9367100930500 /* ESP8266-HCSR04 */,
 				2A62712A21E1990B00930500 /* sensor-server.py */,
 			);
+			sourceTree = "<group>";
+		};
+		2A62713621E9367100930500 /* ESP8266-HCSR04 */ = {
+			isa = PBXGroup;
+			children = (
+				2A62713321E933C900930500 /* ESP8266-HCSR04.ino */,
+			);
+			path = "ESP8266-HCSR04";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
