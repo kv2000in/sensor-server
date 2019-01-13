@@ -15,7 +15,7 @@ const int   port = 9999;            // TCP Server Port
 int HCSR04SwitchPin = 12; 
 int batteryVoltage;   
 //Sensor 1 R1=986k , R2 = 298k; Sensor 2 R1=974k, R2 = 296k Sensor 3 R1=1001k, R2 = 298K Sensor 4 R1=990k, R2 = 298k
-//Need to change Resistance values and First char ("1 or 2") when flashing it into different sensor nodes
+//Need to change Resistance values, IP addresses and First char ("1 or 2") when flashing it into different sensor nodes
 int R1=986;
 int R2=298;
 #define TRIGGER_PIN  4  // Arduino pin tied to trigger pin on the ultrasonic sensor.
