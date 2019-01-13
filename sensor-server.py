@@ -42,7 +42,6 @@ import time
 import os
 import shutil
 import datetime
-import smbus
 import math
 import signal
 import socket
@@ -171,7 +170,7 @@ ACPOWER="DEFINE"
 MOTOR="DEFINE"
 TANK="DEFINE"
 #Maximum number of websocket clients allowed to connect simultaneously = NUMofWebSocketClientsAllowed
-NUMofWebSocketClientsAllowed=2
+NUMofWebSocketClientsAllowed=20
 
 
 #Read initial GPIO status
@@ -221,6 +220,7 @@ def commandhandler(command):
 				if (MOTOR=="ON"):
 					time.sleep(3) # Wait for 3 seconds
 					if (MOTOR=="OFF"): # If Motor turned off
+						print "Motor off"
 					else: # Motor didn't stop
 						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
 						sendchangedstatus("ERROR=MOTORSTOP")
@@ -246,24 +246,24 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 			modheader=s.headers.get('If-Modified-Since',"")
 			#Is the client requesting the home page
 			if (s.path=="/"):
-				if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi/sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
-					with open('/home/pi/sensor.html','r') as myfile:
+				if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/om/debug-sensor-server/sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
+					with open('/home/om/debug-sensor-server/sensor.html','r') as myfile:
 						s.send_response(200)
 						s.send_header("Content-type", "text/html")
 						s.send_header("Cache-Control","private")
 						s.send_header("Cache-Control","max-age=31536000")
-						s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi/sensor.html")).strftime('%c'))
+						s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime("/home/om/debug-sensor-server/sensor.html")).strftime('%c'))
 						myfiledescriptors=os.fstat(myfile.fileno())
 						s.send_header("Content-Length", str(myfiledescriptors.st_size))
 						s.end_headers()
 						shutil.copyfileobj(myfile, s.wfile)
 					myfile.close()
-				elif (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi/sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
+				elif (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/om/debug-sensor-server/sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
 					s.send_response(304)
 			#So not requesting the home page - hence
 			else:
 				# First determine if file exists
-				if (os.path.isfile("/home/pi"+s.path)):
+				if (os.path.isfile("/home/om/debug-sensor-server"+s.path)):
 					#File exists - solve the content type based on requested extenstion
 					try:
 						if (s.path.split(".")[1] == ""):
@@ -279,19 +279,19 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 					except IndexError:
 						mytype="text/plain" 
 					#Now Check if modheaders present etc.
-					if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi"+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
-						with open("/home/pi"+s.path,'r') as myfile:
+					if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/om/debug-sensor-server"+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
+						with open("/home/om/debug-sensor-server"+s.path,'r') as myfile:
 							s.send_response(200)
 							s.send_header("Content-type", mytype)
 							s.send_header("Cache-Control","private")
 							s.send_header("Cache-Control","max-age=31536000")
-							s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi"+s.path)).strftime('%c'))
+							s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime("/home/om/debug-sensor-server"+s.path)).strftime('%c'))
 							myfiledescriptors=os.fstat(myfile.fileno())
 							s.send_header("Content-Length", str(myfiledescriptors.st_size))
 							s.end_headers()
 							shutil.copyfileobj(myfile, s.wfile)
 						myfile.close()
-					elif (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi"+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
+					elif (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/om/debug-sensor-server"+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
 						s.send_response(304)
 				# Requested file doesn't exist
 				else:
@@ -325,20 +325,27 @@ def worker_sensorthread(client_socket):
 				SENSOR1TIME=currtime
 				raw_Sensor_1_Reading=sensorvalue.split(':')[1]
 				battery1level=str(sensorvalue.split(':')[2])
-				message2=str(SENSOR1TIME)+',P '+TANK1LEVEL[:-1]+',B'+battery1level
+				message2=u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL[:1]+u',B'+str(battery1level)
 		if (sensorvalue.split(':')[0]=="2"):
 				TANK2LEVEL=str (round((((MINT2-float(sensorvalue.split(':')[1]))/(MINT2-MAXT2))*100),1))+"%"
 				#TANK2LEVEL=sensorvalue.split(':')[1]+"%" # For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
 				SENSOR2TIME=currtime
 				raw_Sensor_2_Reading=sensorvalue.split(':')[1]
 				battery2level=str(sensorvalue.split(':')[2])
-				message2=str(SENSOR2TIME)+',p '+TANK2LEVEL[:-1]+',b'+battery2level
-		message = 'SensorData-'+message2
-		for ws in clients:
-			#ws.sendMessage(message)
-			ws._sendMessage(False, TEXT, message)
+				message2=u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL[:1]+u',b'+str(battery2level)
+					#message = 'SensorData-'+message2
+		try:
+			for ws in clients:
+				ws.sendMessage(message2)
+		except Exception as e:
+			if hasattr(e, 'message'):
+				print(e.message)
+			else:
+				print(e)
+		
+		#ws._sendMessage(False, TEXT, message)
 		#Instead of saving raw values - save the calculated Tank levels. (Raw values have no meaning without full, empty settings).
-		fobj = open("/home/pi/sensordata", 'a')
+		fobj = open("/home/om/debug-sensor-server/sensordata", 'a')
 		fobj.write(message2)
 		fobj.write('\n')
 		fobj.close()
@@ -424,7 +431,7 @@ def calibrationhandler(vals,operation):
 	if (operation=="bakup"):
 		#Create Bakup of existing calibration
 		#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
-		sobj = open("/home/pi/ADCcalibrationbakup", 'w')
+		sobj = open("/home/om/debug-sensor-server/ADCcalibrationbakup", 'w')
 		sobj.write("offsetI="+str(offsetI)+",")
 		sobj.write("offsetV="+str(offsetV)+",")
 		sobj.write("Vcal="+str(VoltCalibrate)+",")
@@ -448,7 +455,7 @@ def calibrationhandler(vals,operation):
 			CurrentCalibrate=float(valsdict['Ccal'])
 			CadcValue=float(valsdict['Cadc'])
 		#Save the values for next run
-		sobj = open("/home/pi/Adccalibration", 'w')
+		sobj = open("/home/om/debug-sensor-server/Adccalibration", 'w')
 		sobj.write("offsetI="+str(offsetI)+",")
 		sobj.write("offsetV="+str(offsetV)+",")
 		sobj.write("Vcal="+str(VoltCalibrate)+",")
@@ -457,7 +464,7 @@ def calibrationhandler(vals,operation):
 		sobj.write("Cadc="+str(CadcValue))
 		sobj.close()
 	if (operation=="load"):
-		sobj = open("/home/pi/Adccalibration", 'r')
+		sobj = open("/home/om/debug-sensor-server/Adccalibration", 'r')
 		valsdata=sobj.readline()
 		valsdict={}
 		#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
@@ -472,7 +479,7 @@ def calibrationhandler(vals,operation):
 		CadcValue=float(valsdict['Cadc'])
 		sobj.close()
 	if (operation=="revert"):
-		sobj = open("/home/pi/ADCcalibrationbakup", 'r')
+		sobj = open("/home/om/debug-sensor-server/ADCcalibrationbakup", 'r')
 		valsdata=sobj.readline()
 		valsdict={}
 		for eachval in valsdata.split(","): 
@@ -501,7 +508,7 @@ def settingshandler(settings,operation):
 	global MINT2
 	if (operation=="bakup"):
 		#Create Bakup of existing settings
-		sobj = open("/home/pi/sensorsettingsbakup", 'w')
+		sobj = open("/home/om/debug-sensor-server/sensorsettingsbakup", 'w')
 		sobj.write("SOFTMODE="+str(SOFTMODE)+",")
 		sobj.write("HVLVL="+str(HVLVL)+",")
 		sobj.write("HMCURR="+str(HMCURR)+",")
@@ -535,7 +542,7 @@ def settingshandler(settings,operation):
 			MINT1=float(settingsdict['MINT1'])
 			MINT2=float(settingsdict['MINT2'])
 		#Save the values for next run
-		sobj = open("/home/pi/sensorsettings", 'w')
+		sobj = open("/home/om/debug-sensor-server/sensorsettings", 'w')
 		sobj.write("SOFTMODE="+str(SOFTMODE)+",")
 		sobj.write("HVLVL="+str(HVLVL)+",")
 		sobj.write("HMCURR="+str(HMCURR)+",")
@@ -550,7 +557,7 @@ def settingshandler(settings,operation):
 		sobj.write("MINT2="+str(MINT2))
 		sobj.close()
 	if (operation=="load"):
-		sobj = open("/home/pi/sensorsettings", 'r')
+		sobj = open("/home/om/debug-sensor-server/sensorsettings", 'r')
 		settingsdata=sobj.readline()
 		settingsdict={}
 		for eachsetting in settingsdata.split(","): 
@@ -570,7 +577,7 @@ def settingshandler(settings,operation):
 		MINT2=float(settingsdict['MINT2'])
 		sobj.close()
 	if (operation=="revert"):
-		sobj = open("/home/pi/sensorsettingsbakup", 'r')
+		sobj = open("/home/om/debug-sensor-server/sensorsettingsbakup", 'r')
 		settingsdata=sobj.readline()
 		settingsdict={}
 		for eachsetting in settingsdata.split(","): 
@@ -682,25 +689,28 @@ class SimpleChat(WebSocket):
 			#self.sendMessage(u'E-TRYAGAIN')
 			#close the connecting client
 			self.close()
-			#print "Attempted to connect"
+			print "Attempted to connect"
 		else:
-		#print self.address, 'connected'
+			print self.address, 'connected'
 			#for client in clients:
 			#	client.sendMessage(self.address[0] + u' - connected')
 			clients.append(self)
-		#self._sendMessage(False, TEXT, "Hello")
-		#self.sendMessage(u'LastHourData-'+str(plotcharts("./sensordata",(time.time()-3600),time.time(),"T","l","L","t")))
-			self.sendMessage(u'STATUS-ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
-			message2=str(SENSOR1TIME)+',P '+TANK1LEVEL[:-1]+',B'+battery1level
-			message = 'SensorData-'+message2
-			self._sendMessage(False, TEXT, message)
-			message2=str(SENSOR2TIME)+',p '+TANK2LEVEL[:-1]+',b'+battery2level
-			message = 'SensorData-'+message2
-			self._sendMessage(False, TEXT, message)
+			#self._sendMessage(False, TEXT, "Hello")
+			#self.sendMessage(u'LastHourData-'+str(plotcharts("./sensordata",(time.time()-3600),time.time(),"T","l","L","t")))
+			
+			try:
+				self.sendMessage(u'STATUS-ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
+				self.sendMessage(u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL[:1]+u',B'+str(battery1level))
+				self.sendMessage(u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL[:1]+u',b'+str(battery2level))
+			except Exception as e:
+				if hasattr(e, 'message'):
+					print(e.message)
+				else:
+					print(e)
 	def handleClose(self):
 		try:
 			clients.remove(self)
-			#print self.address, 'closed'
+			print self.address, 'closed'
 			#for client in clients:
 			#	client.sendMessage(self.address[0] + u' - disconnected')
 		except ValueError:
@@ -748,7 +758,7 @@ def error_handler(calling_function_name,data):
 	if (SOFTMODE=="Auto"):
 		SOFTMODE="Manual"
 		sendchangedstatus("SOFTMODE='+SOFTMODE")
-	fobj = open("/home/pi/errorlog", 'a')
+	fobj = open("/home/om/debug-sensor-server/errorlog", 'a')
 	fobj.write(str(time.asctime()))
 	fobj.write(",")
 	fobj.write(calling_function_name)
@@ -819,7 +829,6 @@ def analogreadthread():
 	try:
 		while running_flag:
 			#analogread(40,4000) # Range - V 106-123 I - 0.23 - 0.27
-			myanalogread(100) # 100 ms gives approximately 6 fullwaves for 60Hz powersupply
 			for ws in clients:
 				ws.sendMessage(u'POWERDATA-ACVOLTAGE='+str(ACVOLTAGE)+u',MOTORCURRENT='+str(MOTORCURRENT))
 				#ws._sendMessage(False, TEXT, message) 
@@ -1005,11 +1014,8 @@ if __name__ == '__main__':
 		#For killing gracefully
 		killer = GracefulKiller()
 		while True:
-			lcdticker()
 			time.sleep(1) # Makes a huge difference in CPU usage - without >95%, with <10%
 			if killer.kill_now:
-				#clean the GPIO
-				GPIO.cleanup()
 				#save the settings
 				settingshandler("null","save")
 				calibrationhandler("null","save")
