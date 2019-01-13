@@ -42,7 +42,6 @@ import time
 import os
 import shutil
 import datetime
-import RPi.GPIO as GPIO
 import smbus
 import math
 import signal
@@ -51,13 +50,10 @@ from threading import Thread
 import BaseHTTPServer
 from SimpleWebSocketServer import SimpleWebSocketServer, WebSocket
 
-# Import SPI library (for hardware SPI) and MCP3008 library.
-import Adafruit_GPIO.SPI as SPI
-import Adafruit_MCP3008
 
 #### GLOBAL VARIABLES ######
 TCP_IP=''
-HTTP_PORT = 62246
+HTTP_PORT = 62247
 WS_PORT= 8000
 TCP_PORT=9999
 
@@ -80,7 +76,7 @@ PONG = 0xA
 #WebSocket clients
 clients = []
 # Define GPIO Pins - these are hard wired - changing these will require respldering the appropriate pins
-GPIO.setmode(GPIO.BCM)
+
 STATUSMODE=5 # Computer vs Human (High = Computer). THis is a hardware switch on the board
 STATUSAC=20 # High = AC Power present
 STATUSMOTOR=21 # High = Motor Running
@@ -90,22 +86,11 @@ SWSTARTPB=13 # High = start PB pressed
 SWSTOPPB=19# High = stop PB pressed
 SWTANK=26  # High = Tank1, Low = Tank2
 #PIN # 6 connected to 4th relay switch - on Boot - Pin 6 is high and the relay is on ### 2nd board - switched this pin to GPIO 18
-GPIO.setup(6,GPIO.OUT)
-GPIO.output(6,GPIO.LOW)
+
 #Set switches as GPIO.OUT and statuses as GPIO.IN
 # with gpio register pulled down - it is sitting at 0V. when connected to 3.3V via a 10k external resistor (as in the opto) - small current flows through the 10k resistor - causing the voltage at collector to be 2.7 V - which is not detected as logical HIGH by GPIO Input
 # Pull up will set it to 3.3V so no current will flow.
-GPIO.setup(STATUSMODE, GPIO.IN, pull_up_down = GPIO.PUD_DOWN) # NO esistor between 3.3V and this pin so keep it pulled down
-GPIO.setup(STATUSAC, GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(STATUSMOTOR, GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(STATUSTANK1, GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(STATUSTANK2, GPIO.IN, pull_up_down = GPIO.PUD_UP)
-GPIO.setup(SWSTARTPB, GPIO.OUT)
-GPIO.output(SWSTARTPB,GPIO.LOW)
-GPIO.setup(SWSTOPPB, GPIO.OUT)
-GPIO.output(SWSTOPPB,GPIO.LOW)
-GPIO.setup(SWTANK, GPIO.OUT)
-GPIO.output(SWTANK,GPIO.LOW)
+
  
 #SOFTWARE MODE
 SOFTMODE="Auto" # Turn off motor if AC voltage low or high, motor current too high, 
@@ -196,78 +181,16 @@ def init_status():
 	global ACPOWER
 	global MOTOR
 	global TANK
-	if (GPIO.input(STATUSMODE)==1):
-		MODE="COMPUTER"
-	else:
-		MODE="HUMAN"
-	#Active low - goes from 3.3V to 0 on activated - 2/19/18 - Back up method added in myanalogread function - comment out GPIO detection (ACTUALLY - NO NEED TO COMMENT OUT - JUST DON'T CONNECT ANYTHING TO GPIOS) and comment in the back up method - to activate
-	if (GPIO.input(STATUSAC)==0):
-		ACPOWER="ON"
-	else:
-		ACPOWER="OFF"
-	#Active low - goes from 3.3V to 0 on activated 2/19/18 - Back up method added in myanalogread function - comment out GPIO detection (ACTUALLY - NO NEED TO COMMENT OUT - JUST DON'T CONNECT ANYTHING TO GPIOS) and comment in the back up method - to activate
-	if (GPIO.input(STATUSMOTOR)==0):
-		MOTOR="ON"
-	else:
-		MOTOR="OFF"
-	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
-	if ((GPIO.input(STATUSTANK1)==0)&(GPIO.input(STATUSTANK2)==1)):
-		TANK="Tank 1"
-	elif ((GPIO.input(STATUSTANK1)==1)&(GPIO.input(STATUSTANK2)==0)):
-		TANK="Tank 2"
-	else:
-		TANK="undefined"
-#Function called by change in STATUSMODE GPIO
-def modeswitch(channel):
-	global MODE
-	if (GPIO.input(STATUSMODE)==1):
-		MODE="COMPUTER"
-	else:
-		MODE="HUMAN"
-	sendchangedstatus("MODE="+MODE)
-#Function called by change in STATUSAC GPIO
-def acpowerswitch(channel):
-	global ACPOWER
-	if (GPIO.input(STATUSAC)==0):
-		ACPOWER="ON"
-	else:
-		ACPOWER="OFF"
-	sendchangedstatus("ACPOWER="+ACPOWER)
-#Function called by change in STATUSMOTOR GPIO
-def motorswitch(channel):
-	global MOTOR
-	if (GPIO.input(STATUSMOTOR)==0):
-		MOTOR="ON"
-	else:
-		MOTOR="OFF"
-	sendchangedstatus("MOTOR="+MOTOR)
-#Function called by change in STATUSTANK1 and STATUSTANK2 GPIOs
-def tankswitch(channel):
-	global TANK
-	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
-	if ((GPIO.input(STATUSTANK1)==0)&(GPIO.input(STATUSTANK2)==1)):
-		TANK="Tank 1"
-	elif ((GPIO.input(STATUSTANK1)==1)&(GPIO.input(STATUSTANK2)==0)):
-		TANK="Tank 2"
-	else:
-		TANK="undefined"
-	sendchangedstatus("TANK="+TANK)
+	MODE="COMPUTER"
+	ACPOWER="ON"
+	MOTOR="OFF"
+	TANK="Tank 1"
+	
 #Function used to send the changed statuses to the client via Websocket
 def sendchangedstatus(mymsg):
 	for ws in clients:
 		ws.sendMessage(u'STATUS-'+mymsg)
 		#ws._sendMessage(False, TEXT, message)
-#Adding bouncetime leads to undefined state in case of fast switching
-#GPIO.add_event_detect(STATUSMODE, GPIO.BOTH, callback=modeswitch, bouncetime=30)
-GPIO.add_event_detect(STATUSMODE, GPIO.BOTH, callback=modeswitch)
-GPIO.add_event_detect(STATUSAC, GPIO.BOTH, callback=acpowerswitch)
-GPIO.add_event_detect(STATUSMOTOR, GPIO.BOTH, callback=motorswitch)
-GPIO.add_event_detect(STATUSTANK1, GPIO.BOTH, callback=tankswitch)
-GPIO.add_event_detect(STATUSTANK2, GPIO.BOTH, callback=tankswitch)
-
-#Define the object for ADC read functions
-mcp = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(0, 1,20000)) # (0,0) was being used by NRF24L01 # Decreased the max clock speed to 50KHz to get more accurate readings (Range is 10 Khz to 1.35 MHz).
-
 ## Commands are handled in the order they are received - this function is invoked by commandthread
 def commandhandler(command):
 	#global variable declaration needed if modifying global variables - not needed if just using global variables
@@ -280,21 +203,15 @@ def commandhandler(command):
 					time.sleep(5) # THIS WILL BLOCK THE SCRIPT EXECUTION FOR 5 SECONDS
 					finalACVOLTAGE=ACVOLTAGE
 					if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
-						GPIO.output(SWSTARTPB,GPIO.HIGH) # Active low relays - GPIO HIGH turns on the relay by forward biasing the base of the NPN transistor - which brings the collector (Relay IN pin) to ground
 						time.sleep(3)
 						if (MOTOR=="ON"): #wait 3 seconds for Motor status to change to ON
-							GPIO.output(SWSTARTPB,GPIO.LOW) # then release the STARTPB 
 							#Check motor current draw and turn off motor if current > limit
 							if (MOTORCURRENT>HMCURR):
 								#Motor is ON but current is high - turn off the Motor
-								GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
 								sendchangedstatus("ERROR=MOTORHIGHCURRENT")
 								error_handler(commandhandler.__name__,"MOTORHIGHCURRENT")
-								time.sleep(3) # Wait for 3 seconds
-								if (MOTOR=="OFF"): # If motor turned off
-									GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
+								time.sleep(3) # Wait for 3 seco
 						else:#Motor didn't start,
-							GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
 							sendchangedstatus("ERROR=MOTORSTART")
 							error_handler(commandhandler.__name__,"MOTORSTART")
 					else:# Doesn't meet voltage criteria - unstable or too low/too high
@@ -302,10 +219,8 @@ def commandhandler(command):
 						error_handler(commandhandler.__name__,"MOTORNOTSTABLEVOLTAGE")
 			if (command.split("=")[1]=="OFF"):
 				if (MOTOR=="ON"):
-					GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
 					time.sleep(3) # Wait for 3 seconds
 					if (MOTOR=="OFF"): # If Motor turned off
-						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
 					else: # Motor didn't stop
 						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
 						sendchangedstatus("ERROR=MOTORSTOP")
@@ -314,35 +229,10 @@ def commandhandler(command):
 	if (command.split("=")[0]=="TANK"):
 		if (command.split("=")[1]=="Tank 2"):
 			if (TANK=="Tank 1"):
-				GPIO.output(SWTANK,GPIO.LOW)
+				print "Tank change"
 		if (command.split("=")[1]=="Tank 1"):
 			if (TANK=="Tank 2"):
-				GPIO.output(SWTANK,GPIO.HIGH)
-				
-	if (command.split("=")[0]=="dMOTOR"):
-		if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
-			if (command.split("=")[1]=="ON"):
-				if (MOTOR=="OFF"):
-					#Build Safety - Stable voltage for 5 seconds(with in 20 volts), initial current draw
-					initialACVOLTAGE=ACVOLTAGE
-					time.sleep(5)
-					finalACVOLTAGE=ACVOLTAGE
-					if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
-						GPIO.output(SWSTARTPB,GPIO.HIGH)
-					else:# Doesn't meet voltage criteria - unstable or too low/too high
-						sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
-			if (command.split("=")[1]=="OFF"):
-				if (MOTOR=="ON"):
-					GPIO.output(SWSTARTPB,GPIO.LOW)
-'''
-	if (command.split("=")[0]=="dMOTOR"):#Debugging mode - just one relay - MOTOR ON - high, Motor OFF - low
-		if (command.split("=")[1]=="ON"):
-			if (MOTOR=="OFF"):
-				GPIO.output(SWSTARTPB,GPIO.HIGH)
-		if (command.split("=")[1]=="OFF"):
-			if (MOTOR=="ON"):
-				GPIO.output(SWSTARTPB,GPIO.LOW)
-'''
+				print "Tank change"
 ### HTTP REQUEST /WEB INTERFACE HANDLER FUNCTION####
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 	def do_HEAD(s):
@@ -523,266 +413,6 @@ def plotcharts(inputfile,starttime,endtime,*vars):
 		else:
 			print(e)
 
-## Sending the raw ADC values to the client - to plot- and use it to calibrate
-def send_raw_adc(param):
-	global sampleVArray
-	global sampleIArray
-	
-	#myPin=inPinV # default pin is voltage pin
-	if param=="VOLTAGE":
-		return sampleVArray
-	#	myPin=inPinV
-	elif param == "CURRENT":
-		return sampleIArray
-##Analogread is the function from EMONPI example - currently not in use
-def analogread(crossings,timeouttime): #(20,2000) in emonpi example
-	#Using myanalogread instead of analogread - simpler - no phase difference calculation - just instantaneous V and I measurement
-	global ACVOLTAGE
-	global MOTORCURRENT
-	global inPinV
-	global inPinI
-	global offsetV
-	global offsetI
-	global VoltCalibrate
-	global VadcValue
-	global CurrentCalibrate
-	global CadcValue
-	ADC_COUNTS=1024
-	'''
-	SupplyVoltage=3300 #mcp3008 supply voltage
-	VCAL=110 # Volt for highest ADC
-	ICAL=1.5
-	'''
-	'''
-	# These offset values are true if the bias voltage is mid supply rail
-	#i.e. 2.5 V for a 5 V ADC and 1.65 V for a 3.3 V ADC
-	# in our case for AC Volt - at current settings mid point is around ADC value of 422
-	# for Current mid point is ADC=505 ### NOW I KNOW WHY NOT 512 - Voltage divider source resistance too high - ADC pin presents a "load" to the voltage divider
-	#Changed the resistors to 4.7k instead of 47k and 470k.
-	#VCC 5.12V gives midrail 2.56V - going through 4.68k/9.36k divider gives 1.707V = 529 read by ADC with V ref of 3.3V
-	offsetV = ADC_COUNTS>>1 #Divide ADC_COUNTS by 2 - for 1024 - result is 512
-	offsetI = ADC_COUNTS>>1
-	
-	'''
-	crossCount = 0 #Used to measure number of times threshold is crossed.
-	numberOfSamples = 0#This is now incremented
-	'''
-	//Reset accumulators
-	'''
-	sumV = 0
-	sumI = 0
-	sumP = 0
-	'''
-	//-------------------------------------------------------------------------------------------------------------------------
-	// 1) Waits for the waveform to be close to 'zero' (mid-scale adc) part in sin curve.
-	//-------------------------------------------------------------------------------------------------------------------------
-	'''
-	st=False#an indicator to exit the while loop
-	starttime = time.time()*1000 # millis()-start makes sure it doesnt get stuck in the loop if there is an error.
-	while(st==False):#the while loop
-		startV = mcp.read_adc(inPinV)#using the voltage waveform
-		'''
-		#See above - since ADC isn't exactly mid rail - I am substituting with actually Midpoint ADC
-		if ((startV < (ADC_COUNTS*0.55)) and (startV > (ADC_COUNTS*0.45))):
-			st=True#check its within range
-		'''
-		if ((startV < 400) and (startV > 450)):
-			st=True#check its within range
-		if ((time.time()*1000-starttime)>timeouttime):
-			st=True
-	'''
-	//-------------------------------------------------------------------------------------------------------------------------
-	// 2) Main measurement loop
-	//-------------------------------------------------------------------------------------------------------------------------
-	'''
-	starttime = time.time()*1000
-	while ((crossCount < crossings)and((time.time()*1000-starttime)<timeouttime)):
-		numberOfSamples+=1#Count number of times looped.
-		#lastFilteredV = filteredV#Used for delay/phase compensation
-		'''
-		//-----------------------------------------------------------------------------
-		// A) Read in raw voltage and current samples
-		//-----------------------------------------------------------------------------
-		'''
-		sampleV = mcp.read_adc(inPinV)#Read in raw voltage signal
-		sampleI = mcp.read_adc(inPinI)#Read in raw current signal
-		'''
-		//-----------------------------------------------------------------------------
-		// B) Apply digital low pass filters to extract the 2.5 V or 1.65 V dc offset,
-		//     then subtract this - signal is now centred on 0 counts.
-		//-----------------------------------------------------------------------------
-		'''
-		offsetV = offsetV + ((sampleV-offsetV)/1024)
-		filteredV = sampleV - offsetV
-		offsetI = offsetI + ((sampleI-offsetI)/1024)
-		filteredI = sampleI - offsetI
-		'''
-		//-----------------------------------------------------------------------------
-		// C) Root-mean-square method voltage
-		//-----------------------------------------------------------------------------
-		'''
-		sqV= filteredV * filteredV	#1) square voltage values
-		sumV += sqV	#2) sum
-		'''
-		//-----------------------------------------------------------------------------
-		// D) Root-mean-square method current
-		//-----------------------------------------------------------------------------
-		'''
-		sqI = filteredI * filteredI	#1) square current values
-		sumI += sqI	#2) sum
-		'''
-		//-----------------------------------------------------------------------------
-		// E) Phase calibration
-		//-----------------------------------------------------------------------------
-		'''
-		#phaseShiftedV = lastFilteredV + PHASECAL * (filteredV - lastFilteredV)
-		'''
-		//-----------------------------------------------------------------------------
-		// F) Instantaneous power calc
-		//-----------------------------------------------------------------------------
-		'''
-		#instP = phaseShiftedV * filteredI	#Instantaneous Power
-		#sumP +=instP	#Sum
-		'''
-		//-----------------------------------------------------------------------------
-		// G) Find the number of times the voltage has crossed the initial voltage
-		//    - every 2 crosses we will have sampled 1 wavelength
-		//    - so this method allows us to sample an integer number of half wavelengths which increases accuracy
-		//-----------------------------------------------------------------------------
-		'''
-		#lastVCross = checkVCross
-		if(sampleV > startV):
-			checkVCross = True
-		else:
-			checkVCross = False
-		if(numberOfSamples==1):
-			checkVCross = False
-		if(checkVCross):
-			crossCount+=1
-	'''
-	//-------------------------------------------------------------------------------------------------------------------------
-	// 3) Post loop calculations
-	//-------------------------------------------------------------------------------------------------------------------------
-	//Calculation of the root of the mean of the voltage and current squared (rms)
-	//Calibration coefficients applied.
-	'''
-	''' To figure out the sampling frequency
-	
-	timediff=time.time()*1000-starttime
-	print numberOfSamples
-	print timediff
-	print (numberOfSamples/timediff)*1000
-	'''
-	'''
-	#ADC of 140 ~ AC V RMS of 110 => each ADC = 110/140
-	#ADC of 17.5 ~ AC I RMS of 0.21 A
-	'''
-	'''
-	#double V_RATIO = VCAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
-	V_RATIO = VCAL *((SupplyVoltage/1000.0) / (ADC_COUNTS))
-	'''
-	#V_RATIO=110.0/140.0
-	#ACVOLTAGE = V_RATIO*math.sqrt(sumV / numberOfSamples)
-	ACVOLTAGE = (VoltCalibrate/VadcValue)*math.sqrt(sumV / numberOfSamples)
-	'''
-	#double I_RATIO = ICAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
-	I_RATIO = ICAL *((SupplyVoltage/1000.0) / (ADC_COUNTS))
-	'''
-	#I_RATIO= 0.21/17.5
-	#MOTORCURRENT = I_RATIO*math.sqrt(sumI / numberOfSamples)
-	MOTORCURRENT = (CurrentCalibrate/CadcValue)*math.sqrt(sumI / numberOfSamples)
-	'''
-	//Calculation power values
-	realPower = V_RATIO * I_RATIO * sumP / numberOfSamples;
-	apparentPower = Vrms * Irms;
-	powerFactor=realPower / apparentPower;
-	'''
-	#print ACVOLTAGE
-	'''//--------------------------------------------------------------------------------------
-	'''
-##THIS FUNCTION READs the analog ADC values (voltage and current)
-def myanalogread(timeout):
-	global ACVOLTAGE
-	global MOTORCURRENT
-	global sampleVArray
-	global sampleIArray
-	global VoltCalibrate
-	global VadcValue
-	global CurrentCalibrate
-	global CadcValue
-	global offsetI
-	global offsetV
-	global raw_RMS_Voltage_ADC
-	global raw_RMS_Current_ADC
-	VArray=[]
-	IArray=[]
-	sumV=0
-	sumI=0
-	numberOfSamples=0
-	#V_RATIO=110.0/140.0 # ADC Value of 140 for RMS AC Voltage  of 110 V
-	#I_RATIO=0.21/17.5 # ADC Value of 17.5 for RMS AC Current of 0.21 A
-	#offsetV=529 #see Emon pi function above for explanation
-	#offsetI=512
-	starttime=time.time()*1000 #(time in milliseconds)
-	#timeout= 4000
-	while ((time.time()*1000-starttime)<timeout): # Collect samples for the duration specified by timeout time.
-		#Bitbanging using python is slower than spidev using python
-		sampleV=mcp.read_adc(inPinV)
-		sampleI=mcp.read_adc(inPinI)
-		filteredV = sampleV - offsetV
-		filteredI = sampleI - offsetI
-		sqV= filteredV * filteredV	#1) square voltage values
-		sumV += sqV	#2) sum
-		sqI = filteredI * filteredI	#1) square current values
-		sumI += sqI	#2) sum
-		numberOfSamples+=1
-		VArray.append(sampleV)
-		IArray.append(sampleI)
-		#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-	#ACVOLTAGE = round((V_RATIO*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
-	ACVOLTAGE = round(((VoltCalibrate/VadcValue)*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
-	raw_RMS_Voltage_ADC=round(math.sqrt(sumV/numberOfSamples),1)
-	'''
-	print numberOfSamples
-	print sumV
-	print sumV/numberOfSamples
-	print math.sqrt(sumV / numberOfSamples)
-	print V_RATIO*math.sqrt(sumV / numberOfSamples)
-	print sumI
-	'''
-	#MOTORCURRENT = round((I_RATIO*math.sqrt(sumI / numberOfSamples)),2)
-	MOTORCURRENT = round(((CurrentCalibrate/CadcValue)*math.sqrt(sumI / numberOfSamples)),2)
-	raw_RMS_Current_ADC=round(math.sqrt(sumI/numberOfSamples),1)
-	sampleVArray=VArray
-	sampleIArray=IArray
-	
-	#############################################
-	# BACK UP AC/MOTOR STATUS DETECTION SECTION # 
-	#############################################
-	#ALSO USEFUL IN TESTING THE AUTOTHREAD with MOTOR instead of dMOTOR.
-	#Use a separate light switch and bulb-set the current sensor to sense this bulb current draw - manually turn on the bulb when SWSTARTPB relay is active and manually turn off the bulb when SWSTOPPB is active
-	global ACPOWER
-	global MOTOR
-	global MOTORONCURRENT
-	#If Voltage >LOW VOLTAGE - AC present
-	if (ACVOLTAGE>LVLVL):
-		if (ACPOWER=="OFF"):
-			ACPOWER="ON"
-			sendchangedstatus("ACPOWER="+ACPOWER)
-	else:
-		if (ACPOWER=="ON"):
-			ACPOWER="OFF"
-			sendchangedstatus("ACPOWER="+ACPOWER)
-	#If Motor drawing more than MOTORONCURRENT  - MOTOR is ON
-	if (MOTORCURRENT>MOTORONCURRENT):
-		if (MOTOR=="OFF"):
-			MOTOR="ON"
-			sendchangedstatus("MOTOR="+MOTOR)
-	else:
-		if(MOTOR=="ON"):
-			MOTOR="OFF"
-			sendchangedstatus("MOTOR="+MOTOR)
-	#############################################
 ##This function loads and saves the voltage and current calibration settings
 def calibrationhandler(vals,operation):
 	global offsetI
@@ -1126,117 +756,6 @@ def error_handler(calling_function_name,data):
 	fobj.write(data)
 	fobj.write('\n')
 	fobj.close()
-
-######################################
-#LCD screen Defining functions
-######################################
-# Define some device parameters
-I2C_ADDR  = 0x27 # I2C device address
-LCD_WIDTH = 16   # Maximum characters per line
-
-# Define some device constants
-LCD_CHR = 1 # Mode - Sending data
-LCD_CMD = 0 # Mode - Sending command
-
-LCD_LINE_1 = 0x80 # LCD RAM address for the 1st line
-LCD_LINE_2 = 0xC0 # LCD RAM address for the 2nd line
-LCD_LINE_3 = 0x94 # LCD RAM address for the 3rd line
-LCD_LINE_4 = 0xD4 # LCD RAM address for the 4th line
-
-LCD_BACKLIGHT  = 0x08  # On
-#LCD_BACKLIGHT = 0x00  # Off
-
-ENABLE = 0b00000100 # Enable bit
-
-# Timing constants
-E_PULSE = 0.0005
-E_DELAY = 0.0005
-
-#Open I2C interface
-#bus = smbus.SMBus(0)  # Rev 1 Pi uses 0
-bus = smbus.SMBus(1) # Rev 2 Pi uses 1
-
-def lcd_init():
-	# Initialise display
-	lcd_byte(0x33,LCD_CMD) # 110011 Initialise
-	lcd_byte(0x32,LCD_CMD) # 110010 Initialise
-	lcd_byte(0x06,LCD_CMD) # 000110 Cursor move direction
-	lcd_byte(0x0C,LCD_CMD) # 001100 Display On,Cursor Off, Blink Off 
-	lcd_byte(0x28,LCD_CMD) # 101000 Data length, number of lines, font size
-	lcd_byte(0x01,LCD_CMD) # 000001 Clear display
-	time.sleep(E_DELAY)
-
-def lcd_byte(bits, mode):
-	# Send byte to data pins
-	# bits = the data
-	# mode = 1 for data
-	#        0 for command
-
-	bits_high = mode | (bits & 0xF0) | LCD_BACKLIGHT
-	bits_low = mode | ((bits<<4) & 0xF0) | LCD_BACKLIGHT
-
-	# High bits
-	bus.write_byte(I2C_ADDR, bits_high)
-	lcd_toggle_enable(bits_high)
-
-	# Low bits
-	bus.write_byte(I2C_ADDR, bits_low)
-	lcd_toggle_enable(bits_low)
-
-def lcd_toggle_enable(bits):
-	# Toggle enable
-	time.sleep(E_DELAY)
-	bus.write_byte(I2C_ADDR, (bits | ENABLE))
-	time.sleep(E_PULSE)
-	bus.write_byte(I2C_ADDR,(bits & ~ENABLE))
-	time.sleep(E_DELAY)
-
-def lcd_string(message,line):
-	# Send string to display
-
-	message = message.ljust(LCD_WIDTH," ")
-
-	lcd_byte(line, LCD_CMD)
-
-	for i in range(LCD_WIDTH):
-		lcd_byte(ord(message[i]),LCD_CHR)
-##########################################
-
-
-
-
-##### This updates the LCD screen##############
-def lcdticker():
-	lcd_string("MODE = "+MODE,LCD_LINE_1)
-	lcd_string("AC POWER = "+ACPOWER,LCD_LINE_2)
-	time.sleep(1.5)
-	lcd_string("MOTOR = "+MOTOR,LCD_LINE_1)
-	lcd_string("TANK = "+TANK,LCD_LINE_2)
-	time.sleep(1.5)
-	if (MOTOR=="ON"):
-		lcd_string("Motor V = "+str(ACVOLTAGE),LCD_LINE_1)
-		lcd_string("Current(A)= "+str(MOTORCURRENT),LCD_LINE_2)
-		time.sleep(1.5)
-	if (running_flag):
-		if (IsSENSOR1UP):
-			lcd_string("TANK 1 Level = ",LCD_LINE_1)
-			lcd_string(TANK1LEVEL,LCD_LINE_2)
-			time.sleep(1.5)
-		else:
-			lcd_string("SENSOR 1 DOWN",LCD_LINE_1)
-			lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR1TIME)),LCD_LINE_2)
-			time.sleep(1.5)
-	if (running_flag):
-		if (IsSENSOR2UP):
-			lcd_string("TANK 2 Level = ",LCD_LINE_1)
-			lcd_string(TANK2LEVEL,LCD_LINE_2)
-			time.sleep(1.5)
-		else:
-			lcd_string("SENSOR 2 DOWN",LCD_LINE_1)
-			lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)),LCD_LINE_2)
-			time.sleep(1.5)
-#######################################################
-
 #This is used to gracefully exit in incase of SIGINT/SIGTERM (ctrl+c)
 class GracefulKiller:
 	kill_now = False
@@ -1458,7 +977,6 @@ if __name__ == '__main__':
 		settingshandler("null","load")
 		calibrationhandler("null","load")
 		#initialize the LCD screen
-		lcd_init()
 		#Check initial GPIO statuses - added 2/19/18
 		init_status()
 		t1=Thread(target=TCPserverthread)  
@@ -1521,91 +1039,3 @@ if __name__ == '__main__':
 		#Signal is caught by graceful killer class
 		pass
 
-
-'''
-From Adafruit library :
-    def __init__(self, port, device, max_speed_hz=500000):
-        """Initialize an SPI device using the SPIdev interface.  Port and device
-        identify the device, for example the device /dev/spidev1.0 would be port
-        1 and device 0.
-
-'''
-'''
-#### These are not in use functions#####
-def sighandler(signum, frame):
-	print 'signal handler called with signal: %s ' % signum
-	global running_flag
-	running_flag = False
-	sys.exit() # make sure you add this so the main thread exits as well.
-
-if __name__ == '__main__':
-	main(sys.argv)
-	while 1:  # this will force your main thread to live until you terminate it.
-		time.sleep(1) 
-
-def main(argv=None):
-	signal.signal(signal.SIGTERM, sighandler) # so we can handle kill gracefully
-	signal.signal(signal.SIGINT, sighandler) # so we can handle ctrl-c
-	try:
-		Thread(target=main_loop, args=()).start()
-	except Exception, reason:
-		print reason
-'''
-'''
-### Main function from LCD screen example###
-def main():
-	# Main program block
-
-	# Initialise display
-	lcd_init()
-
-	while True:
-
-	# Send some test
-		lcd_string("         <",LCD_LINE_1)
-		lcd_string("        <",LCD_LINE_2)
-
-		time.sleep(3)
-  
-		# Send some more text
-		lcd_string(">",LCD_LINE_1)
-		lcd_string("> ",LCD_LINE_2)
-
-		time.sleep(3)
-
-if __name__ == '__main__':
-
-	try:
-		main()
-	except KeyboardInterrupt:
-		pass
-	finally:
-		lcd_byte(0x01, LCD_CMD)
-
-'''
-
-'''
-#### Example code for GPIO detection####
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(23, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-GPIO.setup(24, GPIO.IN, pull_up_down = GPIO.PUD_UP)
-def printFunction(channel):
-print(?Button 1 pressed!?)
-print(?Note how the bouncetime affects the button press?)
-GPIO.add_event_detect(23, GPIO.RISING, callback=printFunction, bouncetime=300)
-while True:
-GPIO.wait_for_edge(24, GPIO.FALLING)
-print(?Button 2 Pressed?)
-GPIO.wait_for_edge(24, GPIO.RISING)
-print(?Button 2 Released?)
-GPIO.cleanup()
-	If needed to remove function
-GPIO.remove_event_detect(23)
-'''
-
-	#except KeyboardInterrupt:
-		# It never reaches the thread
-	#	pass
-		#print "websocket received Ctrl+C"
-		#websocketservarthread.server.close()
-		#print time.asctime(), "Server Stops - %s:%s" % (TCP_IP, WS_PORT)
