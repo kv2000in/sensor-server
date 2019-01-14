@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		2A5A58C521EC10C0001653D3 /* sensorsettings */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettings; sourceTree = "<group>"; };
+		2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = ADCcalibrationbakup; sourceTree = "<group>"; };
+		2A5A58C721EC10C0001653D3 /* tcpserver-test.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "tcpserver-test.py"; sourceTree = "<group>"; };
+		2A5A58C821EC10C0001653D3 /* sensordata */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensordata; sourceTree = "<group>"; };
+		2A5A58C921EC10C0001653D3 /* adctest */ = {isa = PBXFileReference; lastKnownFileType = folder; path = adctest; sourceTree = "<group>"; };
+		2A5A58CA21EC10C0001653D3 /* errorlog */ = {isa = PBXFileReference; lastKnownFileType = text; path = errorlog; sourceTree = "<group>"; };
+		2A5A58CB21EC10C0001653D3 /* ESP-conn-test.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "ESP-conn-test.py"; sourceTree = "<group>"; };
+		2A5A58CC21EC10C1001653D3 /* Adccalibration */ = {isa = PBXFileReference; lastKnownFileType = text; path = Adccalibration; sourceTree = "<group>"; };
+		2A5A58CD21EC10C1001653D3 /* sensorsettingsbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettingsbakup; sourceTree = "<group>"; };
 		2A62712A21E1990B00930500 /* sensor-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sensor-server.py"; sourceTree = "<group>"; };
 		2A62713321E933C900930500 /* ESP8266-HCSR04.ino */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ESP8266-HCSR04.ino"; sourceTree = "<group>"; };
 		2A62713421E934CD00930500 /* sensor.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sensor.html; sourceTree = "<group>"; };
@@ -17,6 +26,15 @@
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
+				2A5A58CC21EC10C1001653D3 /* Adccalibration */,
+				2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */,
+				2A5A58C921EC10C0001653D3 /* adctest */,
+				2A5A58CA21EC10C0001653D3 /* errorlog */,
+				2A5A58CB21EC10C0001653D3 /* ESP-conn-test.py */,
+				2A5A58C821EC10C0001653D3 /* sensordata */,
+				2A5A58C521EC10C0001653D3 /* sensorsettings */,
+				2A5A58CD21EC10C1001653D3 /* sensorsettingsbakup */,
+				2A5A58C721EC10C0001653D3 /* tcpserver-test.py */,
 				2A62713521E934F600930500 /* plotly.js */,
 				2A62713421E934CD00930500 /* sensor.html */,
 				2A62713621E9367100930500 /* ESP8266-HCSR04 */,
