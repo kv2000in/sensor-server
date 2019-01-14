@@ -3,19 +3,22 @@
 
 WiFiClient client;
 
+
 // WiFi credentials.
 const char* WIFI_SSID = "****";
 const char* WIFI_PASS = "******";
-const char* host = "192.168.1.118";  // TCP Server IP
+const char* host = "192.168.1.110";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
-//unsigned long currentmillis=millis();
-//int trigPin = 4;    
-//int echoPin = 5;
+//*************************************************
+//Need to change Resistance values, static IP addresses, add wifi credentials, double check server IP address and port and First char ("1 or 2") when flashing it into different sensor nodes
+//Sensor 1 R1=986k , R2 = 298k; Sensor 2 R1=974k, R2 = 296k Sensor 3 R1=1001k, R2 = 298K Sensor 4 R1=990k, R2 = 298k
+//Sensor 1 static IP 192.168.1.201, sensor 2 static IP 192.168.1.202 snd so on
+// For flashing - power the board with separate 5V power supply. Connect the gnd, rx, tx from USB serial to the programming board, flash mode is activated by holding GPIO 0 to ground at power on OR RESET (taking reset to GND)
+//**************************************************
+
 int HCSR04SwitchPin = 12; 
 int batteryVoltage;   
-//Sensor 1 R1=986k , R2 = 298k; Sensor 2 R1=974k, R2 = 296k Sensor 3 R1=1001k, R2 = 298K Sensor 4 R1=990k, R2 = 298k
-//Need to change Resistance values and First char ("1 or 2") when flashing it into different sensor nodes
 int R1=986;
 int R2=298;
 #define TRIGGER_PIN  4  // Arduino pin tied to trigger pin on the ultrasonic sensor.
