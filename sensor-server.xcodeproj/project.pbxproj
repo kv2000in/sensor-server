@@ -7,15 +7,29 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		2A62712A21E1990B00930500 /* sensor-server-currently-installed-version-3-9-18-mod-lcd.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sensor-server-currently-installed-version-3-9-18-mod-lcd.py"; sourceTree = "<group>"; };
+		2A62712A21E1990B00930500 /* sensor-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sensor-server.py"; sourceTree = "<group>"; };
+		2A62713321E933C900930500 /* ESP8266-HCSR04.ino */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ESP8266-HCSR04.ino"; sourceTree = "<group>"; };
+		2A62713421E934CD00930500 /* sensor.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sensor.html; sourceTree = "<group>"; };
+		2A62713521E934F600930500 /* plotly.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = plotly.js; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
-				2A62712A21E1990B00930500 /* sensor-server-currently-installed-version-3-9-18-mod-lcd.py */,
+				2A62713521E934F600930500 /* plotly.js */,
+				2A62713421E934CD00930500 /* sensor.html */,
+				2A62713621E9367100930500 /* ESP8266-HCSR04 */,
+				2A62712A21E1990B00930500 /* sensor-server.py */,
 			);
+			sourceTree = "<group>";
+		};
+		2A62713621E9367100930500 /* ESP8266-HCSR04 */ = {
+			isa = PBXGroup;
+			children = (
+				2A62713321E933C900930500 /* ESP8266-HCSR04.ino */,
+			);
+			path = "ESP8266-HCSR04";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html>
+<!-- changelog : 1/21/18 : added battery level display
+Todo: add Manifest.json, fix settings so that it fits on cellphone screen
+changelog : 2/19/18 - when in manual mode and "turn off when tank full" is checked - even if tank level is > set level - motor turns on for 30 sec (until the next sensor value is received - which is higher than set value - so motor is turned off) - Going to change on the server side-evaluate the set level before turning on the motor.
+Since motor on command is coming directly from the client - it will have to be validated on the client side.
+So, when "turn off when tank full" is checked - validate the motor on command
+
+Changelog : 3/7/18 - Removed buttons from the banner - used to overflow in mobile display and cover motor status light. Onblur - close websocket - to prevent hanging!
+
+-->
+    <head>
+        
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> 
+<meta http-equiv="Content-Language" content="hi" />
+        <title>Smart Sensors</title>
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            html {
+                font-family: "Lucida Sans", sans-serif;
+                font-size: 100%;
+            }
+
+            [class*="col-"] {
+                float: left;
+                padding-left: 15px;
+                padding-right: 15px;
+            }
+
+            /* For mobile phones: */
+            [class*="col-"] {
+                width: 100%;
+            }
+                        .topright{
+                height:160px;
+            }
+
+            @media only screen and (min-width: 768px) {
+                /* For desktop: */ .col-1 {
+                    width: 8.33%;
+                }
+
+                .col-2 {
+                    width: 16.66%;
+                }
+
+                .col-3 {
+                    width: 25%;
+                }
+
+                .col-4 {
+                    width: 33.33%;
+                }
+
+                .col-5 {
+                    width: 41.66%;
+                }
+
+                .col-6 {
+                    width: 50%;
+                }
+
+                .col-7 {
+                    width: 58.33%;
+                }
+
+                .col-8 {
+                    width: 66.66%;
+                }
+
+                .col-9 {
+                    width: 75%;
+                }
+
+                .col-10 {
+                    width: 83.33%;
+                }
+
+                .col-11 {
+                    width: 91.66%;
+                }
+
+                .col-12 {
+                    width: 100%;
+                }
+                
+                 .topright{
+                
+                margin-top:160px;
+                height:290px;
+            }
+            }
+            
+           
+            /* For mobile*/
+
+            ul {
+                list-style-type: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            .digitaldisplay {
+         color: #2509e8;
+    text-align: center;
+    width: 40px;
+    float: left;
+    font-weight: bold;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    font-size: x-large;
+    position: absolute;
+    z-index: -1;
+    margin-left: 15px;
+            }
+
+            .Psensordisplay{
+                color:blue;
+            }
+            .Tsensordisplay{
+                color:blue;
+            }
+            .topleft{
+                
+                margin-top:160px;
+            }
+            
+            .statuslight {
+        background-color: rgba(220, 187, 187, 0.41);
+    width: 30px;
+    height: 30px;
+    border-radius: 25%;
+    border-width: 0px;
+    padding-top: 7.5px;
+    padding-bottom: 7.5px;
+    position: absolute;
+    z-index: -1;
+    margin-left: 15px;
+}  
+            .statuslight:focus{
+                border-collapse: collapse;
+            
+            }
+            .statuslight:active{
+            	box-shadow: 0px 0px 60px 7px orange;
+                background-color: crimson;  
+            }
+            
+            .activebutton{
+        box-shadow: 0px 0px 20px 12px #ffb700;
+    background-color: #ed1414;
+    width: 30px;
+    height: 30px;
+    border-radius: 25%;
+    border-width: 0px;
+    position: absolute;
+    z-index: -1;
+    margin-left: 15px;
+                
+            }
+.labeltxts {
+    padding-left: 90px;
+    padding-top: 7.5px;
+    padding-bottom: 7.5px;
+    position: absolute;
+    z-index: -1;
+}
+      
+            /* The animation code */
+@keyframes example {
+    0%   {right:0px; }
+    100% {right:180px;}
+}
+    
+            .softmode{
+           border-color:aqua;
+            
+                
+        }
+            .softmodeactive{
+                border-style:solid;
+                border-color: red;
+            }
+            
+            	.switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 40px;
+}
+.switch input {display:none;}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: white;
+  -webkit-transition: .4s;
+  transition: .4s;
+    border-bottom-left-radius: 50%;
+    border-top-left-radius: 50%
+}
+           
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 28px;
+  width: 16px;
+  left: 14px;
+  bottom: 5px;
+  background-color: black;
+  -webkit-transition: .4s;
+  transition: .4s;
+}
+
+input:checked + .slider {
+  background-color: #2196F3;
+}
+
+input:focus + .slider {
+  box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+  -webkit-transform: translateX(16px);
+  -ms-transform: translateX(16px);
+  transform: translateX(16px);
+}
+input:checked + .slider {
+    /*input+slider - only works for slider class immediatley after the input*/
+              
+    border-bottom-left-radius: 0%;
+    border-top-left-radius: 0%;
+             border-bottom-right-radius: 50%;
+    border-top-right-radius: 50%   
+            }  
+            
+           
+            
+            
+            td.label{
+               flex-wrap: nowrap; 
+            }
+            .topbar{
+                 position: fixed;
+    top: 0;
+    width: 80%;
+    left: 10%;
+    margin: auto;
+    text-align: center;
+    border-radius: 5%;
+    background-color: #10ede2;
+    z-index: 10;
+            }          
+            
+            
+            
+            .control li{
+                
+                height: 80px;
+                width:100%;
+                display: inline-flex;
+            }
+            .tankanim{
+                
+              
+    animation-name: example;
+  position: relative;
+    animation-duration: 10s;
+                animation-iteration-count: 2;
+            }
+            table,  td {
+                }
+            .top table{
+                width:100%
+            }
+            .status td {
+    padding: 8px;
+                width: 250px;
+                height:76px;
+                margin-bottom: 7px;
+}
+            .activesensor {
+                text-align: center;
+                padding: 8px;
+                border-radius: 25px;
+                margin-bottom: 7px;
+                background-color: #33cc46;
+                color: #ffffff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            }
+            
+              .downsensor{
+                background-color: #ccc;
+                text-align: center;
+                padding: 8px;
+                border-radius: 25px;
+                margin-bottom: 7px;
+                color: #ffffff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+                
+            }
+            
+            .activesensor li {
+                padding: 8px;
+                margin-bottom: 7px;
+                border-radius: 25px;
+                background-color: #e53333;
+                color: #ffffff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            }
+              
+            .downsensor li {
+                padding: 8px;
+                margin-bottom: 7px;
+                border-radius: 25px;
+                background-color: black;
+                color: #ffffff;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            }
+            
+            .hide{
+                visibility: hidden
+            }
+            .pushbtn{
+                width:120px;
+                height:60px;
+                /*border-radius: 40%;*/
+                font-size:200%; 
+                /*background-color: red;*/
+                
+            
+            }
+            
+           
+            
+            .topleft li{
+                height:40px;
+            }      
+            .buttonpressedeffect {
+  display: inline-block;
+  padding: 15px 25px;
+  font-size: 24px;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  outline: none;
+  color: #fff;
+  background-color: #4CAF50;
+  border: none;
+  border-radius: 15px;
+  box-shadow: 0 9px #999;
+}
+
+/*.buttonpressedeffect:hover {background-color: #3e8e41}*/
+
+.buttonpressedeffect:active {
+  background-color: #3e8e41;
+  box-shadow: 0 5px #666;
+  transform: translateX(4px);
+ }
+             .tankslider{
+                
+                background-color: #2196F3;
+                 z-index:-1
+            }
+            
+               .tankbtn{
+                
+             background-color:#2196F3 ;
+                       width: 120px;
+    height: 40px;
+    border-radius: 15px;
+    border-style: hidden;
+    font-size: 20px;
+                /*background-color:#10ede2; */
+            }
+            
+            .tankbtn:disabled{
+                
+                   background-color: #ccc;
+    box-shadow: none;
+    color: #999; 
+            }
+            
+         /*   .softmode{
+           
+            border-style: solid;
+                border-color: black;
+                -webkit-transition: .4s;
+  transition: .4s;
+        }*/
+            
+            .tanklevelbg{
+                
+                background-color: aliceblue;
+                border-radius: 15px;
+                padding: 0px;
+            }
+            .tanklevelfg{
+                background-color: blue;
+                border-right-style: solid;
+                border-right-color: black;
+                
+                
+            }
+           
+            
+        /* Tooltip container */
+#settings {
+    position: relative;
+    display: inline-block;
+    /*border-bottom: 1px dotted black; *//* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+#settings+.settingsbox {
+    visibility: hidden;
+    top:0%;
+    left:0%;
+    background-color: #4c45ad;
+    color: #fff;
+    text-align: center;
+    padding: 5px 0;
+    border-radius: 6px;
+ 
+    /* Position the tooltip text - see examples below! */
+    position: absolute;
+    z-index: 1;
+}
+            .settingsbox input {
+    font-style: normal;
+    font-weight: bold;
+}
+
+#cal {
+    position: relative;
+    display: inline-block;
+    /*border-bottom: 1px dotted black; *//* If you want dots under the hoverable text */
+}
+
+/* Tooltip text */
+#cal+.calbox {
+    visibility: hidden;
+    top:0%;
+    left:0%;
+    background-color: #4c45ad;
+    color: #fff;
+    text-align: center;
+    padding: 5px 0;
+    border-radius: 6px;
+ 
+    /* Position the tooltip text - see examples below! */
+    position: absolute;
+    z-index: 1;
+}
+            .calbox input {
+    font-style: normal;
+    font-weight: bold;
+}
+/* Show the tooltip text when you mouse over the tooltip container 
+#settings:hover+.settingsbox {
+    visibility: visible;
+}
+   */     
+        
+        
+        .tooltip {
+    position: relative;
+    /*display: inline-block;*/
+    border-bottom: 1px dotted black;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 120px;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 0;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -60px;
+    opacity: 0;
+    transition: opacity 1s;
+}
+
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #555 transparent transparent transparent;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+        
+        </style>
+        <script src="plotly.js" type="text/javascript" charset="utf-8"></script>
+        <script language="javascript" type="text/javascript">
+            
+/*    WEBSOCKET HANDLING JAVASCRIPT*/
+
+/*var allswitches=document.getElementsByTagName("input");*/ /* get all elements by tag name input*/
+
+
+
+  function init()
+  {
+	 
+	 
+	  
+	  
+		  
+	/*
+	document.myform.url.value = "ws://192.168.1.118:8000/"
+	document.myform.inputtext.value = "Hello World!"
+	document.myform.disconnectButton.disabled = true;
+	*/
+  }
+var websocket;
+  function doConnect()
+  {
+      
+      
+	  var hostipaddr=location.host.split(":")[0]; /*location.host gives 192.168.1.110:62246*/
+    /*websocket = new WebSocket(document.myform.url.value);*/
+   /* websocket = new WebSocket("ws://192.168.1.110:8000/");*/
+   websocket = new WebSocket("ws://"+hostipaddr+":8000/");
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onclose = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+      
+  }
+
+  function onOpen(evt)
+  {
+	  console.log("connected\n");
+	  /* Once connected - check the status of relevant gpios from each server.
+	  */
+      document.getElementById("connect").style.visibility="hidden";
+	  document.getElementById("SERVER").innerHTML="connected";
+      SERVERSTATUS="connected";
+      showhidebuttons();
+    /*writeToScreen("connected\n");
+	document.myform.connectButton.disabled = true;
+	document.myform.disconnectButton.disabled = false;*/
+  }
+
+  function onClose(evt)
+  {
+	  console.log("disconnected\n");
+    /*writeToScreen("disconnected\n");
+	document.myform.connectButton.disabled = false;
+	document.myform.disconnectButton.disabled = true;*/
+   document.getElementById("SERVER").innerHTML="disconnected";
+      document.getElementById("connect").style.visibility="visible";
+      SERVERSTATUS="disconnected";
+        showhidebuttons();
+  }
+  function onMessage(evt)
+  {
+	  /* data returned from Server is in the form of "SensorData=1483806901.06, t15.78"
+	  "192.168.1.145 - PONG" - server is connected
+	  "192.168.1.144 - disconnected"
+	  "192.168.1.144 - CHKA1010" 4 digits correspond to gpio reads of pin 1,2,5,6
+	  evt.data.split("=") gives [0] = "SensorData" and [1]="1483806901.06, t15.78"
+	  [0].slice(0,-1) removes &nbsp and gives "192.168.1.145"
+	  [1].slice(-1) = "1"
+	  [1].slice(1,-1)="ON"
+	  */
+/*
+	1/21/18 - response: SensorData-1516550505.88,p -27.0,b3987
+*/
+
+
+      /*console.log("response: " + evt.data + '\n');
+*/	
+    
+    var arrdata=evt.data.split("-");
+	switch(arrdata[0]){
+		case 'SensorData':
+			queryServer2(arrdata[1]);
+			break;
+		case 'StoredData':
+			queryServer3(evt.data);
+            break;
+        case 'STATUS':
+			queryServer4(arrdata[1]);
+			break;
+        case 'POWERDATA':
+			queryServer4(arrdata[1]);
+			break;
+        case 'SETTINGS':
+			queryServer5(arrdata[1]);
+			break;
+        case 'MANUAL':
+			queryServer6(arrdata[1]);
+			break;
+    /*    This one is for plotting the current and voltage ADCs*/
+        case 'RawADC':
+			queryServer7(arrdata[1]);
+			break;
+        case 'CAL':
+			queryServer8(arrdata[1]);
+			break;
+ /*           This one is for raw RMS ADC data and raw sensor data*/
+        case 'raw':
+            queryServer9(arrdata[1]);
+            break;
+        default:
+			console.log(arrdata[0].slice(-1));
+			break;
+		}
+	}
+    /*writeToScreen("response: " + evt.data + '\n');*/
+  
+
+  function onError(evt)
+  {
+    /*writeToScreen('error: ' + evt.data + '\n');*/
+	console.log('error: ' + evt.data + '\n');
+	websocket.close();
+
+	/*document.myform.connectButton.disabled = false;
+	document.myform.disconnectButton.disabled = true;*/
+
+  }
+
+  function doSend(message)
+  {
+    console.log("sent: " + message + '\n');
+   /* writeToScreen("sent: " + message + '\n'); */
+    websocket.send(message);
+  }
+
+  /*function writeToScreen(message)
+  {
+    document.myform.outputtext.value += message
+	document.myform.outputtext.scrollTop = document.myform.outputtext.scrollHeight;
+
+  }*/
+
+  window.addEventListener("load",doConnect, false);
+
+function ws_close(){
+    websocket.close();
+}
+  /* function sendText() {
+		doSend( document.myform.inputtext.value );
+   }*/
+
+  /*function clearText() {
+		document.myform.outputtext.value = "";
+   }*/
+
+   /*function doDisconnect() {
+		websocket.close();
+   }*/
+
+            
+window.addEventListener("blur",ws_close, false);
+
+</script>
+</head>
+    <!--<body onload="queryServer3()"> -->
+<body style="margin:0;">
+        <!-- supported tags for onload event <body>, <frame>, <iframe>, <img>, <input type="image">, <link>, <script>, <style> -->
+<div style="width:100%;"> 
+    <div class="topbar">
+        <text>सरवर  =</text><text id="SERVER"> disconnected</text> <button id="connect" onclick='doConnect()'>Connect</button> <br><div class="computer">
+    <label class="softmode" id="SOFTMODEMANUAL" style="padding-right:20px;">
+        MANUAL
+    </label>
+    <label class="switch sensordependent">
+        <input type="checkbox" id="SOFTMODE" onclick='modeselector()'>
+        <div class="slider"></div>
+    </label> 
+    <label class="softmode" id="SOFTMODEAUTO"style="padding-left:20px">
+        AUTO
+    </label>
+    <br><br></div>
+        <text >सिस्टम के कंट्राेल = </text><text id="MODE"></text> <br> <br>           
+     <button class="calbtn" id="cal" onclick='doSend("REQCAL-CURRENT")'>Calibration</button>
+        <span id="calbox" class="calbox col-6" >
+            <!--offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc-17.5-->
+                    <button id="savecal" onclick='savecal();document.getElementById("calbox").style.visibility="hidden";'>Save</button><button id="revertsettings" onclick='doSend("REVERTCAL-NOW")'>Revert</button><text style="background-color:white;font-size:200%;float: right;text-anchor: initial;color: black;border: black;border-style: solid;cursor: pointer;" onclick='document.getElementById("calbox").style.visibility="hidden";'>X</text><br>
+            <label>Mid Rail(offset) V ADC &nbsp;</label><input id="offsetV" size="6"><br>
+        <label>Mid Rail(offset) C ADC  &nbsp; </label><input id="offsetI" size="6"><br>
+        <label title="RMS Voltage">Calibration RMS Voltage &nbsp; </label><input id="Vcal" size="6">&nbsp;V<br>
+        <label title="RMS V ADC">Calibration RMS V ADC &nbsp; </label><input id="Vadc" size="6"><br>
+        <label title="RMS Current">Calibration RMS Current &nbsp; </label><input id="Ccal" size="6">&nbsp;Amp<br>
+        <label title="RMS I ADC">Calibration RMS C ADC &nbsp; </label><input id="Cadc" size="6">&nbsp;<br>
+            <label title="raw value sent by server">Measured RMS V ADC = </label><tspan id="RMSVADC"></tspan><br>  
+            <label  title="raw value sent by server">Measured RMS I ADC = </label><tspan id="RMSCADC" ></tspan><br>
+        <p>To Calibrate - Check the volt(or am)meter value ->enter that value and the measured RMS ADC value into the calibration fields above.</p>    
+
+            
+        </span>
+    
+        <!--    Sends a request for current settings to the server - upon receipt of the settings - makes the span of "settings" visible.-->
+        <button class="settingsbtn" id="settings" onclick='doSend("REQSETTINGS-CURRENT")'>Settings</button>
+        <span id="settingsbox" class="settingsbox col-6" >
+            <!--HVLVL=350,LVLVL=170,T1HLVL=95,T1LLVL=75,MAXT1=590.0,MINT1=199.0,T2HLVL=95,T2LLVL=75,MAXT2=590.0,MINT2=199.0,HMCURR=7-->
+                    <button id="savesettings" onclick='savesettings();document.getElementById("settingsbox").style.visibility="hidden";'>Save</button><button id="revertsettings" onclick='doSend("REVERTSETTINGS-NOW")'>Revert</button><text style="background-color:white;font-size:200%;float: right;text-anchor: initial;color: black;border: black;border-style: solid;cursor: pointer;" onclick='document.getElementById("settingsbox").style.visibility="hidden";'>X</text><br>
+            <label>High Voltage Cut off &nbsp;</label><input id="HVLVL" size="3">&nbsp;V <br>
+        <label>Low Voltage Cut off &nbsp; </label><input id="LVLVL" size="3">&nbsp;V<br>
+        <label>High Motor Current &nbsp; </label><input id="HMCURR" size="3">&nbsp;Amp<br>
+        <label>Tank 1 High Set (%) &nbsp; </label><input id="T1HLVL" size="3"> &nbsp;%<br>
+        <label>Tank 1 Low Set (%) &nbsp; </label><input id="T1LLVL" size="3">&nbsp;%<br>
+        <label>Tank 2 High Set (%) &nbsp; </label><input id="T2HLVL" size="3">&nbsp;%<br>
+        <label>Tank 2 Low Set (%) &nbsp; </label><input id="T2LLVL" size="3">&nbsp;%<br>
+        <label>Tank 1 FULL Height (cms) &nbsp; </label><input id="MAXT1" size="3"><br>
+         <label>Tank 1 EMPTY Height (cms) &nbsp; </label><input id="MINT1" size="3"><br>
+        <label>Tank 2 FULL Height (cms) &nbsp; </label><input id="MAXT2" size="3"><br>
+        <label>Tank 2 EMPTY Height (cms) &nbsp; </label><input id="MINT2" size="3"> <br>
+            
+            <label title="Raw value sent by server">Raw HCSR04 Reading Tank1 = </label><tspan id="HCSR041"></tspan><br>
+            <label  title="Raw value sent by server">Raw HCSR04 Reading Tank2 =</label><tspan id="HCSR042"></tspan><br>
+        <p>To Calibrate - Check the sensor reading at Min and Max Tank levels and input above</p>  
+            
+
+            
+        </span>
+               
+    <!--<table><tr><td><text>Mode = </text><text id="MODE"></text></td><td> <text>              Server Status =</text><text id="SERVER"> disconnected</text> </td><td><button id="connect" onclick='doConnect()'>Connect</button> <button id="drawplot" onclick='drawplot()'>Draw Plot</button> <button id="reqdata" onclick='doSend("STOREDDATA-3600")'>Request Data</button></td></table>-->
+    
+</div>
+     </div>   
+    <div class="serverconnected">
+
+<div class="col-4 status topleft">
+            <p>
+        
+         <button id="drawplot" onclick='drawplot();batteryplot();'>Sensor Plot</button> <!--<button id="reqdata" onclick='requestdata();'>Request Data</button>-->
+      <!--  Reuests and plots the current and voltage data-->
+        <button id="reqdata" onclick='doSend("RAWADC-VOLTAGE")'>Voltage Plot</button><button id="reqdata" onclick='doSend("RAWADC-CURRENT")'>Current Plot</button>
+
+        </p>        
+    
+    <ul>
+                <li ><button class="statuslight" id="MOTOR"></button><text class="labeltxts" >मोटर के लाईट</text> </li>
+            <li>
+            <div class="digitaldisplay" id="MOTORCURRENT">0</div> <label class="labeltxts" >मोटर के करँट(Amp) </label>
+        </li><li><button class="statuslight" id="ACPOWER"></button><text class="labeltxts">बिजली के लाईट</text> </li>
+            <li><div class="digitaldisplay" id="ACVOLTAGE">0</div> <label class="labeltxts" >बिजली के वोल्टेज (V)</label></li><li class=" computer manual sensordependent"><input id="checkautoshutoff" type="checkbox" onchange='autoshutoff()' style="width: 40px;height: 40px;position: absolute;z-index: 0;margin-left: 15px;"><label class="labeltxts" >टंकी भर जाये ता माेटर बँद?</label> </li></ul>
+                </div>
+    <div class="col-4">&nbsp;</div>
+        <div class="col-4 status topright">
+            <ul class="control"><li>
+                <div style="width:50%;float:left;">
+                    <button class="pushbtn buttonpressedeffect computer manual"  onclick="doSend('COMMAND-MOTOR=ON')">चालू</button></div><div style="width:50%;float:right;"><button class="pushbtn buttonpressedeffect" style="background-color:red" onclick="doSend('COMMAND-MOTOR=OFF');handleoffswitch();">बंद</button></div></li>
+            <li><button class="tankbtn" id="TANK1BUTTON" disabled>Tank 1</button>
+                <div class="computer manual" style="padding-left: 3px;padding-right: 3px;"><label class="switch">
+  <input type="checkbox" id="TANKSWITCH" onclick='tankselector()' >
+  <div class="slider tankslider"></div>
+</label>
+                </div>
+                <!--
+<text class="labeltxts" id="TANK"></text>
+<button class="pushbtn buttonpressedeffect" onclick="doSend('COMMAND-TANK='+this.innerHTML)">Tank 1</button><button class="pushbtn buttonpressedeffect" onclick="doSend('COMMAND-TANK='+this.innerHTML)">Tank 2</button>-->
+                <button class="tankbtn"  id="TANK2BUTTON"  disabled >Tank 2</button>
+            
+      </li> </ul> </div>
+        <div class="col-6 menu">
+            <ul>
+                <li class="activesensor" id="listTank1">
+                    <!-- Pressure 1 -->
+                    <!-- Digital display-->
+                    <div class="sublist">
+                        <ul>
+                            <li style="float:right;width:30%;">
+                                <text>
+                                    <tspan class="Psensordisplay" id="tspanPressure1">0</tspan>
+                                </text>
+                                <text>&nbsp;%</text>
+                            </li>
+                            <li style="width:70%;"><div class="tanklevelbg"><div class="tanklevelfg" id="divtank1level">&nbsp;</div></div></li>
+                            <li style="float:right;width:30%;">
+                                <text style="font-size:xx-small;">
+                                    Set Level to fill %
+                                </text>
+                                
+                            </li>
+                            <li class="computer manual tooltip sensordependent" style="width:70%;"><input id="TANK1MANUALHIGHLEVEL" type="range" min="0" max="100" style="width:100%;" onchange='document.getElementById("TANK1MANUALHIGHLEVELTT").innerHTML=this.value;autoshutoff();'><span class="tooltiptext" id="TANK1MANUALHIGHLEVELTT"></span></li> 
+                            <li>
+                                <text>&nbsp;Sensor के समय = </text>
+                                <text>
+                                    <tspan id="timePressure1">0</tspan>
+                                </text>
+                                
+                            </li>
+                                                        <li>
+                                <text>&nbsp;Sensor के battery voltage = </text>
+                                <text>
+                                    <tspan id="batteryLevel1">0</tspan>
+                                </text>
+                                
+                            </li>
+                        </ul>
+                    </div>
+                    <text>
+                        <tspan>Tank 1 के Level </tspan>
+                    </text>
+                </li>
+            </ul>
+        </div>
+            <div class="col-6 menu">
+            <ul>
+                <li class="activesensor" id="listTank2">
+                    <!-- Pressure 2 -->
+                    <!-- Digital display-->
+                    <div class="sublist">
+                        <ul>
+                            <li style="float:right;width:30%;">
+                                <text>
+                                    <tspan class="Psensordisplay" id="tspanPressure2">0</tspan>
+                                </text>
+                                <text>&nbsp;%</text>
+                            </li>
+                            <li style="width:70%;"><div class="tanklevelbg"><div class="tanklevelfg" id="divtank2level">&nbsp;</div></div></li>
+                                                       <li style="float:right;width:30%;">
+                                <text style="font-size:xx-small;">
+                                    Set Level to fill %
+                                </text>
+                                
+                            </li>
+                            <li class="computer manual tooltip sensordependent" style="width:70%;"><input id="TANK2MANUALHIGHLEVEL" type="range" min="0" max="100" style="width:100%;" onchange='document.getElementById("TANK2MANUALHIGHLEVELTT").innerHTML=this.value;autoshutoff();'><span class="tooltiptext" id="TANK2MANUALHIGHLEVELTT"></span></li>
+
+                            <li>
+                                <text>&nbsp;Sensor के समय = </text>
+                                <text>
+                                    <tspan id="timePressure2">0</tspan>
+                                </text>
+                                
+                            </li>
+                            <li>
+                                <text>&nbsp;Sensor के battery voltage = </text>
+                                <text>
+                                    <tspan id="batteryLevel2">0</tspan>
+                                </text>
+                                
+                            </li>
+                        </ul>
+                    </div>
+                    <text>
+                        <tspan>Tank 2 के Level </tspan>
+                    </text>
+                </li>
+            </ul>
+        </div>
+   
+        
+        <div class="col-12">
+    <!--        Tank level plot space-->
+            <div id="9ab6bde0-5a69-4f53-a80c-d2e19447d850" class="plotly-graph-div"></div>
+    </div>
+                <div class="col-12">
+  <!--          Battery level plot space-->
+            <div id="9ab6bde0-5a69-4f53-a80c-d2e19447d851" class="plotly-graph-div"></div>
+    </div>
+     <div class="col-12">
+ <!--        Current and voltage ADC plot space-->
+         
+            <div id="9ab6bde0-5a69-4f53-a80c-d2e19447d852" class="plotly-graph-div"></div>
+    </div>
+<script type="text/javascript">
+
+    
+/*Define global variables*/
+var currPressure1=0;
+var currPressure2=0;
+var SOFTMODE="def";
+var MODE="def";
+var SENSORSTATUS="UP";          
+var SERVERSTATUS="def";
+var rawRMSCurrentADC=999;
+var rawRMSVoltageADC=999;
+var rawSensor1Reading=999;
+var rawSensor2Reading=999;
+var currBatLevel1=5000;
+var currBatLevel2=5000;
+var MOTOR="def"; /*Added on 2/19/18 - global variable to hold motor status - used in manual mode validation - to prevent starting the motor for 30 sec*/
+
+function handleoffswitch(){
+                if (MODE=="COMPUTER")
+                    { if (SOFTMODE=="Auto"){
+                        document.getElementById("SOFTMODE").checked=false;
+                        modeselector();
+                        
+                    }
+                        
+                    }
+            }
+            
+function showhidebuttons(){
+    /* Examine the status of the various modes and show/hide buttons accordingly*/
+   /*
+    if((MODE="COMPUTER")(SOFTMODE="Auto")(SENSOR1STATUS="UP")(SENSOR2STATUS="UP")){
+        
+    }
+    if((MODE="COMPUTER")(SOFTMODE="Auto")(SENSOR1STATUS="UP")(SENSOR2STATUS="UP")){
+    
+} */
+    /*SERVER Connected*/
+    if (SERVERSTATUS=="connected"){
+        document.getElementsByClassName("serverconnected")[0].style.visibility="visible";
+    } else {document.getElementsByClassName("serverconnected")[0].style.visibility="hidden";
+                    var x=document.getElementsByClassName("computer");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+         var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+           /* do not process further if server is not connected */
+            return;
+           }
+    
+    /*Hardware Mode Switch*/
+    if (MODE=="COMPUTER"){
+        var x=document.getElementsByClassName("computer");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "visible";}
+        
+    } else if (MODE=="HUMAN"){
+        var x=document.getElementsByClassName("computer");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+         var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+        return;
+    }
+    
+    /*Software Mode Switch*/
+    if (SOFTMODE=="Manual"){
+        var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "visible";}
+        
+    } else if (SOFTMODE=="Auto"){
+        var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+    }
+    
+    /*either Sensor Down*/
+    if(SENSORSTATUS=="down"){
+        
+      var y=document.getElementsByClassName("sensordependent");
+                    for (n=0;n<y.length;n++){y[n].style.visibility = "hidden";}  
+    }
+    
+    
+}
+            
+            
+function tankselector(){
+    
+    if (document.getElementById("TANKSWITCH").checked){
+       /*doSend('COMMAND-TANK='+this.innerHTML)*/
+        doSend('COMMAND-TANK=Tank 2');
+        document.getElementById("TANK1BUTTON").disabled=true;
+        /*document.getElementById("TANK2BUTTON").disabled=false;
+       
+        document.getElementById("TANKSWITCH").checked=false;*/
+    }
+    else {
+        doSend('COMMAND-TANK=Tank 1');
+        document.getElementById("TANK2BUTTON").disabled=true;
+               /* document.getElementById("TANK2BUTTON").disabled=true;
+       document.getElementById("TANK1BUTTON").disabled=false;
+        document.getElementById("TANKSWITCH").checked=true;*/
+    }
+    
+}
+            
+/*document.getElementById("TANKSWITCH").addEventListener("change",tankselector) ; */
+            
+function modeselector(){
+  
+    if (document.getElementById("SOFTMODE").checked){
+       doSend("SOFTMODE-Auto");
+        document.getElementById("SOFTMODEAUTO").attributes[0].value="softmodeactive";
+        document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmode";
+      /*  document.getElementById("SOFTMODE").checked=true;*/
+    }
+    else {
+        doSend("SOFTMODE-Manual");
+                document.getElementById("SOFTMODEAUTO").attributes[0].value="softmode";
+        document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmodeactive";
+       /* document.getElementById("SOFTMODE").checked=false;*/
+    }
+    
+}
+
+/*document.getElementById("SOFTMODE").addEventListener("change",modeselector);
+
+*/ /* Does not work if the "change" event is being brought upon by another javascript function.
+for eg: input is being switched to "checked" by a function below rather than by clicking
+works if clicking
+doesn't work if changed by a function.
+*/
+            
+
+function returnformattedtime(mytime)
+/* As the name suggest - this function converts unix time into real world time)*/
+
+    {
+            var response=mytime;
+            var date = new Date(parseFloat(response)*1000);
+            var hours = date.getHours();
+
+            var minutes = "0" + date.getMinutes();
+
+            var seconds = "0" + date.getSeconds();
+            var year    = date.getFullYear();
+            var month   = date.getMonth()+1;
+            var day     = date.getDate();
+
+
+            /*var formattedTime =year+'-'+month+'-'+day+' '+ hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);*/
+            var formattedTime =day+'-'+month+'-'+year+' '+ hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+
+        return formattedTime;          
+    }
+
+function returnformattedtimeforplotly(mytime)
+/* As the name suggest - this function converts unix time into real world time)*/
+
+    {
+            var response=mytime;
+            
+            var date = new Date(parseFloat(response)*1000);
+            var hours = date.getHours();
+
+            var minutes = "0" + date.getMinutes();
+
+            var seconds = "0" + date.getSeconds();
+            var year    = date.getFullYear();
+            var month   = date.getMonth()+1;
+            var day     = date.getDate();
+        /*
+
+        if not in year month day hour minute second format - plotly doesn't treat it as time'
+        */
+            var formattedTime =year+'-'+month+'-'+day+' '+ hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+        /*
+            var formattedTime =day+'-'+month+'-'+year+' '+ hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+        */
+        return formattedTime;          
+    }
+
+
+function autoshutoff(){
+ /*   check is motor is on*/
+    if (MOTOR=="ON"){
+                var mymsg="MANUAL-";
+                if(document.getElementById("checkautoshutoff").checked){
+/*                  2/19/18 - user is trying to check  टंकी भर जाये ता माेटर बँद? 
+                Let's evaluate if the motor is on and then the tank switch position and tank level and the set manual high level of the tank
+                  If motor is off and tank switch is tank1 and Tank level is more than TANK1MANUALHIGHLEVEL - then uncheck the टंकी भर जाये ता माेटर बँद? and prompt the user to either change the tank or to increase the TANK1MANUALHIGHLEVEL*/
+                    
+                    /* document.getElementById("TANKSWITCH").checked=true; Tank switch is set to tank 2*/
+/*                    currPressure1 = Tank1 level*/
+                    
+/*                    HOW ABOUT ONLY ALLOWING THIS TO BE CHECKED IF THE MOTOR IS RUNNING
+
+STATUS of this switch - at runtime - is set by a message from the server. This is not a saved setting so it does not survive a script restart cycle. 
+On server side - on requesting manual mode settings - if motor is off -it will set manualmodeshutoff to false. 
+*/
+                    mymsg=mymsg+"MANUALMODESHUTOFF=true,TANK1MANUALHIGHLEVEL="+document.getElementById("TANK1MANUALHIGHLEVEL").value+",TANK2MANUALHIGHLEVEL="+document.getElementById("TANK2MANUALHIGHLEVEL").value;
+                }
+                else {
+                    mymsg=mymsg+"MANUALMODESHUTOFF=false,TANK1MANUALHIGHLEVEL="+document.getElementById("TANK1MANUALHIGHLEVEL").value+",TANK2MANUALHIGHLEVEL="+document.getElementById("TANK2MANUALHIGHLEVEL").value;
+                }
+            
+                doSend(mymsg);
+            }
+    else {
+        
+        alert("पहिले मोटर चालू कईल जाओ !");
+        document.getElementById("checkautoshutoff").checked=false;
+    }
+}
+
+function queryServer2(data)
+/* This function sets the displays with updated values*/
+{
+  
+         
+           var mystring=data; 
+           /*mystring contains data like this 
+          1/21/18 - added battery level
+          1516550505.88,p -27.0,b3987        */   
+        
+          var arr2 = mystring.split(","); /* arr2[0]=1480826411.06 and arr2[1]=l17.49 arr2[2]=b5000*/
+          switch(arr2[1].charAt(0)){
+
+                  case 'P':
+                      currPressure1=arr2[1].slice(1);
+                    tracePy.push(currPressure1);
+                      tracePx.push(returnformattedtimeforplotly(arr2[0]));
+                      document.getElementById("tspanPressure1").textContent = currPressure1;
+                      document.getElementById("timePressure1").innerHTML=returnformattedtime(arr2[0]);
+                        document.getElementById("divtank1level").style.width=currPressure1+"%";
+                      break;
+                  case 'p':
+                      currPressure2=arr2[1].slice(1);
+                    tracepy.push(currPressure2);
+                      tracepx.push(returnformattedtimeforplotly(arr2[0]));
+                      document.getElementById("tspanPressure2").textContent = currPressure2;
+                      document.getElementById("timePressure2").innerHTML=returnformattedtime(arr2[0]);
+                        document.getElementById("divtank2level").style.width=currPressure2+"%";
+                      break;
+                  
+                  default:
+
+            }
+              
+            /*console.log(arr2[2]); // Somehow returns undefined if the level(arr2[1]) value is negative */
+          switch(arr2[2].charAt(0)){
+              case 'B':
+                  currBatLevel1=arr2[2].slice(1);
+/*
+                  console.log(currBatLevel1);
+*/
+                traceBy.push(currBatLevel1);
+                traceBx.push(returnformattedtimeforplotly(arr2[0]));               
+                  document.getElementById("batteryLevel1").textContent = currBatLevel1;
+                  break;
+              case 'b':
+                  currBatLevel2=arr2[2].slice(1);
+/*
+                  console.log(currBatLevel2);
+*/
+                traceby.push(currBatLevel2);
+                tracebx.push(returnformattedtimeforplotly(arr2[0]));
+                  document.getElementById("batteryLevel2").textContent = currBatLevel2;
+                  break;
+              default:
+          
+          }
+          
+          
+          
+          
+ 
+};
+
+function queryServer3(data)
+/* This function queries the server and gets the last hour sensor data from the server to plot*/
+
+            /*Arrays defined as follows in plotly.js 
+            var traceTx = []; var traceTy = [];var tracetx = []; var tracety = [];var traceLx = []; var traceLy = [];var tracelx = []; var tracely = [];var tracePx = []; var tracePy = [];var tracepx = []; var tracepy = [];
+*/            
+            {
+   
+         
+          var mystring=data; 
+           /*mystring contains the dictionary sent by server. Data is like this
+          
+      {'yl': ['17.25', '17.25'], 'xL': ['2016-12-04 01:04:28', '2016-12-04 01:04:36'], 'yt': ['17.83', '17.83']}
+      1/21/18 - for some reason - data is being returned as  - guessing due to client request
+      {u'yl': ['17.25', '17.25'], u'xL': ['2016-12-04 01:04:28', '2016-12-04 01:04:36'], u'yt': ['17.83', '17.83']}
+          
+ */
+       var mystring1=mystring.split("-{")[1].slice(0,-2); /* removes the curly braces and last "]"*/
+    /*    var mystring1=mystring.slice(1,-1);  *//*removes the curly braces*/  
+      
+           
+       /* Match ""],whitespace" */
+        var arr1 = mystring1.split(/\],\s/);
+        
+        
+          /* arr1 = ["'yl': ['17.25', '17.25'" , "'xL': ['2016-12-04 01:04:28', '2016-12-04 01:04:36'" , "'yt': ['17.83', '17.83']" ]*/
+        
+    /*    arr1[arr1.length-1] = arr1[arr1.length-1].slice(0,-1);*/ /* removes the last remaining "]" from the last element*/
+        for(i=0;i<arr1.length;i++){
+       switch(arr1[i].split("[")[0].substr(1,2)){ /*split at "[" gives an array like this ["'yl':" ,  "'17.25', '17.25'"] - 0 index = "'yl' :" - substr between 1 and 2 gives yl*/
+       
+        
+        case 'xT':
+       			
+                var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceTx.push(arr2[j].trim().slice(1,-1));
+                };
+                /*var res0 = arr2[arr2.length-1].trim().slice(1,-1); */
+              
+                
+                
+                break;
+      case 'yT':
+       			
+                 var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceTy.push(arr2[j].trim().slice(1,-1));
+                };
+                break;   
+         case 'xt':
+       			  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracetx.push(arr2[j].trim().slice(1,-1));
+                };
+                break; 
+            case 'yt':
+       			  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracety.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+      case 'xL':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceLx.push(arr2[j].trim().slice(1,-1));
+                };
+                break;   
+         case 'yL':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceLy.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+             case 'xl':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracelx.push(arr2[j].trim().slice(1,-1));
+                };
+                break;   
+         case 'yl':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracely.push(arr2[j].trim().slice(1,-1));
+                };
+                break;    
+        case 'xP':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracePx.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+        case 'yP':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracePy.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+        case 'xp':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracepx.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+        case 'yp':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracepy.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+/*        Battery levels*/
+        case 'xB':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceBx.push(arr2[j].trim().slice(1,-1));
+                
+                };
+                break;
+        case 'yB':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceBy.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+        case 'xb':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  tracebx.push(arr2[j].trim().slice(1,-1));
+                
+               
+                };
+                break;
+        case 'yb':
+       		  var arr2= arr1[i].split("[")[1].split(",");
+                for(j=0;j<arr2.length;j++){
+                  
+                  traceby.push(arr2[j].trim().slice(1,-1));
+                };
+                break;
+        default:
+       };
+        
+       
+        
+        };
+          
+         
+        /* To Do : FIXME - if one of the arrays sent by the server is empty , e.g: xT=[], yT=[] - graph isn't ploted */
+    /*    drawplot(); */
+    
+        };
+ function queryServer4(data){
+     /*
+      Data from server is STATUS-MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto
+        data.split("-")[0]->STATUS - calls this function with data.split("-")[1] as a parameter
+        parameter is basically - mystring ->"MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto"
+        mystring.split(",")[0] -> MODE=Auto - stored as myarray[0]
+        myarray[0].split("=")[0]->MODE
+        myarray[0].split("=")[1]->Auto
+     */
+     var mystring=data;
+     var myarray=mystring.split(",");
+     for (i=0;i<myarray.length;i++){
+         
+         /*document.getElementById(myarray[i].split("=")[0]).innerHTML=myarray[i].split("=")[1];
+        This works if elements are like this
+        
+         </div>
+                <div class="col-12 hide">
+            <text>Mode=</text><text id="MODE"></text><br>
+            <text>Motor=</text><text id="MOTOR"></text><br>
+            <text>AC Power=</text><text id="ACPOWER"></text><br>
+            <text>Tank=</text><text id="TANK"></text><br>
+            <text>Motor Current=</text><text id="MOTORCURRENT"></text><br>
+            <text>AC Voltage=</text><text id="ACVOLTAGE"></text><br>
+        
+        
+        </div>
+        
+        */
+        switch(myarray[i].split("=")[0]){
+            case 'MOTOR':
+                if (myarray[i].split("=")[1]=="ON"){
+                    /* IT ONLY WORKS IF THE FIRST LISTED ATTRIBUTE IS CLASS
+                    <button class="statuslights" id="MOTOR1>
+                    attributes[0].name=class attributes[1].name=id
+                    attributes[0].value=statuslights
+                    Use JS to change the class value
+                    */
+                    document.getElementById("MOTOR").attributes[0].value="activebutton";
+                    MOTOR="ON";
+                    /*var x=document.getElementsByClassName("motoron");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "visible";} */
+                    
+                }
+                else {
+                    document.getElementById("MOTOR").attributes[0].value="statuslight";
+                      /*  var x=document.getElementsByClassName("motoron");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}*/
+                    MOTOR="OFF";
+    /*                Uncheck टंकी भर जाये ता माेटर बँद? when Motor turns off*/
+                    document.getElementById("checkautoshutoff").checked=false;
+                }
+                break;
+            case 'ACPOWER':
+                if (myarray[i].split("=")[1]=="ON"){
+                  
+                    document.getElementById("ACPOWER").attributes[0].value="activebutton";
+                    
+                }
+                else {
+                    document.getElementById("ACPOWER").attributes[0].value="statuslight";
+                }
+                break;
+              
+            case 'MOTORCURRENT':
+                    
+            document.getElementById("MOTORCURRENT").innerHTML=myarray[i].split("=")[1];
+                
+                break;
+            case 'ACVOLTAGE':
+                    
+            document.getElementById("ACVOLTAGE").innerHTML=myarray[i].split("=")[1];
+                
+                break;
+                  
+           
+            case 'MODE':
+                    
+            document.getElementById("MODE").innerHTML=myarray[i].split("=")[1];
+                /*
+                if (myarray[i].split("=")[1]=="HUMAN"){
+                    
+                    var x=document.getElementsByClassName("computer");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+                }
+                else if (myarray[i].split("=")[1]=="COMPUTER"){
+                    var x=document.getElementsByClassName("computer");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "visible";}
+                }*/
+                MODE=myarray[i].split("=")[1];
+                
+                break;
+                
+              case 'SOFTMODE':
+                    
+            if (myarray[i].split("=")[1]=="Auto"){
+                  
+                    document.getElementById("SOFTMODE").checked=true;
+                    document.getElementById("SOFTMODEAUTO").attributes[0].value="softmodeactive";
+                    document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmode";
+                /*    
+                var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "hidden";}
+                    */
+                    
+                }
+                else if(myarray[i].split("=")[1]=="Manual"){
+                    
+                    document.getElementById("SOFTMODE").checked=false;
+                    document.getElementById("SOFTMODEAUTO").attributes[0].value="softmode";
+        document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmodeactive";
+                    
+                    /* Elements belonging to both "manual" and "computer" classes (see above)-
+                    will be set to visibility by the last run script.
+                    Fixing it on the server side? - If in "HUMAN" mode - change the SOFTMODE to MANUAL?
+                    OR
+                    send the MODE value last when sending the status
+                    */
+                    /*
+                                        var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "visible";}
+                    
+                    */
+                    /* Request manual mode shutoff settings*/
+                    doSend("MANUAL-REQUEST");
+                }
+                SOFTMODE=myarray[i].split("=")[1];
+                
+                break;
+                
+             case 'TANK':
+                    
+            if (myarray[i].split("=")[1]=="Tank 2"){
+             document.getElementById("TANKSWITCH").checked=true; 
+                 document.getElementById("TANK2BUTTON").disabled=false;
+       document.getElementById("TANK1BUTTON").disabled=true;
+            }
+                else if (myarray[i].split("=")[1]=="Tank 1"){
+                document.getElementById("TANKSWITCH").checked=false; 
+                     document.getElementById("TANK2BUTTON").disabled=true;
+       document.getElementById("TANK1BUTTON").disabled=false;
+                }
+                
+                break; 
+            
+            case 'ERROR':
+                alert("Error = "+myarray[i].split("=")[1]);
+/*                2/19/18  - In case of an error - if in Auto mode - switch to manual mode
+Will handle it on server side - since there might not always be a client connected when the error takes place.
+*/
+                break;
+            case 'SENSORDOWN':
+               /*Sensor 1 is down*/
+                /*
+                if (myarray[i].split("=")[1]=="1"){
+                    
+                    document.getElementById("listTank1").attributes[0].value="downsensor";
+                    document.getElementById("listTemp1").attributes[0].value="downsensor";
+                    document.getElementById("timePressure1").innerHTML=returnformattedtime(myarray[i+1].split("=")[1]);*/
+                    /*Sensor 2 is down*/
+                /*
+                } else if (myarray[i].split("=")[1]=="2"){
+                    
+                    document.getElementById("listTank2").attributes[0].value="downsensor";
+                    document.getElementById("listTemp2").attributes[0].value="downsensor";
+                     document.getElementById("timePressure2").innerHTML=returnformattedtime(myarray[i+1].split("=")[1]);
+                }
+                */
+                
+                /* Change the sensor backgrounds*/
+                document.getElementById("listTank"+myarray[i].split("=")[1]).attributes[0].value="downsensor";
+                    document.getElementById("listTemp"+myarray[i].split("=")[1]).attributes[0].value="downsensor";
+                    document.getElementById("timePressure"+myarray[i].split("=")[1]).innerHTML=returnformattedtime(myarray[i+1].split("=")[1]);
+                
+                /*SENSORSTATUS  = down*/
+                /*window['SENSOR'+myarray[i].split("=")[1]+'STATUS']="down;" */
+                SENSORSTATUS="down";
+                
+                                /* Switch to Manual mode*/
+                document.getElementById("SOFTMODE").checked=false;
+                document.getElementById("SOFTMODEAUTO").attributes[0].value="softmode";
+                document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmodeactive";
+                    
+                SOFTMODE="Manual";
+                /*Make manual mode elements visible*/
+                
+                /*
+                var x=document.getElementsByClassName("manual");
+                    for (n=0;n<x.length;n++){x[n].style.visibility = "visible";}
+                    
+                    */
+                
+                /* Hide the sensordependent elements*/
+               
+                /*
+                var y=document.getElementsByClassName("sensordependent");
+                    for (n=0;n<y.length;n++){y[n].style.visibility = "hidden";}
+                
+                */
+                
+                /*
+                    document.getElementById("modeswitch").style.visibility = "hidden";
+                    */
+                
+                break;
+            case 'SENSORUP':
+               
+                
+                /* Change the sensor backgrounds to active*/
+                document.getElementById("listTank"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
+                    
+                document.getElementById("listTemp"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
+                    
+
+                
+                break;
+                
+            default:
+            /*document.getElementById(myarray[i].split("=")[0]).innerHTML=myarray[i].split("=")[1];*/
+        }
+     }
+     /* Call showhidebuttons once all the variables are set*/
+    showhidebuttons(); 
+ }
+            
+function requestdata(){
+/*    Although plotcharts function on the server can return all the variables in one go - get it one by one*/
+    var stopts = Math.round((new Date()).getTime() / 1000);
+    var startts = stopts-3600;
+    /*  def plotcharts(inputfile,starttime,endtime,*vars):*/
+    doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-P");
+        doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-p");
+        doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-B");
+        doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-b");
+}      
+            
+function queryServer5(data){
+      if(data=="SAVED"){
+          alert(data);
+      }
+    else {
+     /*
+      Data from server is STATUS-MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto
+        data.split("-")[0]->STATUS - calls this function with data.split("-")[1] as a parameter
+        parameter is basically - mystring ->"MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto"
+        mystring.split(",")[0] -> MODE=Auto - stored as myarray[0]
+        myarray[0].split("=")[0]->MODE
+        myarray[0].split("=")[1]->Auto
+     */
+     var mystring=data;
+     var myarray=mystring.split(",");
+     for (i=0;i<myarray.length;i++){
+         
+         /*document.getElementById(myarray[i].split("=")[0]).innerHTML=myarray[i].split("=")[1];
+        This works if elements are like this
+        
+         </div>
+                <div class="col-12 hide">
+            <text>Mode=</text><text id="MODE"></text><br>
+            <text>Motor=</text><text id="MOTOR"></text><br>
+            <text>AC Power=</text><text id="ACPOWER"></text><br>
+            <text>Tank=</text><text id="TANK"></text><br>
+            <text>Motor Current=</text><text id="MOTORCURRENT"></text><br>
+            <text>AC Voltage=</text><text id="ACVOLTAGE"></text><br>
+        
+        
+        </div>
+        
+        */
+         
+        document.getElementById(myarray[i].split("=")[0]).value=parseFloat(myarray[i].split("=")[1]).toFixed(0);
+        
+        
+     }
+
+     document.getElementById("settingsbox").style.visibility="visible"  ;
+/*    Show the raw readings from HCSR04s by solving TANKLEVEL (%)= ((MINT-sensorvalue)/MINT-MAXT)*100*/
+/*        sensorvalue= (MINT-(Tanklevel/100)*(MINT-MAXT))*/
+       /* document.getElementById("HCSR041").innerHTML=Math.round(document.getElementById("MINT1").value-((currPressure1/100)*(document.getElementById("MINT1").value-document.getElementById("MAXT1").value)));
+        
+          document.getElementById("HCSR042").innerHTML=Math.round(document.getElementById("MINT2").value-((currPressure2/100)*(document.getElementById("MINT2").value-document.getElementById("MAXT2").value)));*/
+        
+        document.getElementById("HCSR041").innerHTML=rawSensor1Reading;
+        document.getElementById("HCSR042").innerHTML=rawSensor2Reading;
+        
+ }   
+    }
+            
+function queryServer8(data){
+      if(data=="SAVED"){
+          alert(data);
+      }
+    else {
+     /*
+      Data from server is STATUS-MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto
+        data.split("-")[0]->STATUS - calls this function with data.split("-")[1] as a parameter
+        parameter is basically - mystring ->"MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto"
+        mystring.split(",")[0] -> MODE=Auto - stored as myarray[0]
+        myarray[0].split("=")[0]->MODE
+        myarray[0].split("=")[1]->Auto
+     */
+     var mystring=data;
+     var myarray=mystring.split(",");
+     for (i=0;i<myarray.length;i++){
+         
+         /*document.getElementById(myarray[i].split("=")[0]).innerHTML=myarray[i].split("=")[1];
+        This works if elements are like this
+        
+         </div>
+                <div class="col-12 hide">
+            <text>Mode=</text><text id="MODE"></text><br>
+            <text>Motor=</text><text id="MOTOR"></text><br>
+            <text>AC Power=</text><text id="ACPOWER"></text><br>
+            <text>Tank=</text><text id="TANK"></text><br>
+            <text>Motor Current=</text><text id="MOTORCURRENT"></text><br>
+            <text>AC Voltage=</text><text id="ACVOLTAGE"></text><br>
+        
+        
+        </div>
+        
+        */
+         
+        document.getElementById(myarray[i].split("=")[0]).value=parseFloat(myarray[i].split("=")[1]).toFixed(2);
+        
+        
+     }
+
+     document.getElementById("calbox").style.visibility="visible"  ;
+    
+/* Show the RMS ADC values for current and voltage by solving ACVOLTAGE=(Vcal/Vadc)*RMSADC*/
+/*  calcRMSADC(val,adc,RMSVal)*/  /*document.getElementById("RMSVADC").innerHTML=calcRMSADC(document.getElementById("Vcal").value,document.getElementById("Vadc").value,document.getElementById("ACVOLTAGE").innerHTML);
+ document.getElementById("RMSCADC").innerHTML=calcRMSADC(document.getElementById("Ccal").value,document.getElementById("Cadc").value,document.getElementById("MOTORCURRENT").innerHTML);*/
+        
+      document.getElementById("RMSVADC").innerHTML=rawRMSVoltageADC;
+        document.getElementById("RMSCADC").innerHTML=rawRMSCurrentADC;
+    }   
+    }
+            
+
+function queryServer9(data){
+    
+/*    raw-RMS=99,99 #RMSCurrentADC,RMSVoltageADC    */
+/*    raw-ADC=99,99 #rawSensor1Reading,rawSensor2Reading    */  
+    /*data="RMS=99,99"*/
+    if(data.split("=")[0]=="RMS"){
+        rawRMSCurrentADC=data.split("=")[1].split(",")[0];
+         rawRMSVoltageADC=data.split("=")[1].split(",")[1];
+        
+    } else if (data.split("=")[0]=="ADC") {
+        
+        rawSensor1Reading=data.split("=")[1].split(",")[0];
+        rawSensor2Reading=data.split("=")[1].split(",")[1];
+    }
+}
+function queryServer6(data){
+     var mystring=data;
+     var myarray=mystring.split(",");
+     for (i=0;i<myarray.length;i++){
+         
+        switch(myarray[i].split("=")[0]){
+         
+            
+            case 'MANUALMODESHUTOFF':
+                
+                if (myarray[i].split("=")[1]=="true"){
+             document.getElementById("checkautoshutoff").checked=true; }
+                
+            else if (myarray[i].split("=")[1]=="false"){
+                
+                document.getElementById("checkautoshutoff").checked=false; 
+            }
+                /* Manual mode shut off check box status*/
+               /* document.getElementById("checkautoshutoff").checked=myarray[i].split("=")[1];*/
+                break;
+            default:
+                /*input slider values */
+                document.getElementById(myarray[i].split("=")[0]).value=parseFloat(myarray[i].split("=")[1]).toFixed(0);
+               
+                /* tool tip text value*/
+                document.getElementById(myarray[i].split("=")[0]+"TT").innerHTML=parseFloat(myarray[i].split("=")[1]).toFixed(0);
+        }
+    
+   
+    }
+}
+     var rawADC=[];
+    var adcCount=[];  
+
+function queryServer7(data){
+rawADC=[];
+adcCount=[]; 
+    /*   data is in the form of [418,729,512,890]*/
+    /*if (typeof data == 'string') data = [data];
+    console.log(typeof data);*/
+    /*rawADC=data.split(",");*/ /*split on "," results in ["[418"," 729"," 512","890]"]*/
+    rawADC=data.slice(1,-1).split(",");
+    
+    for (i=0;i<rawADC.length;i++){
+        adcCount.push(i);
+    
+    }
+    ADCplot();
+    /*console.log(data);*/
+   
+}  
+function calcRMSADC(val,adc,RMSVal){
+return Math.round((parseFloat(RMSVal)*parseFloat(adc))/parseFloat(val));
+
+    
+}
+            
+function savesettings(){
+    /*Maximum 125 characters can be transferred via websocket - problem with python implementation I guess - will fix another time. Modified the code to accomodate all settings with in 125 chars*/
+   /* 
+   //OLD, >125 Chars
+   var savemessage="SAVESETTINGS-HIGHVOLTAGELEVEL=350LOWVOLTAGELEVEL=170HIGHMOTORCURRENT=7TANK1HIGHLEVEL=95TANK1LOWLEVEL=75TANK2HIGHLEVEL=95,1201";*/
+  /* 
+ //New, <125 Chars HVLVL=350,LVLVL=170,T1HLVL=95,T1LLVL=75,MAXT1=590.0,MINT1=199.0,T2HLVL=95,T2LLVL=75,MAXT2=590.0,MINT2=199.0,HMCURR=7*/
+    var savemessage="SAVE-";
+    for(i=0;i<document.getElementById("settingsbox").childElementCount;i++){
+        if(document.getElementById("settingsbox").children[i].nodeName=="INPUT"){
+            savemessage=savemessage+document.getElementById("settingsbox").children[i].id;
+            savemessage=savemessage+"=";
+            savemessage=savemessage+document.getElementById("settingsbox").children[i].value;
+            savemessage=savemessage+",";
+            
+            
+        }
+        
+    }
+    doSend(savemessage);
+}
+function savecal(){
+    /*Maximum 125 characters can be transferred via websocket - problem with python implementation I guess - will fix another time. Modified the code to accomodate all settings with in 125 chars*/
+ /*  offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5*/
+    var calmessage="SAVECAL-";
+    for(i=0;i<document.getElementById("calbox").childElementCount;i++){
+        if(document.getElementById("calbox").children[i].nodeName=="INPUT"){
+            calmessage=calmessage+document.getElementById("calbox").children[i].id;
+            calmessage=calmessage+"=";
+            calmessage=calmessage+document.getElementById("calbox").children[i].value;
+            calmessage=calmessage+",";
+            
+            
+        }
+        
+    }
+    doSend(calmessage);
+}
+ function drawplot(){ 
+     /* to do - if data lengths are not equal - graphs not plotted -option 1 : send equal length data from the server , option 2: chop the data to equal length, non-empty arrays on the client side
+     *** problem is on the client side - JS stopping execution midway
+     */
+     
+  window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("9ab6bde0-5a69-4f53-a80c-d2e19447d850", [{"y": tracePy, "x": tracePx, "type": "scatter", "name": "Tank 1","mode":"markers"}, {"y": tracepy, "x": tracepx, "type": "scatter", "name": "Tank 2","mode":"markers"}], {"xaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}, "yaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}}, {"linkText": "Export to plot.ly", "showLink": false})
+ };
+
+ function batteryplot(){ 
+     /* to do - if data lengths are not equal - graphs not plotted -option 1 : send equal length data from the server , option 2: chop the data to equal length, non-empty arrays on the client side
+     *** problem is on the client side - JS stopping execution midway
+     */
+     
+  window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("9ab6bde0-5a69-4f53-a80c-d2e19447d851", [{"y": traceBy, "x": traceBx, "type": "scatter", "name": "Sensor 1 Battery","mode":"markers"}, {"y": traceby, "x": tracebx, "type": "scatter", "name": "Sensor 2 Battery","mode":"markers"}], {"xaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}, "yaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}}, {"linkText": "Export to plot.ly", "showLink": false})
+ };
+ function ADCplot(){ 
+     /* to do - if data lengths are not equal - graphs not plotted -option 1 : send equal length data from the server , option 2: chop the data to equal length, non-empty arrays on the client side
+     *** problem is on the client side - JS stopping execution midway
+     */
+     
+  window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("9ab6bde0-5a69-4f53-a80c-d2e19447d852", [{"y": rawADC, "x": adcCount, "type": "scatter", "name": "ADC"}], {"xaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}, "yaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}}, {"linkText": "Export to plot.ly", "showLink": false})
+ };
+/*var q = setInterval(queryServer2, 10000); */
+
+/*var q = setInterval(drawplot, 600000);*/ /*draw plot every 10 mins*/
+/* ]]> */
+
+  
+
+ /* test*/
+  
+        </script>
+        <script type="text/javascript">
+            
+/*window.removeEventListener("resize");*/
+window.addEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d850"));});
+window.removeEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d850"));});
+            
+window.addEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d851"));});
+window.removeEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d851"));});
+            
+window.addEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d852"));});
+window.removeEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d852"));});
+ 
+        </script>
+        </div>
+    </body>
+</html>
