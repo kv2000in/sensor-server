@@ -3,7 +3,6 @@
 
 WiFiClient client;
 
-
 // WiFi credentials.
 const char* WIFI_SSID = "****";
 const char* WIFI_PASS = "******";
@@ -17,7 +16,7 @@ const int   port = 9999;            // TCP Server Port
 // For flashing - power the board with separate 5V power supply. Connect the gnd, rx, tx from USB serial to the programming board, flash mode is activated by holding GPIO 0 to ground at power on OR RESET (taking reset to GND)
 //**************************************************
 
-int HCSR04SwitchPin = 12; 
+int HCSR04SwitchPin = 12; //Takes the ground of HCSR04 to ground via a transistor - powersaving feature
 int batteryVoltage;   
 int R1=986;
 int R2=298;
@@ -98,7 +97,7 @@ void setup() {
 
   Serial.println("Device Started");
   Serial.println("-------------------------------------");
-  Serial.println("Running Deep Sleep Firmware!");
+  Serial.println("Running Deep Sleep Firmware! 1-13-19");
   Serial.println("-------------------------------------");
 //Todo: Connect HCSR04 vcc (5v) via a GPIO (3.3v) and a transistor so that HCSR04 is not using quiescent current when not in use
 //HCSR04SwitchPin is connected to the base of the transistor. HY-SRF05 - much stable readings. (1/20/18)
