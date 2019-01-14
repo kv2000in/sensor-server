@@ -435,18 +435,16 @@ def worker_sensorthread(client_socket):
 				SENSOR1TIME=currtime
 				raw_Sensor_1_Reading=sensorvalue.split(':')[1]
 				battery1level=str(sensorvalue.split(':')[2])
-				message2=str(SENSOR1TIME)+',P '+TANK1LEVEL[:-1]+',B'+battery1level
+				message2=u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL[:1]+u',B'+str(battery1level)
 		if (sensorvalue.split(':')[0]=="2"):
 				TANK2LEVEL=str (round((((MINT2-float(sensorvalue.split(':')[1]))/(MINT2-MAXT2))*100),1))+"%"
 				#TANK2LEVEL=sensorvalue.split(':')[1]+"%" # For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
 				SENSOR2TIME=currtime
 				raw_Sensor_2_Reading=sensorvalue.split(':')[1]
 				battery2level=str(sensorvalue.split(':')[2])
-				message2=str(SENSOR2TIME)+',p '+TANK2LEVEL[:-1]+',b'+battery2level
-		message = 'SensorData-'+message2
+				message2=u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL[:1]+u',b'+str(battery2level)
 		for ws in clients:
-			#ws.sendMessage(message)
-			ws._sendMessage(False, TEXT, message)
+			ws.sendMessage(message2)
 		#Instead of saving raw values - save the calculated Tank levels. (Raw values have no meaning without full, empty settings).
 		fobj = open("/home/pi/sensordata", 'a')
 		fobj.write(message2)
@@ -1054,19 +1052,16 @@ class SimpleChat(WebSocket):
 			self.close()
 			#print "Attempted to connect"
 		else:
-		#print self.address, 'connected'
-			#for client in clients:
-			#	client.sendMessage(self.address[0] + u' - connected')
 			clients.append(self)
-		#self._sendMessage(False, TEXT, "Hello")
-		#self.sendMessage(u'LastHourData-'+str(plotcharts("./sensordata",(time.time()-3600),time.time(),"T","l","L","t")))
-			self.sendMessage(u'STATUS-ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
-			message2=str(SENSOR1TIME)+',P '+TANK1LEVEL[:-1]+',B'+battery1level
-			message = 'SensorData-'+message2
-			self._sendMessage(False, TEXT, message)
-			message2=str(SENSOR2TIME)+',p '+TANK2LEVEL[:-1]+',b'+battery2level
-			message = 'SensorData-'+message2
-			self._sendMessage(False, TEXT, message)
+			try:
+				self.sendMessage(u'STATUS-ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
+				self.sendMessage(u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL[:1]+u',B'+str(battery1level))
+				self.sendMessage(u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL[:1]+u',b'+str(battery2level))
+			except Exception as e:
+				if hasattr(e, 'message'):
+					print(e.message)
+				else:
+					print(e)
 	def handleClose(self):
 		try:
 			clients.remove(self)
