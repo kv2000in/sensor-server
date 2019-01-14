@@ -4,7 +4,7 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "****";
+const char* WIFI_SSID = "******";
 const char* WIFI_PASS = "******";
 const char* host = "192.168.1.110";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
@@ -13,12 +13,13 @@ const int   port = 9999;            // TCP Server Port
 //Need to change Resistance values, static IP addresses, add wifi credentials, double check server IP address and port and First char ("1 or 2") when flashing it into different sensor nodes
 //Sensor 1 R1=986k , R2 = 298k; Sensor 2 R1=974k, R2 = 296k Sensor 3 R1=1001k, R2 = 298K Sensor 4 R1=990k, R2 = 298k
 //Sensor 1 static IP 192.168.1.201, sensor 2 static IP 192.168.1.202 snd so on
-// For flashing - power the board with separate 5V power supply. Connect the gnd, rx, tx from USB serial to the programming board, flash mode is activated by holding GPIO 0 to ground at power on OR RESET (taking reset to GND)
+//For flashing - power the board with separate 5V power supply. Connect the gnd, rx, tx from USB serial to the programming board, flash mode is activated by holding GPIO 0 to ground at power on OR RESET (taking reset to GND)
+//ESP201 boards are 1M flash, DIO, 40 MHz
 //**************************************************
 
 int HCSR04SwitchPin = 12; //Takes the ground of HCSR04 to ground via a transistor - powersaving feature
 int batteryVoltage;   
-int R1=986;
+int R1=990;
 int R2=298;
 #define TRIGGER_PIN  4  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     5  // Arduino pin tied to echo pin on the ultrasonic sensor.
@@ -31,7 +32,7 @@ NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and
 //Total 13 bytes needed - [1-_999-_3222\0] - Gave 14 to prevent buffer overflow
 
 //First 1 and '-' are already initialized
-char str[14] = {'1',':',' ',' ',' ',' ',':',' ',' ',' ',' ',' ','\0'};
+char str[14] = {'2',':',' ',' ',' ',' ',':',' ',' ',' ',' ',' ','\0'};
 
 
 
@@ -50,7 +51,7 @@ void connect() {
  // WiFi.mode(WIFI_OFF);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  WiFi.config(IPAddress(192,168,1,203), IPAddress(192,168,1,2), IPAddress(255,255,255,0),IPAddress(192,168,1,2));
+  WiFi.config(IPAddress(192,168,1,204), IPAddress(192,168,1,2), IPAddress(255,255,255,0),IPAddress(192,168,1,2));
   unsigned long wifiConnectStart = millis();
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -95,7 +96,7 @@ void setup() {
   // Wait for serial to initialize.
   while (!Serial) { }
 
-  Serial.println("Device Started");
+  Serial.println("Device Started-I am sensor node # 4");
   Serial.println("-------------------------------------");
   Serial.println("Running Deep Sleep Firmware! 1-13-19");
   Serial.println("-------------------------------------");
@@ -129,7 +130,7 @@ batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
   //Close the socket - server is closing after one receive at the moment so it may not be necessary to close by the client
   client.stop();
  // Serial.println(millis()-currentmillis); //=1489
-  Serial.println("Going into deep sleep for 30 seconds");
+  Serial.println("Going into deep sleep for 30 seconds. RST has to be tied to GPIO16 for wakeup");
  ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
   //ESP.deepSleep(2e6); // 20e6 is 20 microseconds
 }
