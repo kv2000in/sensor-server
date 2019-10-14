@@ -81,11 +81,11 @@ PONG = 0xA
 clients = []
 # Define GPIO Pins - these are hard wired - changing these will require respldering the appropriate pins
 GPIO.setmode(GPIO.BCM)
-STATUSMODE=5 # Computer vs Human (High = Computer). THis is a hardware switch on the board
-STATUSAC=20 # High = AC Power present
-STATUSMOTOR=21 # High = Motor Running
-STATUSTANK1=12 # High = Tank1 solenoid valve on
-STATUSTANK2=16 # High = Tank2 solenoid valve on
+STATUSMODE=5 # Computer vs Human (High = Human). THis is a hardware switch on the board
+#STATUSAC=20 # High = AC Power present
+#STATUSMOTOR=21 # High = Motor Running
+STATUSTANK1=20 # Low = Tank1 actuator valve in on position 
+STATUSTANK2=21 # Low = Tank2 actuator valve in on position
 SWSTARTPB=13 # High = start PB pressed
 SWSTOPPB=19# High = stop PB pressed
 SWTANK=26  # High = Tank1, Low = Tank2
@@ -197,9 +197,9 @@ def init_status():
 	global MOTOR
 	global TANK
 	if (GPIO.input(STATUSMODE)==1):
-		MODE="COMPUTER"
-	else:
 		MODE="HUMAN"
+	else:
+		MODE="COMPUTER"
 	#Active low - goes from 3.3V to 0 on activated - 2/19/18 - Back up method added in myanalogread function - comment out GPIO detection (ACTUALLY - NO NEED TO COMMENT OUT - JUST DON'T CONNECT ANYTHING TO GPIOS) and comment in the back up method - to activate
 	if (GPIO.input(STATUSAC)==0):
 		ACPOWER="ON"
@@ -221,9 +221,9 @@ def init_status():
 def modeswitch(channel):
 	global MODE
 	if (GPIO.input(STATUSMODE)==1):
-		MODE="COMPUTER"
-	else:
 		MODE="HUMAN"
+	else:
+		MODE="COMPUTER"
 	sendchangedstatus("MODE="+MODE)
 #Function called by change in STATUSAC GPIO
 def acpowerswitch(channel):
@@ -258,6 +258,7 @@ def sendchangedstatus(mymsg):
 		ws.sendMessage(u'STATUS-'+mymsg)
 		#ws._sendMessage(False, TEXT, message)
 #Adding bouncetime leads to undefined state in case of fast switching
+#October 2019 - added RC circuit on hardware board to deal with signal bounce
 #GPIO.add_event_detect(STATUSMODE, GPIO.BOTH, callback=modeswitch, bouncetime=30)
 GPIO.add_event_detect(STATUSMODE, GPIO.BOTH, callback=modeswitch)
 GPIO.add_event_detect(STATUSAC, GPIO.BOTH, callback=acpowerswitch)
