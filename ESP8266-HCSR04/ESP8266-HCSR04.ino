@@ -1,6 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <NewPing.h>
-
+//#include <ArduinoOTA.h> // See below for comments from Feb 2020
 WiFiClient client;
 
 // WiFi credentials.
@@ -133,6 +133,43 @@ batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
   Serial.println("Going into deep sleep for 30 seconds. RST has to be tied to GPIO16 for wakeup");
  ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
   //ESP.deepSleep(2e6); // 20e6 is 20 microseconds
+
+// Feb 2020 - trying to add Over the air update. Major problem is  - device is in deep sleep and wakes up and runs the setup. so, wont work unless timing is perfect. 
+// May lead to increased battery consumption.
+//Here is the OTA code just for reference
+
+ /* ************OTA********************* */
+ /* 
+    // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  // ArduinoOTA.setHostname("myesp8266");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword((const char *)"123");
+   
+   ArduinoOTA.onStart([]() {
+    Serial1.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial1.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial1.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial1.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial1.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial1.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial1.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial1.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial1.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  */
+/****************************************************/  
+
 }
 void loop() {
 
