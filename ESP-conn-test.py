@@ -3,6 +3,7 @@
 #
 import socket
 import threading
+from datetime import datetime
 
 bind_ip = ''
 bind_port = 9999
@@ -30,6 +31,7 @@ def handle_client_connection(client_socket):
 while True:
 	try:
 		client_sock, address = server.accept()
+		print datetime.now()
 		print 'Accepted connection from {}:{}'.format(address[0], address[1])
 		client_handler = threading.Thread(
 			target=handle_client_connection,
