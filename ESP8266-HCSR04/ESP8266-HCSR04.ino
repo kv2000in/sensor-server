@@ -4,8 +4,8 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "******";
-const char* WIFI_PASS = "******";
+const char* WIFI_SSID = "***";
+const char* WIFI_PASS = "****";
 const char* host = "192.168.1.110";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -98,18 +98,23 @@ void setup() {
 
   Serial.println("Device Started-I am sensor node # 4");
   Serial.println("-------------------------------------");
-  Serial.println("Running Deep Sleep Firmware! 1-13-19");
+  Serial.println("Running Deep Sleep Firmware! 4-3-21");
   Serial.println("-------------------------------------");
 //Todo: Connect HCSR04 vcc (5v) via a GPIO (3.3v) and a transistor so that HCSR04 is not using quiescent current when not in use
 //HCSR04SwitchPin is connected to the base of the transistor. HY-SRF05 - much stable readings. (1/20/18)
 //Should it be turned on after the wifi connection has been made?
 //It takes about 7.5 seconds to connect to wifi - total 8.5 to 9.5 seconds per loop
 //By giving static IP address - whole loop completed in 2.5-3 sec
+//Using US-100 now. Temp compensated and not dependent on power supply. However, power on reset is a problem. Zero value readings when running using the transistor switch.
+//When US-100 is on all the time (by connecting GND to System GND instead of via transistor) - stable readings. 
+// Testing if the delay after the transistor switches on - needs to be increased to get a reading otherwise - will leave it in always on mode.
+//Doesn't seem to use a whole of current when always on but definitely drains the battery quicker
+//Even with 1000 ms delay - still reading 0 when switched on via transistor
 
 pinMode(HCSR04SwitchPin,OUTPUT);
 digitalWrite(HCSR04SwitchPin,HIGH);
 connect();
-delay(100);
+delay(1000);
   //ADC*(1.1/1024) will give the Vout at the voltage divider
   //V=(Vout*((R1+R2)/R2))*1000 miliVolts
 batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
