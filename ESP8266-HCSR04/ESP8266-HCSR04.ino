@@ -4,8 +4,8 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "***";
-const char* WIFI_PASS = "****";
+const char* WIFI_SSID = "****";
+const char* WIFI_PASS = "*****";
 const char* host = "192.168.1.110";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -24,8 +24,8 @@ int R2=298;
 #define TRIGGER_PIN  4  // Arduino pin tied to trigger pin on the ultrasonic sensor.
 #define ECHO_PIN     5  // Arduino pin tied to echo pin on the ultrasonic sensor.
 #define MAX_DISTANCE 300 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
-long cm;
-NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
+long cm,duration;
+//NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE); // NewPing setup of pins and maximum distance.
 
 
 
@@ -119,7 +119,34 @@ delay(1000);
   //V=(Vout*((R1+R2)/R2))*1000 miliVolts
 batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
   // convert the time into a distance
-  cm = ((sonar.ping_median(5))/2) / 29.1;
+
+//HR-SC04 
+   // The sensor is triggered by a HIGH pulse of 10 or more microseconds.
+  // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
+  digitalWrite(TRIGGER_PIN, LOW);
+  delayMicroseconds(5);
+  digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(20);
+  digitalWrite(TRIGGER_PIN, LOW);
+ delayMicroseconds(20);
+   digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(20);
+  digitalWrite(TRIGGER_PIN, LOW);
+ delayMicroseconds(20);
+ 
+  // Read the signal from the sensor: a HIGH pulse whose
+  // duration is the time (in microseconds) from the sending
+  // of the ping to the reception of its echo off of an object.
+  pinMode(ECHO_PIN, INPUT);
+  duration = pulseIn(ECHO_PIN, HIGH);
+ 
+  // convert the time into a distance
+  cm = (duration/2) / 29.1;
+ 
+  
+  
+  
+  //cm = ((sonar.ping_median(5))/2) / 29.1;
   //convert int to ASCII and put it in the char array - adds '\0' at the end so string terminates after this - even if there is more stuff after this in the array
   itoa( cm, str+2, 10 );
   int length = strlen(str);
