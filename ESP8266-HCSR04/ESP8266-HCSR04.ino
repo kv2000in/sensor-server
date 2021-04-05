@@ -4,9 +4,9 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "****";
-const char* WIFI_PASS = "*****";
-const char* host = "192.168.1.110";  // TCP Server IP
+const char* WIFI_SSID = "*****";
+const char* WIFI_PASS = "****";
+const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
 //*************************************************
@@ -110,29 +110,30 @@ void setup() {
 // Testing if the delay after the transistor switches on - needs to be increased to get a reading otherwise - will leave it in always on mode.
 //Doesn't seem to use a whole of current when always on but definitely drains the battery quicker
 //Even with 1000 ms delay - still reading 0 when switched on via transistor
+//Turns out - its not really 0. it reads 1145-1148 = 68000 us pulse width. When no echo is detected - US-100 returns a pulse width of 68 ms duration - 88 ms after the trigger.
+//HW modificatio to directly connect the GND of US-100 to Powersupply - thus keeping it always on (transistor - no longer being used).
+//Sending one single trigger pulse of 50 us. At times it does get stuck reading 1145 for some reason but reads smaller distances like 33. Once it starts reading the echoes - it doesn't get re-stuck.
+//When ESP wakes up from deep sleep - it sets the trigger_pin (GPIO 4) high for 680 us. Since the US-100 module is always on - this might be seen as a "trigger" and might be causing some issues.
+//Using the Serial interface - can get both temperature as well as distance. Going to implement that.
 
-pinMode(HCSR04SwitchPin,OUTPUT);
-digitalWrite(HCSR04SwitchPin,HIGH);
+digitalWrite(TRIGGER_PIN, LOW);
+pinMode(TRIGGER_PIN, OUTPUT);
+
+//pinMode(HCSR04SwitchPin,OUTPUT);
+//digitalWrite(HCSR04SwitchPin,HIGH);
 connect();
-delay(1000);
+delay(50);
   //ADC*(1.1/1024) will give the Vout at the voltage divider
   //V=(Vout*((R1+R2)/R2))*1000 miliVolts
 batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
   // convert the time into a distance
 
-//HR-SC04 
+//US-100 
    // The sensor is triggered by a HIGH pulse of 10 or more microseconds.
-  // Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
-  digitalWrite(TRIGGER_PIN, LOW);
-  delayMicroseconds(5);
+
   digitalWrite(TRIGGER_PIN, HIGH);
-  delayMicroseconds(20);
+  delayMicroseconds(50);
   digitalWrite(TRIGGER_PIN, LOW);
- delayMicroseconds(20);
-   digitalWrite(TRIGGER_PIN, HIGH);
-  delayMicroseconds(20);
-  digitalWrite(TRIGGER_PIN, LOW);
- delayMicroseconds(20);
  
   // Read the signal from the sensor: a HIGH pulse whose
   // duration is the time (in microseconds) from the sending
