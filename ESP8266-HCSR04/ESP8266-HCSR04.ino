@@ -1,12 +1,12 @@
 
 #include <ESP8266WiFi.h>
-
+#include <SoftwareSerial.h>
 //#include <ArduinoOTA.h> // See below for comments from Feb 2020
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "****";
-const char* WIFI_PASS = "****";
+const char* WIFI_SSID = "88888";
+const char* WIFI_PASS = "00003";
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -17,7 +17,7 @@ const int   port = 9999;            // TCP Server Port
 //For flashing - power the board with separate 5V power supply. Connect the gnd, rx, tx from USB serial to the programming board, flash mode is activated by holding GPIO 0 to ground at power on OR RESET (taking reset to GND)
 //ESP201 boards are 1M flash, DIO, 40 MHz
 //**************************************************
-
+SoftwareSerial swSer;
 int batteryVoltage;   
 int R1=990;
 int R2=298;
@@ -69,36 +69,36 @@ Serial.println("WiFi Connected");
 
 unsigned int get_distance_via_serial()
 {
-    Serial.flush();                               // clear receive buffer of serial port
-    Serial.write(0X55);                           // trig US-100 begin to measure the distance
+    swSer.flush();                               // clear receive buffer of serial port
+    swSer.write(0X55);                           // trig US-100 begin to measure the distance
     delay(500);                                   // delay 500ms to wait result
-    if(Serial.available() >= 2)                   // when receive 2 bytes 
+    if(swSer.available() >= 2)                   // when receive 2 bytes 
     {
-        HighLen = Serial.read();                   // High byte of distance
-        LowLen  = Serial.read();                   // Low byte of distance
+        HighLen = swSer.read();                   // High byte of distance
+        LowLen  = swSer.read();                   // Low byte of distance
         Len_mm  = HighLen*256 + LowLen;            // Calculate the distance
 
     }
 
      if((Len_mm > 1) && (Len_mm < 1000))       // normal distance should between 1mm and 10000mm (1mm, 10m)
         {
-           delay(10);                                    // wait 500ms
-  return Len_mm/10;
+  //         delay(10);                                    // wait 500ms
+  //return Len_mm/10;
         }
-        else 
-        return 999;
-    
+       // else 
+        //return 999;
+    return Len_mm/10;
 
 }
 
 int get_temp_via_serial()
 {
-    Serial.flush();       // clear receive buffer of serial port
-    Serial.write(0X50);   // trig US-100 begin to measure the temperature
+    swSer.flush();       // clear receive buffer of serial port
+    swSer.write(0X50);   // trig US-100 begin to measure the temperature
     delay(500);            //delay 500ms to wait result
-    if(Serial.available() >= 1)            //when receive 1 bytes 
+    if(swSer.available() >= 1)            //when receive 1 bytes 
     {
-        Temperature45 = Serial.read();     //Get the received byte (temperature)
+        Temperature45 = swSer.read();     //Get the received byte (temperature)
         if((Temperature45 > 1) && (Temperature45 < 130))   //the valid range of received data is (1, 130)
         {
             Temperature45 -= 45;                           //Real temperature = Received_Data - 45
@@ -162,12 +162,17 @@ void setup() {
   Serial.begin(9600);
   // connect RX (Pin 0 of Arduino digital IO) to Echo/Rx (US-100), TX (Pin 1 of Arduino digital IO) to Trig/Tx (US-100) 
   //Baudrate 9600 for comm with US-100
-  
+
+ swSer.begin(9600, SWSERIAL_8N1, ECHO_PIN, TRIGGER_PIN, false, 95, 11); 
+
+ //void SoftwareSerial::begin(uint32_t baud, SoftwareSerialConfig config, int8_t rxPin, int8_t txPin, bool invert, int bufCapacity, int isrBufCapacity)
+
+//https://github.com/plerup/espsoftwareserial/blob/master/src/SoftwareSerial.h
 connect();
 delay(50);
 //senddata();
-  
- //ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
+// delay(50); 
+// ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
   //ESP.deepSleep(2e6); // 20e6 is 20 microseconds
 
 
@@ -177,4 +182,5 @@ void loop() {
 
 senddata();
 delay(10000);
+swSer.println("Data Sent");
 }
