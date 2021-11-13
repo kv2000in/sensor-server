@@ -5,8 +5,8 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "88888";
-const char* WIFI_PASS = "00003";
+const char* WIFI_SSID = "SanatanDharma";
+const char* WIFI_PASS = "lanka183";
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -66,8 +66,41 @@ Serial.println("WiFi Connected");
   
    
 }
+void triggersensor(){
+  digitalWrite(TRIGGER_PIN, LOW);
+pinMode(TRIGGER_PIN, OUTPUT);
+delay(10);
+  digitalWrite(TRIGGER_PIN, HIGH);
+  delayMicroseconds(50);
+  digitalWrite(TRIGGER_PIN, LOW);
+  }
 
-unsigned int get_distance_via_serial()
+unsigned int get_distance_via_triggerecho()
+{
+ long duration =0;
+  int maxcyclecount = 5; 
+  int cyclecount = 0;
+   while ((duration==0) && (cyclecount<maxcyclecount))
+   
+   {
+   triggersensor();
+ 
+  // Read the signal from the sensor: a HIGH pulse whose
+  // duration is the time (in microseconds) from the sending
+  // of the ping to the reception of its echo off of an object.
+  pinMode(ECHO_PIN, INPUT);
+  long duration = pulseIn(ECHO_PIN, HIGH);
+ 
+ delay(10);
+    cyclecount++;
+   }
+  // convert the time into a distance
+return (duration/2) / 29.1;
+
+    
+}
+
+unsigned int get_distance_via_swserial()
 {
     swSer.flush();                               // clear receive buffer of serial port
     swSer.write(0X55);                           // trig US-100 begin to measure the distance
@@ -80,18 +113,59 @@ unsigned int get_distance_via_serial()
 
     }
 
-     if((Len_mm > 1) && (Len_mm < 1000))       // normal distance should between 1mm and 10000mm (1mm, 10m)
-        {
-  //         delay(10);                                    // wait 500ms
-  //return Len_mm/10;
-        }
-       // else 
-        //return 999;
+
+    return Len_mm/10;
+
+}
+
+
+
+unsigned int get_distance_via_serial()
+{
+   int cyclecount=0;
+   int maxcyclecount=5;
+   
+   while ((Len_mm==0) && (cyclecount<maxcyclecount)) 
+   {
+    Serial.flush();                               // clear receive buffer of serial port
+    Serial.write(0X55);                           // trig US-100 begin to measure the distance
+    delay(500);                                   // delay 500ms to wait result
+    if(Serial.available() >= 2)                   // when receive 2 bytes 
+    {
+        HighLen = Serial.read();                   // High byte of distance
+        LowLen  = Serial.read();                   // Low byte of distance
+        Len_mm  = HighLen*256 + LowLen;            // Calculate the distance
+
+    }
+   cyclecount++;
+   delay(50);
+   
+   }  
+
     return Len_mm/10;
 
 }
 
 int get_temp_via_serial()
+{
+   Serial.flush();       // clear receive buffer of serial port
+    Serial.write(0X50);   // trig US-100 begin to measure the temperature
+    delay(500);            //delay 500ms to wait result
+    if(Serial.available() >= 1)            //when receive 1 bytes 
+    {
+        Temperature45 = Serial.read();     //Get the received byte (temperature)
+        if((Temperature45 > 1) && (Temperature45 < 130))   //the valid range of received data is (1, 130)
+        {
+            Temperature45 -= 45;                           //Real temperature = Received_Data - 45
+          
+        }
+    }
+    
+    delay(10);                            //delay 500ms
+  return Temperature45;
+}
+
+int get_temp_via_swserial()
 {
     swSer.flush();       // clear receive buffer of serial port
     swSer.write(0X50);   // trig US-100 begin to measure the temperature
