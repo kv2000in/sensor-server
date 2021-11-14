@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		2A2591ED2741B542001CE4F1 /* Atmega328-US100 */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Atmega328-US100"; sourceTree = "<group>"; };
+		2A2591EE2741C4FA001CE4F1 /* ESP8266-US100 */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "ESP8266-US100"; sourceTree = "<group>"; };
 		2A5A58C521EC10C0001653D3 /* sensorsettings */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettings; sourceTree = "<group>"; };
 		2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = ADCcalibrationbakup; sourceTree = "<group>"; };
 		2A5A58C721EC10C0001653D3 /* tcpserver-test.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "tcpserver-test.py"; sourceTree = "<group>"; };
@@ -26,6 +28,8 @@
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
+				2A2591EE2741C4FA001CE4F1 /* ESP8266-US100 */,
+				2A2591ED2741B542001CE4F1 /* Atmega328-US100 */,
 				2A5A58CC21EC10C1001653D3 /* Adccalibration */,
 				2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */,
 				2A5A58C921EC10C0001653D3 /* adctest */,
