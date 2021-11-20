@@ -5,8 +5,8 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "***";
-const char* WIFI_PASS = "***";
+const char* WIFI_SSID = "**";
+const char* WIFI_PASS = "**";
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -47,7 +47,7 @@ unsigned long wifiConnectStart = millis();
 while (WiFi.status() != WL_CONNECTED) {
 // Check to see if
 if (WiFi.status() == WL_CONNECT_FAILED) {
-Serial.println("WiFi Connection Failed");
+swSer.println("WiFi Connection Failed");
 delay(10000);
 }
 
@@ -55,14 +55,14 @@ delay(500);
 
 // Only try for 5 seconds.
 if (millis() - wifiConnectStart > 15000) {
-Serial.println("WiFi Stopped Trying");
+swSer.println("WiFi Stopped Trying");
 return;
 }
 
 }
 
 
-Serial.println("WiFi Connected");
+swSer.println("WiFi Connected");
 
 
 }
@@ -209,7 +209,7 @@ batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
 char str[20] = {'2',':'};
 //cm = ((sonar.ping_median(5))/2) / 29.1;
 //convert int to ASCII and put it in the char array - adds '\0' at the end so string terminates after this - even if there is more stuff after this in the array
-itoa( get_distance_via_swserial(), str+2, 10 );
+itoa( get_distance_via_serial(), str+2, 10 );
 int alength = strlen(str);
 str[alength]=':';
 //Add the vcc value after ':'
@@ -217,10 +217,13 @@ itoa( batteryVoltage, str+alength+1, 10 ); // for some reason +1 outputs starnge
 int blength = strlen(str);
 str[blength]=':';
 //Add the temp value after ':'
-itoa( get_temp_via_swserial(), str+blength+1, 10 );
+itoa( get_temp_via_serial(), str+blength+1, 10 );
 
-
+swSer.println(str);
 client.print(str);
+
+swSer.println("sent");
+
 delay(5);
 //Close the socket - server is closing after one receive at the moment so it may not be necessary to close by the client
 client.stop();
