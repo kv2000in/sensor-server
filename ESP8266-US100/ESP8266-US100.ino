@@ -5,8 +5,8 @@
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "**";
-const char* WIFI_PASS = "**";
+const char* WIFI_SSID = "88";
+const char* WIFI_PASS = "88";
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -47,7 +47,7 @@ unsigned long wifiConnectStart = millis();
 while (WiFi.status() != WL_CONNECTED) {
 // Check to see if
 if (WiFi.status() == WL_CONNECT_FAILED) {
-swSer.println("WiFi Connection Failed");
+Serial.println("WiFi Connection Failed");
 delay(10000);
 }
 
@@ -55,14 +55,14 @@ delay(500);
 
 // Only try for 5 seconds.
 if (millis() - wifiConnectStart > 15000) {
-swSer.println("WiFi Stopped Trying");
+Serial.println("WiFi Stopped Trying");
 return;
 }
 
 }
 
 
-swSer.println("WiFi Connected");
+Serial.println("WiFi Connected");
 
 
 }
@@ -102,17 +102,25 @@ return (duration/2) / 29.1;
 
 unsigned int get_distance_via_swserial()
 {
+int cyclecount=0;
+int maxcyclecount=5;
+
+while ((Len_mm==0) && (cyclecount<maxcyclecount)) 
+{
 swSer.flush();                               // clear receive buffer of serial port
 swSer.write(0X55);                           // trig US-100 begin to measure the distance
 delay(500);                                   // delay 500ms to wait result
 if(swSer.available() >= 2)                   // when receive 2 bytes 
 {
-HighLen = swSer.read();                   // High byte of distance
-LowLen  = swSer.read();                   // Low byte of distance
+HighLen = Serial.read();                   // High byte of distance
+LowLen  = Serial.read();                   // Low byte of distance
 Len_mm  = HighLen*256 + LowLen;            // Calculate the distance
 
 }
+cyclecount++;
+delay(50);
 
+}  
 
 return Len_mm/10;
 
@@ -209,7 +217,7 @@ batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
 char str[20] = {'2',':'};
 //cm = ((sonar.ping_median(5))/2) / 29.1;
 //convert int to ASCII and put it in the char array - adds '\0' at the end so string terminates after this - even if there is more stuff after this in the array
-itoa( get_distance_via_serial(), str+2, 10 );
+itoa( get_distance_via_swserial(), str+2, 10 );
 int alength = strlen(str);
 str[alength]=':';
 //Add the vcc value after ':'
@@ -217,12 +225,12 @@ itoa( batteryVoltage, str+alength+1, 10 ); // for some reason +1 outputs starnge
 int blength = strlen(str);
 str[blength]=':';
 //Add the temp value after ':'
-itoa( get_temp_via_serial(), str+blength+1, 10 );
+itoa( get_temp_via_swserial(), str+blength+1, 10 );
 
-swSer.println(str);
+Serial.println(str);
 client.print(str);
 
-swSer.println("sent");
+Serial.println("sent");
 
 delay(5);
 //Close the socket - server is closing after one receive at the moment so it may not be necessary to close by the client
@@ -232,7 +240,9 @@ client.stop();
 void turnonsensormodule(){
 digitalWrite(HCSR04SwitchPin,HIGH);
 }
-
+void turnoffsensormodule(){
+digitalWrite(HCSR04SwitchPin,LOW);
+}
 void setup() {
 
 //Has to be moved to setup for it to compile
@@ -252,9 +262,11 @@ swSer.begin(9600, SWSERIAL_8N1, ECHO_PIN, TRIGGER_PIN, false, 95, 11);
 //https://github.com/plerup/espsoftwareserial/blob/master/src/SoftwareSerial.h
 connect();
 turnonsensormodule();
-delay(2000);
+delay(100);
 senddata();
 delay(50); 
+turnoffsensormodule()
+delay(20);
 ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
 //ESP.deepSleep(2e6); // 20e6 is 20 microseconds
 
