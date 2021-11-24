@@ -1,12 +1,17 @@
-
+/*
+Serial uses UART0, which is mapped to pins GPIO1 (TX) and GPIO3 (RX). 
+Serial may be remapped to GPIO15 (TX) and GPIO13 (RX) by calling Serial.swap() after Serial.begin. 
+Calling swap again maps UART0 back to GPIO1 and GPIO3.
+http://arduino.esp8266.com/Arduino/versions/2.1.0-rc2/doc/reference.html#serial
+*/
 #include <ESP8266WiFi.h>
 #include <SoftwareSerial.h>
 //#include <ArduinoOTA.h> // See below for comments from Feb 2020
 WiFiClient client;
 
 // WiFi credentials.
-const char* WIFI_SSID = "88";
-const char* WIFI_PASS = "88";
+const char* WIFI_SSID = "**";
+const char* WIFI_PASS = "**";
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
@@ -47,7 +52,7 @@ unsigned long wifiConnectStart = millis();
 while (WiFi.status() != WL_CONNECTED) {
 // Check to see if
 if (WiFi.status() == WL_CONNECT_FAILED) {
-Serial.println("WiFi Connection Failed");
+swSer.println("WiFi Connection Failed");
 delay(10000);
 }
 
@@ -55,14 +60,14 @@ delay(500);
 
 // Only try for 5 seconds.
 if (millis() - wifiConnectStart > 15000) {
-Serial.println("WiFi Stopped Trying");
+swSer.println("WiFi Stopped Trying");
 return;
 }
 
 }
 
 
-Serial.println("WiFi Connected");
+swSer.println("WiFi Connected");
 
 
 }
@@ -112,8 +117,8 @@ swSer.write(0X55);                           // trig US-100 begin to measure the
 delay(500);                                   // delay 500ms to wait result
 if(swSer.available() >= 2)                   // when receive 2 bytes 
 {
-HighLen = Serial.read();                   // High byte of distance
-LowLen  = Serial.read();                   // Low byte of distance
+HighLen = swSer.read();                   // High byte of distance
+LowLen  = swSer.read();                   // Low byte of distance
 Len_mm  = HighLen*256 + LowLen;            // Calculate the distance
 
 }
@@ -217,7 +222,7 @@ batteryVoltage = ((analogRead(A0)*(1.1/1024))*((R1+R2)/R2))*1000;
 char str[20] = {'2',':'};
 //cm = ((sonar.ping_median(5))/2) / 29.1;
 //convert int to ASCII and put it in the char array - adds '\0' at the end so string terminates after this - even if there is more stuff after this in the array
-itoa( get_distance_via_swserial(), str+2, 10 );
+itoa( get_distance_via_serial(), str+2, 10 );
 int alength = strlen(str);
 str[alength]=':';
 //Add the vcc value after ':'
@@ -225,12 +230,12 @@ itoa( batteryVoltage, str+alength+1, 10 ); // for some reason +1 outputs starnge
 int blength = strlen(str);
 str[blength]=':';
 //Add the temp value after ':'
-itoa( get_temp_via_swserial(), str+blength+1, 10 );
+itoa( get_temp_via_serial(), str+blength+1, 10 );
 
-Serial.println(str);
+swSer.println(str);
 client.print(str);
 
-Serial.println("sent");
+swSer.println("sent");
 
 delay(5);
 //Close the socket - server is closing after one receive at the moment so it may not be necessary to close by the client
@@ -252,6 +257,9 @@ void setup() {
 Serial.begin(9600);
 // connect RX (Pin 0 of Arduino digital IO) to Echo/Rx (US-100), TX (Pin 1 of Arduino digital IO) to Trig/Tx (US-100) 
 //Baudrate 9600 for comm with US-100
+delay(50);
+Serial.swap(); //GPIO15 (TX) and GPIO13 (RX)
+delay(50);
 pinMode(HCSR04SwitchPin,OUTPUT);
 pinMode(ECHO_PIN,INPUT);
 pinMode(TRIGGER_PIN,OUTPUT); 
@@ -265,7 +273,7 @@ turnonsensormodule();
 delay(100);
 senddata();
 delay(50); 
-turnoffsensormodule()
+turnoffsensormodule();
 delay(20);
 ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
 //ESP.deepSleep(2e6); // 20e6 is 20 microseconds
