@@ -42,11 +42,11 @@ WiFiClient client;
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 const int maxmillistotryfortcp = 4000;
-char mydata[64];
+char mydata[16];
 bool dataavailable = false;
 
 void onDataReceiver(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
- memcpy(mydata,incomingData,64);
+ memcpy(mydata,incomingData,16);
  dataavailable = true;
 }
 void sendDataviaTCP(char * datatobesent){
@@ -57,7 +57,8 @@ delayMicroseconds(100000);
 if (client.connected()){
 
 
-client.print(datatobesent);
+//client.print(datatobesent); - Only sends partial data - stopping if it encounters \00 or \r or \n I guess
+client.write(datatobesent,16); //Better to use - this. Verified with wireshark.
 client.stop();
  
 }

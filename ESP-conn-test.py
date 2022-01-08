@@ -2,8 +2,12 @@
 # -*- coding: utf-8 -*-
 #
 import socket
+import struct
 import threading
 from datetime import datetime
+
+
+global request
 
 bind_ip = ''
 bind_port = 9999
@@ -12,13 +16,15 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind((bind_ip, bind_port))
 server.listen(5)  # max backlog of connections
-
 print 'Listening on {}:{}'.format(bind_ip, bind_port)
 
 
 def handle_client_connection(client_socket):
-	request = client_socket.recv(1024)
-	print 'Received {}'.format(request)
+	global request
+	request = client_socket.recv(16)
+	#encoded_string = request.encode()
+	#byte_array = bytearray(encoded_string)
+	#print byte_array
 	'''
 	fobj = open("/home/om/leveldata", 'a')
 	fobj.write(request)
@@ -27,6 +33,7 @@ def handle_client_connection(client_socket):
 	'''
 	client_socket.send('ACK!')
 	client_socket.close()
+	print struct.unpack('cccccchhhxxxx',request)
 
 while True:
 	try:
