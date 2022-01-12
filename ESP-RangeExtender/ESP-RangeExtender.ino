@@ -41,7 +41,7 @@ netDump(Serial, data, len);
 WiFiClient client;
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
-const int maxmillistotryfortcp = 4000;
+const int maxmillistotryfortcp = 200;
 char mydata[16];
 bool dataavailable = false;
 
