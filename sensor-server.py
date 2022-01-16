@@ -38,10 +38,13 @@
 					#Check the sensor down logic.
 					# Turn off the motor - in case of an error in auto mode.
 					# ALSO - We are not using the optocouplers for detection of AC status and Motor running status. We are using the voltmeter and currentmeter "Backup" method since it needed less hardware to implement.
+#Jan 2022 - analogreadthread - turned off - for debugging
+
+
 import time
 import os
 import shutil
-import datetime
+import datetime 
 import RPi.GPIO as GPIO
 import smbus
 import math
@@ -50,7 +53,10 @@ import socket
 from threading import Thread
 import BaseHTTPServer
 from SimpleWebSocketServer import SimpleWebSocketServer, WebSocket
+import binascii
+import struct
 
+mylocationdir="/home/pi/Downloads/sensor-server/"
 # Import SPI library (for hardware SPI) and MCP3008 library.
 import Adafruit_GPIO.SPI as SPI
 import Adafruit_MCP3008
@@ -70,6 +76,9 @@ commandQ=[]
 # global value for plotchart
 mydict ={}
 
+#MAC Addresses of sensornodes
+macaddr1="5ccf7f1754d1"
+macaddr2="68c63af45996"
 #WebSocket OPCODES
 STREAM = 0x0
 TEXT = 0x1
@@ -82,10 +91,10 @@ clients = []
 # Define GPIO Pins - these are hard wired - changing these will require respldering the appropriate pins
 GPIO.setmode(GPIO.BCM)
 STATUSMODE=5 # Computer vs Human (High = Human). THis is a hardware switch on the board
-#STATUSAC=20 # High = AC Power present
-#STATUSMOTOR=21 # High = Motor Running
-STATUSTANK1=20 # Low = Tank1 actuator valve in on position 
-STATUSTANK2=21 # Low = Tank2 actuator valve in on position
+STATUSAC=20 # High = AC Power present #Jan 2022 - was commented out but now gives error that STAUSAC no defined
+STATUSMOTOR=21 # High = Motor Running #Jan 2022 - was commented out but now gives error that STAUSMOTOR no defined
+STATUSTANK1=15 # Low = Tank1 actuator valve in on position  #Jan 2022 - this was 20 which conflicted with STATUSAC (? wasn't a problem earlier-see comments below)
+STATUSTANK2=16 # Low = Tank2 actuator valve in on position   #Jan 2022 - this was 21 which conflicted with STATUSMOTOR (? wasn't a problem earlier-see comments below)
 SWSTARTPB=13 # High = start PB pressed
 SWSTOPPB=19# High = stop PB pressed
 SWTANK=26  # High = Tank1, Low = Tank2
@@ -148,17 +157,18 @@ T1HLVL=95
 T2LLVL=75 # less than this % value - switch tank or motor on
 T2HLVL=95
 
-TANK1LEVEL="999%" # Define Tank level variable - initial value
-TANK2LEVEL="999%"
+TANK1LEVEL="999" # Define Tank level variable - initial value
+TANK2LEVEL="999"
 
+timebetweensensordata = 20 # Time in seconds - if the same sensor sends data with less than this much time gap from previous data - ignore that data
 SENSORTIMEOUT=60 # Time in seconds - for which if the sensor hasn't posted data - it will be considered to be "Down"
 
 #SENSOR1TIME=time.time()-SENSORTIMEOUT # Define initial update time for the sensors#
 #SENSOR2TIME=time.time()-SENSORTIMEOUT# 60 seconds prior to start of the script - so that - if sensor is down at the runtime-auto mode won't progress
 #2/19/18 updates - global sensor status - start with assumption that sensors are down.
 #3-6-18 - due to sensor being down - even if saved softmode is auto - it switched to manual. hence start with sensors being up.
-SENSOR1TIME=time.time()
-SENSOR2TIME=time.time()
+SENSOR1TIME=time.time()# OR datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+SENSOR2TIME=time.time()# OR datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 #SO in the beginning both sensors are assumed to be down - as soon as a sensor reading is received - it will be set to True 
 IsSENSOR1UP=True
 IsSENSOR2UP=True
@@ -174,6 +184,9 @@ raw_Sensor_2_Reading=999
 #Defining global battery levels
 battery1level=5000
 battery2level=5000
+#Defining global temp levels
+TANK1temp=10
+TANK2temp=10
 #Arrays to hold rawADC values
 sampleVArray=[]
 sampleIArray=[]
@@ -357,24 +370,24 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 			modheader=s.headers.get('If-Modified-Since',"")
 			#Is the client requesting the home page
 			if (s.path=="/"):
-				if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi/sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
+				if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+"sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
 					with open('/home/pi/sensor.html','r') as myfile:
 						s.send_response(200)
 						s.send_header("Content-type", "text/html")
 						s.send_header("Cache-Control","private")
 						s.send_header("Cache-Control","max-age=31536000")
-						s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi/sensor.html")).strftime('%c'))
+						s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+"sensor.html")).strftime('%c'))
 						myfiledescriptors=os.fstat(myfile.fileno())
 						s.send_header("Content-Length", str(myfiledescriptors.st_size))
 						s.end_headers()
 						shutil.copyfileobj(myfile, s.wfile)
 					myfile.close()
-				elif (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi/sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
+				elif (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+"sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
 					s.send_response(304)
 			#So not requesting the home page - hence
 			else:
 				# First determine if file exists
-				if (os.path.isfile("/home/pi"+s.path)):
+				if (os.path.isfile(mylocationdir+s.path)):
 					#File exists - solve the content type based on requested extenstion
 					try:
 						if (s.path.split(".")[1] == ""):
@@ -390,19 +403,19 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 					except IndexError:
 						mytype="text/plain" 
 					#Now Check if modheaders present etc.
-					if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi"+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
-						with open("/home/pi"+s.path,'r') as myfile:
+					if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
+						with open(mylocationdir+s.path,'r') as myfile:
 							s.send_response(200)
 							s.send_header("Content-type", mytype)
 							s.send_header("Cache-Control","private")
 							s.send_header("Cache-Control","max-age=31536000")
-							s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi"+s.path)).strftime('%c'))
+							s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+s.path)).strftime('%c'))
 							myfiledescriptors=os.fstat(myfile.fileno())
 							s.send_header("Content-Length", str(myfiledescriptors.st_size))
 							s.end_headers()
 							shutil.copyfileobj(myfile, s.wfile)
 						myfile.close()
-					elif (((datetime.datetime.fromtimestamp(os.path.getmtime("/home/pi"+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
+					elif (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
 						s.send_response(304)
 				# Requested file doesn't exist
 				else:
@@ -411,8 +424,6 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 			s.send_error(404,'File Not Found: %s' % s.path)
 ###SENSOR VALUES ARE RECEIVED, SAVED and UPDATED by THIS FUNCTION
 def worker_sensorthread(client_socket):
-	#print "Thread started"
-	#radio.startListening()
 	global TANK1LEVEL
 	global TANK2LEVEL
 	global SENSOR1TIME
@@ -421,69 +432,124 @@ def worker_sensorthread(client_socket):
 	global raw_Sensor_2_Reading
 	global battery1level
 	global battery2level
-	
+	global TANK1temp
+	global TANK2temp
 	if (client_socket):
-		request = client_socket.recv(1024)
-		#print 'Received {}'.format(request)
-		#1:54:3230 = sensornode:distance in cms:vcc
+		request = client_socket.recv(512)
+		#Data arrives as multiples of 16 bytes - 6 bytes of MAC Addr, 2 bytes Short Int/'h' Distance, 2 bytes temp and 2 bytes battery voltage, 4 bytes zeroes padding
+		#initially had it as 16 instead of 512. If data comes directly from sensors via tcp - always 16 bytes. if it comes via ESP-NOW nodes - it could be multiples of 16 due to re-transmissions.
 		client_socket.close()
 		currtime=time.time()
-		sensorvalue=request
-		if (sensorvalue.split(':')[0]=="1"):
-				#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-				TANK1LEVEL=str (round((((MINT1-float(sensorvalue.split(':')[1]))/(MINT1-MAXT1))*100),1))+"%"
-				#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
+		strcurrtime = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(currtime))
+		if (binascii.hexlify(request[0:6])==macaddr1):
+			#check if we just received data from the same macaddr
+			if(currtime-SENSOR1TIME>timebetweensensordata):
 				SENSOR1TIME=currtime
-				raw_Sensor_1_Reading=sensorvalue.split(':')[1]
-				battery1level=str(sensorvalue.split(':')[2])
-				message2=u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL[:1]+u',B'+str(battery1level)
-		if (sensorvalue.split(':')[0]=="2"):
-				TANK2LEVEL=str (round((((MINT2-float(sensorvalue.split(':')[1]))/(MINT2-MAXT2))*100),1))+"%"
-				#TANK2LEVEL=sensorvalue.split(':')[1]+"%" # For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
+				#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
+				TANK1LEVEL=str (round((((MINT1-float(struct.unpack('h',request[6:8])[0]))/(MINT1-MAXT1))*100),1))
+				#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
+				raw_Sensor_1_Reading=struct.unpack('h',request[6:8])[0]
+				battery1level=str(struct.unpack('h',request[10:12])[0])
+				TANK1temp = str(struct.unpack('h',request[8:10])[0])
+				message2=u'SensorData-'+strcurrtime+u',P '+TANK1LEVEL+u',B'+battery1level+u',T'+TANK1temp
+				message1=strcurrtime+'|P|'+TANK1LEVEL+'|B|'+battery1level+'|T|'+TANK1temp
+		elif (binascii.hexlify(request[0:6])==macaddr2):
+			if(currtime-SENSOR1TIME>timebetweensensordata):
 				SENSOR2TIME=currtime
-				raw_Sensor_2_Reading=sensorvalue.split(':')[1]
-				battery2level=str(sensorvalue.split(':')[2])
-				message2=u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL[:1]+u',b'+str(battery2level)
+				#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
+				TANK2LEVEL=str (round((((MINT2-float(struct.unpack('h',request[6:8])[0]))/(MINT2-MAXT2))*100),1))
+				#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
+				raw_Sensor_2_Reading=struct.unpack('h',request[6:8])[0]
+				battery2level=str(struct.unpack('h',request[10:12])[0])
+				TANK2temp = str(struct.unpack('h',request[8:10])[0])
+				message2=u'SensorData-'+strcurrtime+u',p '+TANK2LEVEL+u',b'+battery2level+u',t'+TANK2temp
+				message1=strcurrtime+'|p|'+TANK2LEVEL+'|b|'+battery2level+'|t|'+TANK2temp
 		for ws in clients:
 			ws.sendMessage(message2)
-		#Instead of saving raw values - save the calculated Tank levels. (Raw values have no meaning without full, empty settings).
-		fobj = open("/home/pi/sensordata", 'a')
-		fobj.write(message2)
-		fobj.write('\n')
-		fobj.close()
-		'''
-		pipe = [0]
-		if (radio.available(pipe, False)):
-			#print "Radio available" 
-			currtime=time.time()
-			recv_buffer = []
-			radio.read(recv_buffer)
-			sensorvalue=array.array('B',recv_buffer).tostring().strip('\x00')
-			fobj = open("./sensordata", 'a')
-			fobj.write(str(currtime))
-			fobj.write(",")
-			fobj.write(sensorvalue)
-			fobj.write('\n')
-			fobj.close() 
-			#Let's store tank levels as global variables
-			#Something to use as sensor node heartbeat is needed.
-			message = 'SensorData-'+str(currtime)+','+sensorvalue 
-			if (sensorvalue.split()[0]=="P"):
-					#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-					#TANK1LEVEL=str (round((((float(sensorvalue.split()[1])-MINT1)/(MAXT1-MINT1))*100),1))+"%"
-					TANK1LEVEL=sensorvalue.split()[1]+"%"# For sending RAW ADC OUTPUT TO CLIENT FOR CALIBRATION
-					SENSOR1TIME=currtime
-					message = 'SensorData-'+str(currtime)+',P '+TANK1LEVEL[:-1]
-			if (sensorvalue.split()[0]=="p"):
-					#TANK2LEVEL=str (round((((float(sensorvalue.split()[1])-MINT2)/(MAXT2-MINT2))*100),1))+"%"
-					TANK2LEVEL=sensorvalue.split()[1]+"%" # For sending RAW ADC OUTPUT TO CLIENT FOR CALIBRATION
-					SENSOR2TIME=currtime
-					message = 'SensorData-'+str(currtime)+',p '+TANK2LEVEL[:-1]
+		savesensordatatofile(message1)
+		if (len(request)>16):
+			nofchunks=len(request)/16
+			i=0
+			while i < nofchunks:
+				if (binascii.hexlify(request[0+i*16:6+i*16])!=binascii.hexlify(request[0:6])):
+					if (binascii.hexlify(request[0+i*16:6+i*16])==macaddr1):
+						#check if we just received data from the same macaddr
+						if(currtime-SENSOR1TIME>timebetweensensordata):
+							SENSOR1TIME=currtime
+							#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
+							TANK1LEVEL=str (round((((MINT1-float(struct.unpack('h',request[6:8])[0]))/(MINT1-MAXT1))*100),1))
+							#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
+							raw_Sensor_1_Reading=struct.unpack('h',request[6+i*16:8+i*16])[0]
+							battery1level=str(struct.unpack('h',request[10+i*16:12+i*16])[0])
+							TANK1temp = str(struct.unpack('h',request[8+i*16:10+i*16])[0])
+							message2=u'SensorData-'+strcurrtime+u',P '+TANK1LEVEL+u',B'+battery1level+u',T'+TANK1temp
+							message1=strcurrtime+'|P|'+TANK1LEVEL+'|B|'+battery1level+'|T|'+TANK1temp
+					elif (binascii.hexlify(request[0+i*16:6+i*16])==macaddr2):
+						if(currtime-SENSOR1TIME>timebetweensensordata):
+							SENSOR2TIME=currtime
+							#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
+							TANK2LEVEL=str (round((((MINT2-float(struct.unpack('h',request[6+i*16:8+i*16])[0]))/(MINT2-MAXT2))*100),1))
+							#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
+							raw_Sensor_2_Reading=struct.unpack('h',request[6+i*16:8+i*16])[0]
+							battery2level=str(struct.unpack('h',request[10+i*16:12+i*16])[0])
+							TANK2temp = str(struct.unpack('h',request[8+i*16:10+i*16])[0])
+							message2=u'SensorData-'+strcurrtime+u',p '+TANK2LEVEL+u',b'+battery2level+u',t'+TANK2temp
+							message1=strcurrtime+'|p|'+TANK2LEVEL+'|b|'+battery2level+'|t|'+TANK2temp
+					for ws in clients:
+							ws.sendMessage(message2)
+					savesensordatatofile(message1)
+					break
+				i+=1
+
+def savesensordatatofile(formattedsensordata):
+	fobj = open(mylocationdir+"sensordata"+time.strftime("%Y-%m-%d",time.localtime()), 'a+')
+	fobj.write(formattedsensordata)
+	fobj.write('\n')
+	fobj.close()
+#Request for plot will come as which sensor, starttime, stoptime.
+#open the file with name sensordata+startdate name, read lines, seek until time is >time from starttime
+#read line by line - if sensor matches the sensor requested - push the time and value data in the list
+#reached EOF but time>stoptime - open next file sensordata+startdate+1 name and start reading lines.
+# uniformly date time format yyyy-mm-dd hh:mm:ss seems to work
+#request comes as STOREDDATA#2021-02-26 09:47:52#2021-02-26 10:47:52#t#a#A
+#return data as "t$2021-02-20 21:04:33|-1.09,2021-02-20 21:04:41|-1.08,"
+def sendstoreddata(data):
+	vars=[]
+	mytempdataholdingdict={} #get all the data in a list and send it to javascript in chunks of "numberofdatapoints" length
+	mystarttimedatetimeformat=datetime.strptime(data.split("#")[1],"%Y-%m-%d %H:%M:%S")
+	myendtimedatetimeformat=datetime.strptime(data.split("#")[2],"%Y-%m-%d %H:%M:%S")
+	mystartdate=mystarttimedatetimeformat.date()
+	vars=data.split('#')[3:]
+	for sensorid in vars:
+		mytempdataholdingdict[sensorid]=""
+	try:
+		while (myendtimedatetimeformat.date()>=mystartdate):
+			if os.path.exists(mylocationdir+"sensordata"+str(mystartdate)):
+				with open(mylocationdir+"sensordata"+str(mystartdate),"r") as fobj:
+					for myline in fobj:
+						myline=myline.strip()
+						mystoreddatetime=myline.split("|")[0]
+						mystoredsensor=myline.split("|")[1]
+						mystoredsensorvalue=myline.split("|")[2]
+						if (datetime.strptime(mystoreddatetime,"%Y-%m-%d %H:%M:%S")>mystarttimedatetimeformat):
+							for sensorid in vars:
+								if (mystoredsensor==sensorid):
+									mytempdataholdingdict[sensorid]+=mystoreddatetime+"|"+mystoredsensorvalue+","
+			mystartdate+=timedelta(days=1)
+		for sensorid in vars:
+			mymessagetosend = sensorid+"#"+mytempdataholdingdict[sensorid]
 			for ws in clients:
-				#ws.sendMessage(message)
-				ws._sendMessage(False, TEXT, message)
-'''
-		#time.sleep(1)
+				ws.sendMessage(u'StoredData='+mymessagetosend.strip(","))
+	except Exception as e:
+			if hasattr(e, 'message'):
+				print(e.message)
+				for ws in clients:
+					ws.sendMessage(u'Error='+e.message)
+			else:
+				print(e)
+			pass
+
+
 
 ### This function can return chunks of data from the saved sensordata file - useful for plotting by clients - not in use as of 2/19/18
 def plotcharts(inputfile,starttime,endtime,*vars):
@@ -793,7 +859,7 @@ def calibrationhandler(vals,operation):
 	if (operation=="bakup"):
 		#Create Bakup of existing calibration
 		#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
-		sobj = open("/home/pi/ADCcalibrationbakup", 'w')
+		sobj = open(mylocationdir+"ADCcalibrationbakup", 'w')
 		sobj.write("offsetI="+str(offsetI)+",")
 		sobj.write("offsetV="+str(offsetV)+",")
 		sobj.write("Vcal="+str(VoltCalibrate)+",")
@@ -817,7 +883,7 @@ def calibrationhandler(vals,operation):
 			CurrentCalibrate=float(valsdict['Ccal'])
 			CadcValue=float(valsdict['Cadc'])
 		#Save the values for next run
-		sobj = open("/home/pi/Adccalibration", 'w')
+		sobj = open(mylocationdir+"ADCcalibration", 'w')
 		sobj.write("offsetI="+str(offsetI)+",")
 		sobj.write("offsetV="+str(offsetV)+",")
 		sobj.write("Vcal="+str(VoltCalibrate)+",")
@@ -826,7 +892,7 @@ def calibrationhandler(vals,operation):
 		sobj.write("Cadc="+str(CadcValue))
 		sobj.close()
 	if (operation=="load"):
-		sobj = open("/home/pi/Adccalibration", 'r')
+		sobj = open(mylocationdir+"ADCcalibration", 'r')
 		valsdata=sobj.readline()
 		valsdict={}
 		#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
@@ -841,7 +907,7 @@ def calibrationhandler(vals,operation):
 		CadcValue=float(valsdict['Cadc'])
 		sobj.close()
 	if (operation=="revert"):
-		sobj = open("/home/pi/ADCcalibrationbakup", 'r')
+		sobj = open(mylocationdir+"ADCcalibrationbakup", 'r')
 		valsdata=sobj.readline()
 		valsdict={}
 		for eachval in valsdata.split(","): 
@@ -870,7 +936,7 @@ def settingshandler(settings,operation):
 	global MINT2
 	if (operation=="bakup"):
 		#Create Bakup of existing settings
-		sobj = open("/home/pi/sensorsettingsbakup", 'w')
+		sobj = open(mylocationdir+"sensorsettingsbakup", 'w')
 		sobj.write("SOFTMODE="+str(SOFTMODE)+",")
 		sobj.write("HVLVL="+str(HVLVL)+",")
 		sobj.write("HMCURR="+str(HMCURR)+",")
@@ -904,7 +970,7 @@ def settingshandler(settings,operation):
 			MINT1=float(settingsdict['MINT1'])
 			MINT2=float(settingsdict['MINT2'])
 		#Save the values for next run
-		sobj = open("/home/pi/sensorsettings", 'w')
+		sobj = open(mylocationdir+"sensorsettings", 'w')
 		sobj.write("SOFTMODE="+str(SOFTMODE)+",")
 		sobj.write("HVLVL="+str(HVLVL)+",")
 		sobj.write("HMCURR="+str(HMCURR)+",")
@@ -919,7 +985,7 @@ def settingshandler(settings,operation):
 		sobj.write("MINT2="+str(MINT2))
 		sobj.close()
 	if (operation=="load"):
-		sobj = open("/home/pi/sensorsettings", 'r')
+		sobj = open(mylocationdir+"sensorsettings", 'r')
 		settingsdata=sobj.readline()
 		settingsdict={}
 		for eachsetting in settingsdata.split(","): 
@@ -939,7 +1005,7 @@ def settingshandler(settings,operation):
 		MINT2=float(settingsdict['MINT2'])
 		sobj.close()
 	if (operation=="revert"):
-		sobj = open("/home/pi/sensorsettingsbakup", 'r')
+		sobj = open(mylocationdir+"sensorsettingsbakup", 'r')
 		settingsdata=sobj.readline()
 		settingsdict={}
 		for eachsetting in settingsdata.split(","): 
@@ -1056,8 +1122,8 @@ class SimpleChat(WebSocket):
 			clients.append(self)
 			try:
 				self.sendMessage(u'STATUS-ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
-				self.sendMessage(u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL[:1]+u',B'+str(battery1level))
-				self.sendMessage(u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL[:1]+u',b'+str(battery2level))
+				self.sendMessage(u'SensorData-'+str(SENSOR1TIME)+u',P '+TANK1LEVEL+u',B'+battery1level+u',T'+TANK1temp)
+				self.sendMessage(u'SensorData-'+str(SENSOR2TIME)+u',p '+TANK2LEVEL+u',b'+battery2level+u',t'+TANK2temp)
 			except Exception as e:
 				if hasattr(e, 'message'):
 					print(e.message)
@@ -1114,7 +1180,7 @@ def error_handler(calling_function_name,data):
 	if (SOFTMODE=="Auto"):
 		SOFTMODE="Manual"
 		sendchangedstatus("SOFTMODE='+SOFTMODE")
-	fobj = open("/home/pi/errorlog", 'a')
+	fobj = open(mylocationdir+"errorlog", 'a')
 	fobj.write(str(time.asctime()))
 	fobj.write(",")
 	fobj.write(calling_function_name)
@@ -1127,7 +1193,8 @@ def error_handler(calling_function_name,data):
 #LCD screen Defining functions
 ######################################
 # Define some device parameters
-I2C_ADDR  = 0x27 # I2C device address
+#I2C_ADDR  = 0x27 # I2C device address # Jan 2022 - device marked 2 - address = 0x3F . i2cdetect -l , i2cdetect -y 1
+I2C_ADDR  = 0x3F
 LCD_WIDTH = 16   # Maximum characters per line
 
 # Define some device constants
@@ -1458,25 +1525,25 @@ if __name__ == '__main__':
 		#Check initial GPIO statuses - added 2/19/18
 		init_status()
 		t1=Thread(target=TCPserverthread)  
-		t2=Thread(target=servarthread)
+		#t2=Thread(target=servarthread)
 		t3=Thread(target=websocketservarthread)
-		t4=Thread(target=analogreadthread)
+		#t4=Thread(target=analogreadthread)
 		t5=Thread(target=commandthread)
 		t6=Thread(target=autothread)
 		t7=Thread(target=watchdogthread)
 		#Daemon - means threads will exit when the main thread exits
 		t1.daemon=True
-		t2.daemon=True
+		#t2.daemon=True
 		t3.daemon=True
-		t4.daemon=True
+		#t4.daemon=True
 		t5.daemon=True
 		t6.daemon=True
 		t7.daemon=True
 		#Start the threads 
 		t1.start()
-		t2.start()
+		#t2.start()
 		t3.start()
-		t4.start()
+		#t4.start()
 		t5.start()
 		t6.start()
 		t7.start()
@@ -1503,11 +1570,11 @@ if __name__ == '__main__':
 				servarthread.httpd.server_close()
 				print "http server closed"
 				'''
-				t2.join #servarthread
+				#t2.join #servarthread
 				websocketservarthread.server.close()
 				print "websocket closed"
 				t3.join #websocketservarthread
-				t4.join #analogreadthread - has runningflag
+				#t4.join #analogreadthread - has runningflag
 				t5.join #commandthread - has runningflag
 				t6.join	#autothread - has runningflag
 				t7.join # watchdogthread - has runningflag

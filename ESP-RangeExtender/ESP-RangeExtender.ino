@@ -42,30 +42,29 @@ WiFiClient client;
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 const int maxmillistotryfortcp = 200;
-char mydata[16];
+char mydata[512]; //Create a 64 byte "ring buffer" to handle 16 byte data arriving from up to 4 nodes
 bool dataavailable = false;
-
+int mydatapointer=0; //increase the pointer by 16 everytime data arrives, send data via tcp and reset to zero.
 void onDataReceiver(uint8_t * mac, uint8_t *incomingData, uint8_t len) {
- memcpy(mydata,incomingData,16);
+ memcpy(&mydata[mydatapointer],incomingData,16);
+ mydatapointer=mydatapointer+16; //should check that this doesn't go higher than 48 (+16 =64)
  dataavailable = true;
 }
 void sendDataviaTCP(char * datatobesent){
- unsigned long tcpconnectionstartmillis = millis();
-while ((!client.connect(host, port))&&((millis()-tcpconnectionstartmillis) < maxmillistotryfortcp)) {
-delayMicroseconds(100000);
-}
-if (client.connected()){
-
-
-//client.print(datatobesent); - Only sends partial data - stopping if it encounters \00 or \r or \n I guess
-client.write(datatobesent,16); //Better to use - this. Verified with wireshark.
-client.stop();
  
+if (client.connect(host,port)){
+//client.print(datatobesent); - Only sends partial data - stopping if it encounters \00 or \r or \n I guess
+client.write(datatobesent,mydatapointer); //Better to use - client.write. Verified with wireshark.
+//Add data to the buffer and send it out all at once. 
+client.stop();
+mydatapointer=0;
+dataavailable=false;
 }
 else {
-  
-  Serial.println("Unable to connect to TCP");
-
+    Serial.println("Unable to connect to TCP");
+    //reset the buffer if unable to connect to TCP
+    mydatapointer=0;
+    dataavailable=false;  
 }
   }
 

@@ -677,7 +677,7 @@ function ws_close(){
    }*/
 
             
-window.addEventListener("blur",ws_close, false);
+//window.addEventListener("blur",ws_close, false); //Commented out for testing Jan 2022
 
 </script>
 </head>
@@ -1113,7 +1113,7 @@ function queryServer2(data)
                     tracePy.push(currPressure1);
                       tracePx.push(returnformattedtimeforplotly(arr2[0]));
                       document.getElementById("tspanPressure1").textContent = currPressure1;
-                      document.getElementById("timePressure1").innerHTML=returnformattedtime(arr2[0]);
+                      document.getElementById("timePressure1").innerHTML=arr2[0];
                         document.getElementById("divtank1level").style.width=currPressure1+"%";
                       break;
                   case 'p':
@@ -1121,7 +1121,7 @@ function queryServer2(data)
                     tracepy.push(currPressure2);
                       tracepx.push(returnformattedtimeforplotly(arr2[0]));
                       document.getElementById("tspanPressure2").textContent = currPressure2;
-                      document.getElementById("timePressure2").innerHTML=returnformattedtime(arr2[0]);
+                      document.getElementById("timePressure2").innerHTML=arr2[0];
                         document.getElementById("divtank2level").style.width=currPressure2+"%";
                       break;
                   

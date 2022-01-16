@@ -43,9 +43,8 @@ bool DEBUG = true;
 bool sendviaESPNOWsuccess;
 bool sendviawifisuccess;
 int ESPNOWresendcounter;
-int maxESPNOWresendattempts=5;
-int maxmillistotryforwifi = 10000;
-int maxmillistotryfortcp = 500;
+int maxESPNOWresendattempts=2; //Data buffer on the ESP-rangeextenders is 64 bytes so 2 nodes 16 bytes x2 = 64
+int maxmillistotryforwifi = 6000;
 int maxmillistowaitforUS100serialdata = 200; //Was working well with 500
 char str[16]; //6 bytes + macaddr + 2 bytes distance + 2 bytes temp + 2 bytes battery + 4 bytes zeros
 uint8_t macAddr[6];
@@ -124,16 +123,8 @@ else {
 void sendviaWIFI() {
 
 if (DEBUG){swSer.print(" sendviatcpstart: "); swSer.println(millis());}
-
-unsigned long tcpconnectionstartmillis = millis();
-while (!client.connect(host, port)){
-
-if ((millis()-tcpconnectionstartmillis) < maxmillistotryfortcp) {
-return;
-}
-delay(100);
-}
-if (client.connected()){
+//TCP blocks for 5 seconds - so no point adding a loop with timeout.
+if (client.connect(host, port)){
 if (DEBUG){swSer.print(" tcpclientconnected: "); swSer.println(millis());}
 client.write(str,16);
 if (DEBUG){swSer.println("Sent via WIFI- TCP client");swSer.println(millis());}
@@ -155,6 +146,11 @@ return;
 
 }
 void connectwifi0(){
+  if (DEBUG){swSer.println("Wifi0 connection attempt started");}
+if (WiFi.status() == WL_CONNECTED){
+  //if already connected - return;
+  return;
+  }
 
 WiFi.begin(WIFI_SSID0, WIFI_PASS);
 WiFi.config(IPAddress(192,168,1,204), IPAddress(192,168,1,2), IPAddress(255,255,255,0),IPAddress(192,168,1,2));
@@ -197,13 +193,17 @@ delay(100);
 //Out of the while loop if not connected - must be connected - not true - "return" after timeout brings it out here
 //Hence - need to check if its connected or not.
 if (WiFi.status() == WL_CONNECTED){
-if (DEBUG){swSer.println("Wifi connected");}
+if (DEBUG){swSer.println("Reached wifi0 connected");}
 sendviaWIFI();
 }
 }
 
 void connectwifi1(){
 if (DEBUG){swSer.println("Wifi1 connection attempt started");}
+if (WiFi.status() == WL_CONNECTED){
+  //if already connected - return;
+  return;
+  }
 WiFi.begin(WIFI_SSID1, WIFI_PASS);
 WiFi.config(IPAddress(192,168,4,204), IPAddress(192,168,4,1), IPAddress(255,255,255,0),IPAddress(192,168,4,1));
 unsigned long wifiConnect1Start = millis();
@@ -216,6 +216,7 @@ switch (WiFi.status()) {
     break;
   case WL_NO_SSID_AVAIL:
     if (DEBUG){swSer.println(" 1 WL_NO_SSID_AVAIL");}
+    return; //this works - breaks the loop. So regardless of the maxmillistotryforwifi - it sends 3 or 4 probe requests for 5 seconds and then moves over to the second SSID - even though the code hasn't reached there yet. when the code reaches there - it show connected immediately.
     break;
   case WL_DISCONNECTED:
    if (DEBUG){swSer.println(" 1 WL_DISCONNECTED");}
@@ -244,6 +245,7 @@ delay(100);
 //Out of the while loop if not connected - must be connected - not true - "return" after timeout brings it out here
 //Hence - need to check if its connected or not. 
 if (WiFi.status() == WL_CONNECTED){
+if (DEBUG){swSer.println("Reached wifi1 connected");}
 sendviaWIFI();
 }
 }
@@ -390,18 +392,19 @@ if (DEBUG){swSer.print("Data is: ");swSer.println(str);}
 prepareESPNOW();
 sendviaESPNOW();
 
-delay(50); //Wait for ESP-NOW method to succeed or fail. 20 mSec more than enough to make the determination. 30 was working well. made 50 for making sure.
+delay(250); //Wait for ESP-NOW method to succeed or fail. 20 mSec more than enough to make the determination. 30 was working well. made 50 for making sure.
+//Wireshark shows - 5 retransmissions to two slaves takes up to 250 ms
 
 if (!(sendviaESPNOWsuccess)){
-  connectwifi1();
-  if(!(sendviawifisuccess)){
-    connectwifi0();
+  connectwifi0();
+
+   if(!(sendviawifisuccess)){
+    connectwifi1();
     }
- 
   }
 
 ESP.deepSleep(30e6); // 20e6 is 20 microseconds RF_NO_CAL - no change in current
-//ESP.deepSleep(2e6); // 20e6 is 20 microseconds
+
 
 
 

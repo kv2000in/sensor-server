@@ -5,7 +5,7 @@ import socket
 import struct
 import threading
 from datetime import datetime
-
+import binascii
 
 global request
 
@@ -21,7 +21,8 @@ print 'Listening on {}:{}'.format(bind_ip, bind_port)
 
 def handle_client_connection(client_socket):
 	global request
-	request = client_socket.recv(16)
+	request = client_socket.recv(512)
+	#if more than 16 bytes received - meaning data from both sensors.
 	#encoded_string = request.encode()
 	#byte_array = bytearray(encoded_string)
 	#print byte_array
@@ -33,7 +34,29 @@ def handle_client_connection(client_socket):
 	'''
 	client_socket.send('ACK!')
 	client_socket.close()
-	print struct.unpack('cccccchhhxxxx',request)
+	print "len of request= "+ str(len(request))
+	#if len >16 - do it for every 16 bytes, discard duplicates
+	if (len(request)>16):
+		nofchunks=len(request)/16
+		i=0
+		while i < nofchunks:
+			if (binascii.hexlify(request[0+i*16:6+i*16])!=binascii.hexlify(request[0:6])):	
+				print "Received from "+ binascii.hexlify(request[0+i*16:6+i*16]) # 1st six bytes contain Sender Mac Address
+				print "Distance =" +str( struct.unpack('h',request[6+i*16:8+i*16])[0]) # next two bytes 6:8 means 6 and 7 - distance as 2 bytes integer. struct.unpack will generate a tuple. [0] at the end selects first element of the tuple
+				print "Temp =" + str(struct.unpack('h',request[8+i*16:10+i*16])[0])# need the str() to print int
+				print "Battery ="+ str( struct.unpack('h',request[10+i*16:12+i*16])[0])
+				print i
+				break
+			i+=1
+		print "Received from "+ binascii.hexlify(request[0:6]) # 1st six bytes contain Sender Mac Address
+		print "Distance =" +str( struct.unpack('h',request[6:8])[0]) # next two bytes 6:8 means 6 and 7 - distance as 2 bytes integer. struct.unpack will generate a tuple. [0] at the end selects first element of the tuple
+		print "Temp =" + str(struct.unpack('h',request[8:10])[0])# need the str() to print int
+		print "Battery ="+ str( struct.unpack('h',request[10:12])[0])
+	else:
+		print "Received from "+ binascii.hexlify(request[0:6]) # 1st six bytes contain Sender Mac Address
+		print "Distance =" +str( struct.unpack('h',request[6:8])[0]) # next two bytes 6:8 means 6 and 7 - distance as 2 bytes integer. struct.unpack will generate a tuple. [0] at the end selects first element of the tuple
+		print "Temp =" + str(struct.unpack('h',request[8:10])[0])# need the str() to print int
+		print "Battery ="+ str( struct.unpack('h',request[10:12])[0])
 
 while True:
 	try:
