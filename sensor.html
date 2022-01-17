@@ -567,7 +567,7 @@ input:checked + .slider {
          <label>Tank 1 EMPTY Height (cms) &nbsp; </label><input id="MINT1" size="3"><br>
         <label>Tank 2 FULL Height (cms) &nbsp; </label><input id="MAXT2" size="3"><br>
         <label>Tank 2 EMPTY Height (cms) &nbsp; </label><input id="MINT2" size="3"> <br>
-         <label>Motor ON Current &nbsp; </label><input id="MONCURR" size="3"> <br>
+         <label>Motor ON Current &nbsp; </label><input id="MONCURR" size="3"> <br>d
             
             <label title="Raw value sent by server">Raw HCSR04 Reading Tank1 = </label><tspan id="HCSR041"></tspan><br>
             <label  title="Raw value sent by server">Raw HCSR04 Reading Tank2 =</label><tspan id="HCSR042"></tspan><br>
@@ -617,7 +617,10 @@ input:checked + .slider {
             
       </li> </ul> </div>
         <div class="col-6 menu">
-            <ul>        <label>Tank 1 Sensor MAC &nbsp; </label><input id="T1MAC" size="auto"> <button onclick='savemacaddress(this.previousElementSibling.id)'>UPDATE</button><br>
+            <ul>        <label>Tank 1 Sensor MAC &nbsp; </label>
+                                 <input list="availablesensors" id="T1MAC" size = "auto">
+                
+                <button onclick='savemacaddress(this.previousElementSibling.id)'>UPDATE</button><br>
         
                 <li class="activesensor" id="listTank1">
                     <!-- Pressure 1 -->
@@ -662,7 +665,9 @@ input:checked + .slider {
         </div>
             <div class="col-6 menu">
             <ul>
-                <label>Tank 2 Sensor MAC &nbsp; </label><input id="T2MAC" size="auto"> <button onclick='savemacaddress(this.previousElementSibling.id)'>UPDATE</button><br>
+                <label>Tank 2 Sensor MAC &nbsp; </label>        
+                <input list="availablesensors" id="T2MAC" size = "auto">
+                <button onclick='savemacaddress(this.previousElementSibling.id)'>UPDATE</button><br>
                 <li class="activesensor" id="listTank2">
                     <!-- Pressure 2 -->
                     <!-- Digital display-->
@@ -706,7 +711,8 @@ input:checked + .slider {
             </ul>
         </div>
    
-        
+        <datalist id="availablesensors">
+</datalist>
         <div class="col-12">
     <!--        Tank level plot space-->
             <div id="9ab6bde0-5a69-4f53-a80c-d2e19447d850" class="plotly-graph-div"></div>
@@ -1065,8 +1071,33 @@ function tanktomacaddrhandler(data){
     */
     var myarr=data.split("|");
     for (i=0;i<myarr.length;i++){
-    document.getElementById(myarr[i].split("=")[0]).value=myarr[i].split("=")[1];
-    switch(myarr[i].split("=")[0]){
+        var myselect = document.getElementById(myarr[i].split("=")[0]);
+        myselect.value=myarr[i].split("=")[1];
+        
+          var mydatalist = document.getElementById("availablesensors");
+                  var n;
+                  var alreadypresent="false";
+                  for (n=0;n<mydatalist.options.length;n++)
+                      {
+                          if (myarr[i].split("=")[1] == mydatalist.options[n].value){
+                          //Don't add if the macaddr already in the list
+                          alreadypresent="true"
+                              break;
+                          }
+
+                      }
+                  if (alreadypresent=="false"){
+                        var newele=document.createElement("Option");
+                        newele.value=myarr[i].split("=")[1];
+                        mydatalist.appendChild(newele);
+                  }
+        
+        
+        
+        
+        
+        
+        switch(myarr[i].split("=")[0]){
         case 'T1MAC':
             T1MAC = myarr[i].split("=")[1];
             break;
@@ -1117,7 +1148,26 @@ function sensordatahandler(data){
                   break;
                   
                   default:
+                  /*To reach here - raw data from an "unattached" sensor is being sent*/
+                 /* SensorData#2022-01-17 01:17:45|68c63af45996|170|3970|23 */
+                  /*Take this mac address and add it to the list of mac address dropdown*/
+                  var mydatalist = document.getElementById("availablesensors");
+                  var n;
+                  var alreadypresent="false";
+                  for (n=0;n<mydatalist.options.length;n++)
+                      {
+                          if (arr2[1] == mydatalist.options[n].value){
+                          //Don't add if the macaddr already in the list
+                          alreadypresent="true"
+                              break;
+                          }
 
+                      }
+                  if (alreadypresent=="false"){
+                        var newele=document.createElement("Option");
+                        newele.value=arr2[1];
+                        mydatalist.appendChild(newele);
+                  }
             }
              
 }
