@@ -514,174 +514,9 @@ input:checked + .slider {
         
         </style>
         <script src="plotly.js" type="text/javascript" charset="utf-8"></script>
-        <script language="javascript" type="text/javascript">
-            
-/*    WEBSOCKET HANDLING JAVASCRIPT*/
 
-/*var allswitches=document.getElementsByTagName("input");*/ /* get all elements by tag name input*/
-
-
-
-  function init()
-  {
-	 
-	 
-	  
-	  
-		  
-	/*
-	document.myform.url.value = "ws://192.168.1.118:8000/"
-	document.myform.inputtext.value = "Hello World!"
-	document.myform.disconnectButton.disabled = true;
-	*/
-  }
-var websocket;
-  function doConnect()
-  {
-      
-      
-	  var hostipaddr=location.host.split(":")[0]; /*location.host gives 192.168.1.110:62246*/
-    /*websocket = new WebSocket(document.myform.url.value);*/
-   /* websocket = new WebSocket("ws://192.168.1.110:8000/");*/
-   websocket = new WebSocket("ws://"+hostipaddr+":8000/");
-    websocket.onopen = function(evt) { onOpen(evt) };
-    websocket.onclose = function(evt) { onClose(evt) };
-    websocket.onmessage = function(evt) { onMessage(evt) };
-    websocket.onerror = function(evt) { onError(evt) };
-      
-  }
-
-  function onOpen(evt)
-  {
-	  console.log("connected\n");
-	  /* Once connected - check the status of relevant gpios from each server.
-	  */
-      document.getElementById("connect").style.visibility="hidden";
-	  document.getElementById("SERVER").innerHTML="connected";
-      SERVERSTATUS="connected";
-      showhidebuttons();
-    /*writeToScreen("connected\n");
-	document.myform.connectButton.disabled = true;
-	document.myform.disconnectButton.disabled = false;*/
-  }
-
-  function onClose(evt)
-  {
-	  console.log("disconnected\n");
-    /*writeToScreen("disconnected\n");
-	document.myform.connectButton.disabled = false;
-	document.myform.disconnectButton.disabled = true;*/
-   document.getElementById("SERVER").innerHTML="disconnected";
-      document.getElementById("connect").style.visibility="visible";
-      SERVERSTATUS="disconnected";
-        showhidebuttons();
-  }
-  function onMessage(evt)
-  {
-	  /* data returned from Server is in the form of "SensorData=1483806901.06, t15.78"
-	  "192.168.1.145 - PONG" - server is connected
-	  "192.168.1.144 - disconnected"
-	  "192.168.1.144 - CHKA1010" 4 digits correspond to gpio reads of pin 1,2,5,6
-	  evt.data.split("=") gives [0] = "SensorData" and [1]="1483806901.06, t15.78"
-	  [0].slice(0,-1) removes &nbsp and gives "192.168.1.145"
-	  [1].slice(-1) = "1"
-	  [1].slice(1,-1)="ON"
-	  */
-/*
-	1/21/18 - response: SensorData-1516550505.88,p -27.0,b3987
-*/
-
-
-      /*console.log("response: " + evt.data + '\n');
-*/	
-    
-    var arrdata=evt.data.split("-");
-	switch(arrdata[0]){
-		case 'SensorData':
-			queryServer2(arrdata[1]);
-			break;
-		case 'StoredData':
-			queryServer3(evt.data);
-            break;
-        case 'STATUS':
-			queryServer4(arrdata[1]);
-			break;
-        case 'POWERDATA':
-			queryServer4(arrdata[1]);
-			break;
-        case 'SETTINGS':
-			queryServer5(arrdata[1]);
-			break;
-        case 'MANUAL':
-			queryServer6(arrdata[1]);
-			break;
-    /*    This one is for plotting the current and voltage ADCs*/
-        case 'RawADC':
-			queryServer7(arrdata[1]);
-			break;
-        case 'CAL':
-			queryServer8(arrdata[1]);
-			break;
- /*           This one is for raw RMS ADC data and raw sensor data*/
-        case 'raw':
-            queryServer9(arrdata[1]);
-            break;
-        default:
-			console.log(arrdata[0].slice(-1));
-			break;
-		}
-	}
-    /*writeToScreen("response: " + evt.data + '\n');*/
-  
-
-  function onError(evt)
-  {
-    /*writeToScreen('error: ' + evt.data + '\n');*/
-	console.log('error: ' + evt.data + '\n');
-	websocket.close();
-
-	/*document.myform.connectButton.disabled = false;
-	document.myform.disconnectButton.disabled = true;*/
-
-  }
-
-  function doSend(message)
-  {
-    console.log("sent: " + message + '\n');
-   /* writeToScreen("sent: " + message + '\n'); */
-    websocket.send(message);
-  }
-
-  /*function writeToScreen(message)
-  {
-    document.myform.outputtext.value += message
-	document.myform.outputtext.scrollTop = document.myform.outputtext.scrollHeight;
-
-  }*/
-
-  window.addEventListener("load",doConnect, false);
-
-function ws_close(){
-    websocket.close();
-}
-  /* function sendText() {
-		doSend( document.myform.inputtext.value );
-   }*/
-
-  /*function clearText() {
-		document.myform.outputtext.value = "";
-   }*/
-
-   /*function doDisconnect() {
-		websocket.close();
-   }*/
-
-            
-//window.addEventListener("blur",ws_close, false); //Commented out for testing Jan 2022
-
-</script>
 </head>
-    <!--<body onload="queryServer3()"> -->
+    <!--<body onload="storeddatahandler()"> -->
 <body style="margin:0;">
         <!-- supported tags for onload event <body>, <frame>, <iframe>, <img>, <input type="image">, <link>, <script>, <style> -->
 <div style="width:100%;"> 
@@ -699,7 +534,7 @@ function ws_close(){
     </label>
     <br><br></div>
         <text >सिस्टम के कंट्राेल = </text><text id="MODE"></text> <br> <br>           
-     <button class="calbtn" id="cal" onclick='doSend("REQCAL-CURRENT")'>Calibration</button>
+     <button class="calbtn" id="cal" onclick='doSend("REQCAL#CURRENT")'>Calibration</button>
         <span id="calbox" class="calbox col-6" >
             <!--offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc-17.5-->
                     <button id="savecal" onclick='savecal();document.getElementById("calbox").style.visibility="hidden";'>Save</button><button id="revertsettings" onclick='doSend("REVERTCAL-NOW")'>Revert</button><text style="background-color:white;font-size:200%;float: right;text-anchor: initial;color: black;border: black;border-style: solid;cursor: pointer;" onclick='document.getElementById("calbox").style.visibility="hidden";'>X</text><br>
@@ -717,10 +552,10 @@ function ws_close(){
         </span>
     
         <!--    Sends a request for current settings to the server - upon receipt of the settings - makes the span of "settings" visible.-->
-        <button class="settingsbtn" id="settings" onclick='doSend("REQSETTINGS-CURRENT")'>Settings</button>
+        <button class="settingsbtn" id="settings" onclick='doSend("REQSETTINGS#CURRENT")'>Settings</button>
         <span id="settingsbox" class="settingsbox col-6" >
             <!--HVLVL=350,LVLVL=170,T1HLVL=95,T1LLVL=75,MAXT1=590.0,MINT1=199.0,T2HLVL=95,T2LLVL=75,MAXT2=590.0,MINT2=199.0,HMCURR=7-->
-                    <button id="savesettings" onclick='savesettings();document.getElementById("settingsbox").style.visibility="hidden";'>Save</button><button id="revertsettings" onclick='doSend("REVERTSETTINGS-NOW")'>Revert</button><text style="background-color:white;font-size:200%;float: right;text-anchor: initial;color: black;border: black;border-style: solid;cursor: pointer;" onclick='document.getElementById("settingsbox").style.visibility="hidden";'>X</text><br>
+                    <button id="savesettings" onclick='savesettings();document.getElementById("settingsbox").style.visibility="hidden";'>Save</button><button id="revertsettings" onclick='doSend("REVERTSETTINGS#NOW")'>Revert</button><text style="background-color:white;font-size:200%;float: right;text-anchor: initial;color: black;border: black;border-style: solid;cursor: pointer;" onclick='document.getElementById("settingsbox").style.visibility="hidden";'>X</text><br>
             <label>High Voltage Cut off &nbsp;</label><input id="HVLVL" size="3">&nbsp;V <br>
         <label>Low Voltage Cut off &nbsp; </label><input id="LVLVL" size="3">&nbsp;V<br>
         <label>High Motor Current &nbsp; </label><input id="HMCURR" size="3">&nbsp;Amp<br>
@@ -732,6 +567,7 @@ function ws_close(){
          <label>Tank 1 EMPTY Height (cms) &nbsp; </label><input id="MINT1" size="3"><br>
         <label>Tank 2 FULL Height (cms) &nbsp; </label><input id="MAXT2" size="3"><br>
         <label>Tank 2 EMPTY Height (cms) &nbsp; </label><input id="MINT2" size="3"> <br>
+         <label>Motor ON Current &nbsp; </label><input id="MONCURR" size="3"> <br>
             
             <label title="Raw value sent by server">Raw HCSR04 Reading Tank1 = </label><tspan id="HCSR041"></tspan><br>
             <label  title="Raw value sent by server">Raw HCSR04 Reading Tank2 =</label><tspan id="HCSR042"></tspan><br>
@@ -752,7 +588,7 @@ function ws_close(){
         
          <button id="drawplot" onclick='drawplot();batteryplot();'>Sensor Plot</button> <!--<button id="reqdata" onclick='requestdata();'>Request Data</button>-->
       <!--  Reuests and plots the current and voltage data-->
-        <button id="reqdata" onclick='doSend("RAWADC-VOLTAGE")'>Voltage Plot</button><button id="reqdata" onclick='doSend("RAWADC-CURRENT")'>Current Plot</button>
+        <button id="reqdata" onclick='doSend("RAWADC#VOLTAGE")'>Voltage Plot</button><button id="reqdata" onclick='doSend("RAWADC#CURRENT")'>Current Plot</button>
 
         </p>        
     
@@ -767,7 +603,7 @@ function ws_close(){
         <div class="col-4 status topright">
             <ul class="control"><li>
                 <div style="width:50%;float:left;">
-                    <button class="pushbtn buttonpressedeffect computer manual"  onclick="doSend('COMMAND-MOTOR=ON')">चालू</button></div><div style="width:50%;float:right;"><button class="pushbtn buttonpressedeffect" style="background-color:red" onclick="doSend('COMMAND-MOTOR=OFF');handleoffswitch();">बंद</button></div></li>
+                    <button class="pushbtn buttonpressedeffect computer manual"  onclick="doSend('COMMAND#MOTOR=ON')">चालू</button></div><div style="width:50%;float:right;"><button class="pushbtn buttonpressedeffect" style="background-color:red" onclick="doSend('COMMAND#MOTOR=OFF');handleoffswitch();">बंद</button></div></li>
             <li><button class="tankbtn" id="TANK1BUTTON" disabled>Tank 1</button>
                 <div class="computer manual" style="padding-left: 3px;padding-right: 3px;"><label class="switch">
   <input type="checkbox" id="TANKSWITCH" onclick='tankselector()' >
@@ -781,7 +617,8 @@ function ws_close(){
             
       </li> </ul> </div>
         <div class="col-6 menu">
-            <ul>
+            <ul>        <label>Tank 1 Sensor MAC &nbsp; </label><input id="T1MAC" size="auto"> <button onclick='savemacaddress(this.previousElementSibling.id)'>UPDATE</button><br>
+        
                 <li class="activesensor" id="listTank1">
                     <!-- Pressure 1 -->
                     <!-- Digital display-->
@@ -818,13 +655,14 @@ function ws_close(){
                         </ul>
                     </div>
                     <text>
-                        <tspan>Tank 1 के Level </tspan>
+                        <tspan>Tank 1 Temp <tspan id="Tank1Temp"></tspan>&nbsp;deg C </tspan>
                     </text>
                 </li>
             </ul>
         </div>
             <div class="col-6 menu">
             <ul>
+                <label>Tank 2 Sensor MAC &nbsp; </label><input id="T2MAC" size="auto"> <button onclick='savemacaddress(this.previousElementSibling.id)'>UPDATE</button><br>
                 <li class="activesensor" id="listTank2">
                     <!-- Pressure 2 -->
                     <!-- Digital display-->
@@ -862,7 +700,7 @@ function ws_close(){
                         </ul>
                     </div>
                     <text>
-                        <tspan>Tank 2 के Level </tspan>
+                        <tspan>Tank 2 Temp <tspan id="Tank2Temp"></tspan>&nbsp;deg C</tspan>
                     </text>
                 </li>
             </ul>
@@ -882,7 +720,132 @@ function ws_close(){
          
             <div id="9ab6bde0-5a69-4f53-a80c-d2e19447d852" class="plotly-graph-div"></div>
     </div>
-<script type="text/javascript">
+                </div>
+    </body>
+
+<script language="javascript" type="text/javascript">
+            
+/*    WEBSOCKET HANDLING JAVASCRIPT*/
+
+/*var allswitches=document.getElementsByTagName("input");*/ /* get all elements by tag name input*/
+
+
+
+  function init(){
+	 
+  }
+var websocket;
+  function doConnect(){  
+      
+	  var hostipaddr=location.host.split(":")[0]; /*location.host gives 192.168.1.110:62246*/
+    /*websocket = new WebSocket(document.myform.url.value);*/
+   /* websocket = new WebSocket("ws://192.168.1.110:8000/");*/
+   websocket = new WebSocket("ws://"+hostipaddr+":8000/");
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onclose = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+      
+  }
+
+  function onOpen(evt){
+	  console.log("connected\n");
+	  /* Once connected - check the status of relevant gpios from each server.
+	  */
+      document.getElementById("connect").style.visibility="hidden";
+	  document.getElementById("SERVER").innerHTML="connected";
+      SERVERSTATUS="connected";
+      showhidebuttons();
+    /*writeToScreen("connected\n");
+	document.myform.connectButton.disabled = true;
+	document.myform.disconnectButton.disabled = false;*/
+  }
+
+  function onClose(evt){
+	  console.log("disconnected\n");
+    /*writeToScreen("disconnected\n");
+	document.myform.connectButton.disabled = false;
+	document.myform.disconnectButton.disabled = true;*/
+   document.getElementById("SERVER").innerHTML="disconnected";
+      document.getElementById("connect").style.visibility="visible";
+      SERVERSTATUS="disconnected";
+        showhidebuttons();
+  }
+  function onMessage(evt){
+	  /* 
+      Jan 2022 - changed global split to be on "#"
+      
+
+*/	
+    
+    var arrdata=evt.data.split("#");
+	switch(arrdata[0]){
+		case 'SensorData':
+			sensordatahandler(arrdata[1]);
+			break;
+		case 'StoredData':
+			storeddatahandler(evt.data);
+            break;
+        case 'STATUS':
+			statushandler(arrdata[1]);
+			break;
+        case 'POWERDATA':
+			statushandler(arrdata[1]);
+			break;
+        case 'SETTINGS':
+			settingshandler(arrdata[1]);
+			break;
+        case 'MANUAL':
+			manualhandler(arrdata[1]);
+			break;
+    /*    This one is for plotting the current and voltage ADCs*/
+        case 'RawADC':
+			rawadchandler(arrdata[1]);
+			break;
+        case 'CAL':
+			calhanlder(arrdata[1]);
+			break;
+ /*           This one is for raw RMS ADC data and raw sensor data*/
+        case 'raw':
+            rawhandler(arrdata[1]);
+            break;
+        case 'TANKtoMACADDR':
+            tanktomacaddrhandler(arrdata[1]);
+            break;
+        default:
+			console.log(arrdata[0].slice(-1));
+			break;
+		}
+	}
+
+  
+
+  function onError(evt){
+    /*writeToScreen('error: ' + evt.data + '\n');*/
+	console.log('error: ' + evt.data + '\n');
+	websocket.close();
+
+	/*document.myform.connectButton.disabled = false;
+	document.myform.disconnectButton.disabled = true;*/
+
+  }
+
+  function doSend(message){
+    console.log("sent: " + message + '\n');
+   /* writeToScreen("sent: " + message + '\n'); */
+    websocket.send(message);
+  }
+
+ window.addEventListener("load",doConnect, false);
+
+function ws_close(){
+    websocket.close();
+}
+
+
+            
+//window.addEventListener("blur",ws_close, false); //Commented out for testing Jan 2022
+
 
     
 /*Define global variables*/
@@ -898,7 +861,13 @@ var rawSensor1Reading=999;
 var rawSensor2Reading=999;
 var currBatLevel1=5000;
 var currBatLevel2=5000;
+var currTank1Temp=10;
+var currTank2Temp=10;
 var MOTOR="def"; /*Added on 2/19/18 - global variable to hold motor status - used in manual mode validation - to prevent starting the motor for 30 sec*/
+var T1MAC;
+var T2MAC; 
+var rawADC=[];
+var adcCount=[]; 
 
 function handleoffswitch(){
                 if (MODE=="COMPUTER")
@@ -970,14 +939,14 @@ function tankselector(){
     
     if (document.getElementById("TANKSWITCH").checked){
        /*doSend('COMMAND-TANK='+this.innerHTML)*/
-        doSend('COMMAND-TANK=Tank 2');
+        doSend('COMMAND#TANK=Tank 2');
         document.getElementById("TANK1BUTTON").disabled=true;
         /*document.getElementById("TANK2BUTTON").disabled=false;
        
         document.getElementById("TANKSWITCH").checked=false;*/
     }
     else {
-        doSend('COMMAND-TANK=Tank 1');
+        doSend('COMMAND#TANK=Tank 1');
         document.getElementById("TANK2BUTTON").disabled=true;
                /* document.getElementById("TANK2BUTTON").disabled=true;
        document.getElementById("TANK1BUTTON").disabled=false;
@@ -991,13 +960,13 @@ function tankselector(){
 function modeselector(){
   
     if (document.getElementById("SOFTMODE").checked){
-       doSend("SOFTMODE-Auto");
+       doSend("SOFTMODE#Auto");
         document.getElementById("SOFTMODEAUTO").attributes[0].value="softmodeactive";
         document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmode";
       /*  document.getElementById("SOFTMODE").checked=true;*/
     }
     else {
-        doSend("SOFTMODE-Manual");
+        doSend("SOFTMODE#Manual");
                 document.getElementById("SOFTMODEAUTO").attributes[0].value="softmode";
         document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmodeactive";
        /* document.getElementById("SOFTMODE").checked=false;*/
@@ -1005,19 +974,13 @@ function modeselector(){
     
 }
 
-/*document.getElementById("SOFTMODE").addEventListener("change",modeselector);
 
-*/ /* Does not work if the "change" event is being brought upon by another javascript function.
-for eg: input is being switched to "checked" by a function below rather than by clicking
-works if clicking
-doesn't work if changed by a function.
-*/
             
 
-function returnformattedtime(mytime)
+function returnformattedtime(mytime) {
 /* As the name suggest - this function converts unix time into real world time)*/
 
-    {
+    
             var response=mytime;
             var date = new Date(parseFloat(response)*1000);
             var hours = date.getHours();
@@ -1036,10 +999,10 @@ function returnformattedtime(mytime)
         return formattedTime;          
     }
 
-function returnformattedtimeforplotly(mytime)
+function returnformattedtimeforplotly(mytime) {
 /* As the name suggest - this function converts unix time into real world time)*/
 
-    {
+    
             var response=mytime;
             
             var date = new Date(parseFloat(response)*1000);
@@ -1066,7 +1029,7 @@ function returnformattedtimeforplotly(mytime)
 function autoshutoff(){
  /*   check is motor is on*/
     if (MOTOR=="ON"){
-                var mymsg="MANUAL-";
+                var mymsg="MANUAL#";
                 if(document.getElementById("checkautoshutoff").checked){
 /*                  2/19/18 - user is trying to check  टंकी भर जाये ता माेटर बँद? 
                 Let's evaluate if the motor is on and then the tank switch position and tank level and the set manual high level of the tank
@@ -1095,77 +1058,84 @@ On server side - on requesting manual mode settings - if motor is off -it will s
     }
 }
 
-function queryServer2(data)
+function tanktomacaddrhandler(data){
+    /*
+    TANKtoMACADDR#T1MAC=5ccf7f1754d1|T2MAC=68c63af45996
+    so data = "T1MAC=5ccf7f1754d1|T2MAC=68c63af45996"
+    */
+    var myarr=data.split("|");
+    for (i=0;i<myarr.length;i++){
+    document.getElementById(myarr[i].split("=")[0]).value=myarr[i].split("=")[1];
+    switch(myarr[i].split("=")[0]){
+        case 'T1MAC':
+            T1MAC = myarr[i].split("=")[1];
+            break;
+        case 'T2MAC':
+            T2MAC = myarr[i].split("=")[1];
+            break;
+        default:
+            
+    }
+    }
+    
+    
+}
+function sensordatahandler(data){
 /* This function sets the displays with updated values*/
-{
   
          
            var mystring=data; 
-           /*mystring contains data like this 
-          1/21/18 - added battery level
-          1516550505.88,p -27.0,b3987        */   
-        
-          var arr2 = mystring.split(","); /* arr2[0]=1480826411.06 and arr2[1]=l17.49 arr2[2]=b5000*/
-          switch(arr2[1].charAt(0)){
+           /*Jan 2022
+           SensorData#2022-01-16 17:04:12|T1MAC|95.4|4000|21
+           data = 2022-01-16 17:04:12|T1MAC|95.4|4000|21
+           
+           */
+          var arr2 = mystring.split("|"); /* arr2[0]=2022-01-16 17:04:12 and arr2[1]=T1MAC and so on*/
+          switch(arr2[1]){
 
-                  case 'P':
-                      currPressure1=arr2[1].slice(1);
-                    tracePy.push(currPressure1);
-                      tracePx.push(returnformattedtimeforplotly(arr2[0]));
+                  case 'T1MAC':
+                      currPressure1=arr2[2];
+                        currBatLevel1 = arr2[3];
+                        currTank1Temp=arr2[4];
                       document.getElementById("tspanPressure1").textContent = currPressure1;
                       document.getElementById("timePressure1").innerHTML=arr2[0];
                         document.getElementById("divtank1level").style.width=currPressure1+"%";
-                      break;
-                  case 'p':
-                      currPressure2=arr2[1].slice(1);
-                    tracepy.push(currPressure2);
-                      tracepx.push(returnformattedtimeforplotly(arr2[0]));
+                        document.getElementById("batteryLevel1").textContent = currBatLevel1;
+                        document.getElementById("Tank1Temp").textContent = currTank1Temp;
+                      
+                  break;
+                  case 'T2MAC':
+                      currPressure2=arr2[2];
+                        currBatLevel2 = arr2[3];
+                        currTank2Temp=arr2[4];
                       document.getElementById("tspanPressure2").textContent = currPressure2;
                       document.getElementById("timePressure2").innerHTML=arr2[0];
                         document.getElementById("divtank2level").style.width=currPressure2+"%";
-                      break;
+                        document.getElementById("batteryLevel2").textContent = currBatLevel2;
+                        document.getElementById("Tank2Temp").textContent = currTank2Temp;
+                      
+                  break;
                   
                   default:
 
             }
-              
-            /*console.log(arr2[2]); // Somehow returns undefined if the level(arr2[1]) value is negative */
-          switch(arr2[2].charAt(0)){
-              case 'B':
-                  currBatLevel1=arr2[2].slice(1);
-/*
-                  console.log(currBatLevel1);
-*/
-                traceBy.push(currBatLevel1);
-                traceBx.push(returnformattedtimeforplotly(arr2[0]));               
-                  document.getElementById("batteryLevel1").textContent = currBatLevel1;
-                  break;
-              case 'b':
-                  currBatLevel2=arr2[2].slice(1);
-/*
-                  console.log(currBatLevel2);
-*/
-                traceby.push(currBatLevel2);
-                tracebx.push(returnformattedtimeforplotly(arr2[0]));
-                  document.getElementById("batteryLevel2").textContent = currBatLevel2;
-                  break;
-              default:
-          
-          }
+             
+}
+   
           
           
           
           
  
-};
 
-function queryServer3(data)
+
+function storeddatahandler(data) {
 /* This function queries the server and gets the last hour sensor data from the server to plot*/
 
             /*Arrays defined as follows in plotly.js 
             var traceTx = []; var traceTy = [];var tracetx = []; var tracety = [];var traceLx = []; var traceLy = [];var tracelx = []; var tracely = [];var tracePx = []; var tracePy = [];var tracepx = []; var tracepy = [];
 */            
-            {
+            
    
          
           var mystring=data; 
@@ -1325,35 +1295,16 @@ function queryServer3(data)
     /*    drawplot(); */
     
         };
- function queryServer4(data){
+ function statushandler(data){
      /*
-      Data from server is STATUS-MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto
-        data.split("-")[0]->STATUS - calls this function with data.split("-")[1] as a parameter
-        parameter is basically - mystring ->"MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto"
-        mystring.split(",")[0] -> MODE=Auto - stored as myarray[0]
-        myarray[0].split("=")[0]->MODE
-        myarray[0].split("=")[1]->Auto
+      Data from server is STATUS#MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto
+      data = MODE=Auto,MOTOR=ON,TANK=Tank1,ACPOWER=ON,SOFTMODE=Auto
      */
      var mystring=data;
      var myarray=mystring.split(",");
      for (i=0;i<myarray.length;i++){
          
-         /*document.getElementById(myarray[i].split("=")[0]).innerHTML=myarray[i].split("=")[1];
-        This works if elements are like this
-        
-         </div>
-                <div class="col-12 hide">
-            <text>Mode=</text><text id="MODE"></text><br>
-            <text>Motor=</text><text id="MOTOR"></text><br>
-            <text>AC Power=</text><text id="ACPOWER"></text><br>
-            <text>Tank=</text><text id="TANK"></text><br>
-            <text>Motor Current=</text><text id="MOTORCURRENT"></text><br>
-            <text>AC Voltage=</text><text id="ACVOLTAGE"></text><br>
-        
-        
-        </div>
-        
-        */
+
         switch(myarray[i].split("=")[0]){
             case 'MOTOR':
                 if (myarray[i].split("=")[1]=="ON"){
@@ -1449,7 +1400,7 @@ function queryServer3(data)
                     
                     */
                     /* Request manual mode shutoff settings*/
-                    doSend("MANUAL-REQUEST");
+                    doSend("MANUAL#REQUEST");
                 }
                 SOFTMODE=myarray[i].split("=")[1];
                 
@@ -1477,33 +1428,15 @@ Will handle it on server side - since there might not always be a client connect
 */
                 break;
             case 'SENSORDOWN':
-               /*Sensor 1 is down*/
-                /*
-                if (myarray[i].split("=")[1]=="1"){
-                    
-                    document.getElementById("listTank1").attributes[0].value="downsensor";
-                    document.getElementById("listTemp1").attributes[0].value="downsensor";
-                    document.getElementById("timePressure1").innerHTML=returnformattedtime(myarray[i+1].split("=")[1]);*/
-                    /*Sensor 2 is down*/
-                /*
-                } else if (myarray[i].split("=")[1]=="2"){
-                    
-                    document.getElementById("listTank2").attributes[0].value="downsensor";
-                    document.getElementById("listTemp2").attributes[0].value="downsensor";
-                     document.getElementById("timePressure2").innerHTML=returnformattedtime(myarray[i+1].split("=")[1]);
-                }
-                */
-                
+
                 /* Change the sensor backgrounds*/
+                /*Jan 2022 STATUS#SENSORDOWN=2,SENSORTIME=2022-01-16 20:59:04 */
                 document.getElementById("listTank"+myarray[i].split("=")[1]).attributes[0].value="downsensor";
-                    document.getElementById("listTemp"+myarray[i].split("=")[1]).attributes[0].value="downsensor";
-                    document.getElementById("timePressure"+myarray[i].split("=")[1]).innerHTML=returnformattedtime(myarray[i+1].split("=")[1]);
+                document.getElementById("timePressure"+myarray[i].split("=")[1]).innerHTML=myarray[i+1].split("=")[1];
                 
-                /*SENSORSTATUS  = down*/
-                /*window['SENSOR'+myarray[i].split("=")[1]+'STATUS']="down;" */
                 SENSORSTATUS="down";
                 
-                                /* Switch to Manual mode*/
+                /* Switch to Manual mode*/
                 document.getElementById("SOFTMODE").checked=false;
                 document.getElementById("SOFTMODEAUTO").attributes[0].value="softmode";
                 document.getElementById("SOFTMODEMANUAL").attributes[0].value="softmodeactive";
@@ -1536,7 +1469,7 @@ Will handle it on server side - since there might not always be a client connect
                 /* Change the sensor backgrounds to active*/
                 document.getElementById("listTank"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
                     
-                document.getElementById("listTemp"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
+                //document.getElementById("listTemp"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
                     
 
                 
@@ -1555,13 +1488,13 @@ function requestdata(){
     var stopts = Math.round((new Date()).getTime() / 1000);
     var startts = stopts-3600;
     /*  def plotcharts(inputfile,starttime,endtime,*vars):*/
-    doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-P");
-        doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-p");
-        doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-B");
-        doSend("STOREDDATA-./sensordata-"+startts+"-"+stopts+"-b");
+    doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-P");
+        doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-p");
+        doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-B");
+        doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-b");
 }      
             
-function queryServer5(data){
+function settingshandler(data){
       if(data=="SAVED"){
           alert(data);
       }
@@ -1610,10 +1543,11 @@ function queryServer5(data){
         document.getElementById("HCSR041").innerHTML=rawSensor1Reading;
         document.getElementById("HCSR042").innerHTML=rawSensor2Reading;
         
+        
  }   
     }
             
-function queryServer8(data){
+function calhanlder(data){
       if(data=="SAVED"){
           alert(data);
       }
@@ -1664,7 +1598,7 @@ function queryServer8(data){
     }
             
 
-function queryServer9(data){
+function rawhandler(data){
     
 /*    raw-RMS=99,99 #RMSCurrentADC,RMSVoltageADC    */
 /*    raw-ADC=99,99 #rawSensor1Reading,rawSensor2Reading    */  
@@ -1679,7 +1613,7 @@ function queryServer9(data){
         rawSensor2Reading=data.split("=")[1].split(",")[1];
     }
 }
-function queryServer6(data){
+function manualhandler(data){
      var mystring=data;
      var myarray=mystring.split(",");
      for (i=0;i<myarray.length;i++){
@@ -1710,10 +1644,9 @@ function queryServer6(data){
    
     }
 }
-     var rawADC=[];
-    var adcCount=[];  
+ 
 
-function queryServer7(data){
+function rawadchandler(data){
 rawADC=[];
 adcCount=[]; 
     /*   data is in the form of [418,729,512,890]*/
@@ -1743,7 +1676,7 @@ function savesettings(){
    var savemessage="SAVESETTINGS-HIGHVOLTAGELEVEL=350LOWVOLTAGELEVEL=170HIGHMOTORCURRENT=7TANK1HIGHLEVEL=95TANK1LOWLEVEL=75TANK2HIGHLEVEL=95,1201";*/
   /* 
  //New, <125 Chars HVLVL=350,LVLVL=170,T1HLVL=95,T1LLVL=75,MAXT1=590.0,MINT1=199.0,T2HLVL=95,T2LLVL=75,MAXT2=590.0,MINT2=199.0,HMCURR=7*/
-    var savemessage="SAVE-";
+    var savemessage="SAVE#";
     for(i=0;i<document.getElementById("settingsbox").childElementCount;i++){
         if(document.getElementById("settingsbox").children[i].nodeName=="INPUT"){
             savemessage=savemessage+document.getElementById("settingsbox").children[i].id;
@@ -1757,10 +1690,18 @@ function savesettings(){
     }
     doSend(savemessage);
 }
+function savemacaddress(data){
+    /*
+    Change the mac address of sensors
+    */
+    mystring = "MACADDR#"+data+"="+document.getElementById(data).value;
+    //console.log(mystring);
+    doSend(mystring);
+    }
 function savecal(){
     /*Maximum 125 characters can be transferred via websocket - problem with python implementation I guess - will fix another time. Modified the code to accomodate all settings with in 125 chars*/
  /*  offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5*/
-    var calmessage="SAVECAL-";
+    var calmessage="SAVECAL#";
     for(i=0;i<document.getElementById("calbox").childElementCount;i++){
         if(document.getElementById("calbox").children[i].nodeName=="INPUT"){
             calmessage=calmessage+document.getElementById("calbox").children[i].id;
@@ -1796,7 +1737,7 @@ function savecal(){
      
   window.PLOTLYENV=window.PLOTLYENV || {};window.PLOTLYENV.BASE_URL="https://plot.ly";Plotly.newPlot("9ab6bde0-5a69-4f53-a80c-d2e19447d852", [{"y": rawADC, "x": adcCount, "type": "scatter", "name": "ADC"}], {"xaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}, "yaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}}, {"linkText": "Export to plot.ly", "showLink": false})
  };
-/*var q = setInterval(queryServer2, 10000); */
+/*var q = setInterval(sensordatahandler, 10000); */
 
 /*var q = setInterval(drawplot, 600000);*/ /*draw plot every 10 mins*/
 /* ]]> */
@@ -1805,8 +1746,7 @@ function savecal(){
 
  /* test*/
   
-        </script>
-        <script type="text/javascript">
+        
             
 /*window.removeEventListener("resize");*/
 window.addEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d850"));});
@@ -1819,6 +1759,5 @@ window.addEventListener("resize", function(){Plotly.Plots.resize(document.getEle
 window.removeEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("9ab6bde0-5a69-4f53-a80c-d2e19447d852"));});
  
         </script>
-        </div>
-    </body>
+
 </html>
