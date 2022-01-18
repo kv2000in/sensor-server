@@ -586,7 +586,7 @@ input:checked + .slider {
 <div class="col-4 status topleft">
             <p>
         
-         <button id="drawplot" onclick='drawplot();batteryplot();'>Sensor Plot</button> <!--<button id="reqdata" onclick='requestdata();'>Request Data</button>-->
+         <button id="drawplot" onclick='drawplot();batteryplot();'>Sensor Plot</button> 
       <!--  Reuests and plots the current and voltage data-->
         <button id="reqdata" onclick='doSend("RAWADC#VOLTAGE")'>Voltage Plot</button><button id="reqdata" onclick='doSend("RAWADC#CURRENT")'>Current Plot</button>
 
@@ -859,7 +859,7 @@ var currPressure1=0;
 var currPressure2=0;
 var SOFTMODE="def";
 var MODE="def";
-var SENSORSTATUS="UP";          
+var SENSORSTATUS="up";          
 var SERVERSTATUS="def";
 var rawRMSCurrentADC=999;
 var rawRMSVoltageADC=999;
@@ -935,6 +935,11 @@ function showhidebuttons(){
         
       var y=document.getElementsByClassName("sensordependent");
                     for (n=0;n<y.length;n++){y[n].style.visibility = "hidden";}  
+    }
+    else {
+        /*Sensor has come online*/
+         var y=document.getElementsByClassName("sensordependent");
+                    for (n=0;n<y.length;n++){y[n].style.visibility = "visible";}
     }
     
     
@@ -1520,7 +1525,7 @@ Will handle it on server side - since there might not always be a client connect
                 document.getElementById("listTank"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
                     
                 //document.getElementById("listTemp"+myarray[i].split("=")[1]).attributes[0].value="activesensor";
-                    
+                SENSORSTATUS="up";    
 
                 
                 break;
@@ -1533,16 +1538,7 @@ Will handle it on server side - since there might not always be a client connect
     showhidebuttons(); 
  }
             
-function requestdata(){
-/*    Although plotcharts function on the server can return all the variables in one go - get it one by one*/
-    var stopts = Math.round((new Date()).getTime() / 1000);
-    var startts = stopts-3600;
-    /*  def plotcharts(inputfile,starttime,endtime,*vars):*/
-    doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-P");
-        doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-p");
-        doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-B");
-        doSend("STOREDDATA#./sensordata-"+startts+"-"+stopts+"-b");
-}      
+     
             
 function settingshandler(data){
       if(data=="SAVED"){
@@ -1560,23 +1556,7 @@ function settingshandler(data){
      var mystring=data;
      var myarray=mystring.split(",");
      for (i=0;i<myarray.length;i++){
-         
-         /*document.getElementById(myarray[i].split("=")[0]).innerHTML=myarray[i].split("=")[1];
-        This works if elements are like this
-        
-         </div>
-                <div class="col-12 hide">
-            <text>Mode=</text><text id="MODE"></text><br>
-            <text>Motor=</text><text id="MOTOR"></text><br>
-            <text>AC Power=</text><text id="ACPOWER"></text><br>
-            <text>Tank=</text><text id="TANK"></text><br>
-            <text>Motor Current=</text><text id="MOTORCURRENT"></text><br>
-            <text>AC Voltage=</text><text id="ACVOLTAGE"></text><br>
-        
-        
-        </div>
-        
-        */
+
          
         document.getElementById(myarray[i].split("=")[0]).value=parseFloat(myarray[i].split("=")[1]).toFixed(0);
         

@@ -40,7 +40,7 @@
 					# ALSO - We are not using the optocouplers for detection of AC status and Motor running status. We are using the voltmeter and currentmeter "Backup" method since it needed less hardware to implement.
 #Jan 2022 - todo: - change host ip on sensor nodes and extenders to 192.168.1.110
 #LCD i2c address - see comments in lcd section i2c address 0x27 vs 0x3F
-#
+#Removed limit on websocket clients - disconnection probably due to errors rather than number of clients
 
 
 
@@ -196,8 +196,7 @@ MODE="DEFINE"
 ACPOWER="OFF"
 MOTOR="OFF"
 TANK="DEFINE"
-#Maximum number of websocket clients allowed to connect simultaneously = NUMofWebSocketClientsAllowed
-NUMofWebSocketClientsAllowed=2
+
 
 
 #Read initial GPIO status
@@ -244,10 +243,8 @@ def sendchangedstatus(mymsg):
 		for ws in clients:
 			ws.sendMessage(u'STATUS#'+mymsg)
 	except Exception as e:
-		if hasattr(e, 'message'):
-			print(e.message)
-		else:
-			print(e)
+		error_handler(sendchangedstatus.__name__,e)
+		pass
 #Adding bouncetime leads to undefined state in case of fast switching
 #October 2019 - added RC circuit on hardware board to deal with signal bounce
 #GPIO.add_event_detect(STATUSMODE, GPIO.BOTH, callback=modeswitch, bouncetime=30)
@@ -260,144 +257,83 @@ mcp = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(0, 1,20000)) # (0,0) was being use
 
 ## Commands are handled in the order they are received - this function is invoked by commandthread
 def commandhandler(command):
-	#global variable declaration needed if modifying global variables - not needed if just using global variables
-	if (command.split("=")[0]=="MOTOR"):
-		if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
+	try:
+		#global variable declaration needed if modifying global variables - not needed if just using global variables
+		if (command.split("=")[0]=="MOTOR"):
+			if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
+				if (command.split("=")[1]=="ON"):
+					if (MOTOR=="OFF"):
+						#Build Safety - Stable voltage for 5 seconds(with in 20 volts), initial current draw
+						initialACVOLTAGE=ACVOLTAGE
+						time.sleep(5) # THIS WILL BLOCK THE SCRIPT EXECUTION FOR 5 SECONDS
+						finalACVOLTAGE=ACVOLTAGE
+						if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
+							GPIO.output(SWSTARTPB,GPIO.HIGH) # Active low relays - GPIO HIGH turns on the relay by forward biasing the base of the NPN transistor - which brings the collector (Relay IN pin) to ground
+							time.sleep(3)
+							if (MOTOR=="ON"): #wait 3 seconds for Motor status to change to ON
+								GPIO.output(SWSTARTPB,GPIO.LOW) # then release the STARTPB 
+								#Check motor current draw and turn off motor if current > limit
+								if (MOTORCURRENT>HMCURR):
+									#Motor is ON but current is high - turn off the Motor
+									GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
+									sendchangedstatus("ERROR=MOTORHIGHCURRENT")
+									error_handler(commandhandler.__name__,"MOTORHIGHCURRENT")
+									time.sleep(3) # Wait for 3 seconds
+									if (MOTOR=="OFF"): # If motor turned off
+										GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
+							else:#Motor didn't start,
+								GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
+								sendchangedstatus("ERROR=MOTORSTART")
+								error_handler(commandhandler.__name__,"MOTORSTART")
+						else:# Doesn't meet voltage criteria - unstable or too low/too high
+							sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
+							error_handler(commandhandler.__name__,"MOTORNOTSTABLEVOLTAGE")
+				if (command.split("=")[1]=="OFF"):
+					if (MOTOR=="ON"):
+						GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
+						time.sleep(3) # Wait for 3 seconds
+						if (MOTOR=="OFF"): # If Motor turned off
+							GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
+						else: # Motor didn't stop
+							GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
+							sendchangedstatus("ERROR=MOTORSTOP")
+							error_handler(commandhandler.__name__,"MOTORSTOP")
+							#TURN OFF A MASTER POWER SWITCH TO PROTECT THE MOTOR
+		if (command.split("=")[0]=="TANK"):
+			if (command.split("=")[1]=="Tank 2"):
+				if (TANK=="Tank 1"):
+					GPIO.output(SWTANK,GPIO.LOW)
+			if (command.split("=")[1]=="Tank 1"):
+				if (TANK=="Tank 2"):
+					GPIO.output(SWTANK,GPIO.HIGH)
+					
+		if (command.split("=")[0]=="dMOTOR"):
+			if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
+				if (command.split("=")[1]=="ON"):
+					if (MOTOR=="OFF"):
+						#Build Safety - Stable voltage for 5 seconds(with in 20 volts), initial current draw
+						initialACVOLTAGE=ACVOLTAGE
+						time.sleep(5)
+						finalACVOLTAGE=ACVOLTAGE
+						if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
+							GPIO.output(SWSTARTPB,GPIO.HIGH)
+						else:# Doesn't meet voltage criteria - unstable or too low/too high
+							sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
+				if (command.split("=")[1]=="OFF"):
+					if (MOTOR=="ON"):
+						GPIO.output(SWSTARTPB,GPIO.LOW)
+		'''
+		if (command.split("=")[0]=="dMOTOR"):#Debugging mode - just one relay - MOTOR ON - high, Motor OFF - low
 			if (command.split("=")[1]=="ON"):
 				if (MOTOR=="OFF"):
-					#Build Safety - Stable voltage for 5 seconds(with in 20 volts), initial current draw
-					initialACVOLTAGE=ACVOLTAGE
-					time.sleep(5) # THIS WILL BLOCK THE SCRIPT EXECUTION FOR 5 SECONDS
-					finalACVOLTAGE=ACVOLTAGE
-					if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
-						GPIO.output(SWSTARTPB,GPIO.HIGH) # Active low relays - GPIO HIGH turns on the relay by forward biasing the base of the NPN transistor - which brings the collector (Relay IN pin) to ground
-						time.sleep(3)
-						if (MOTOR=="ON"): #wait 3 seconds for Motor status to change to ON
-							GPIO.output(SWSTARTPB,GPIO.LOW) # then release the STARTPB 
-							#Check motor current draw and turn off motor if current > limit
-							if (MOTORCURRENT>HMCURR):
-								#Motor is ON but current is high - turn off the Motor
-								GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
-								sendchangedstatus("ERROR=MOTORHIGHCURRENT")
-								error_handler(commandhandler.__name__,"MOTORHIGHCURRENT")
-								time.sleep(3) # Wait for 3 seconds
-								if (MOTOR=="OFF"): # If motor turned off
-									GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
-						else:#Motor didn't start,
-							GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
-							sendchangedstatus("ERROR=MOTORSTART")
-							error_handler(commandhandler.__name__,"MOTORSTART")
-					else:# Doesn't meet voltage criteria - unstable or too low/too high
-						sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
-						error_handler(commandhandler.__name__,"MOTORNOTSTABLEVOLTAGE")
-			if (command.split("=")[1]=="OFF"):
-				if (MOTOR=="ON"):
-					GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
-					time.sleep(3) # Wait for 3 seconds
-					if (MOTOR=="OFF"): # If Motor turned off
-						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
-					else: # Motor didn't stop
-						GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
-						sendchangedstatus("ERROR=MOTORSTOP")
-						error_handler(commandhandler.__name__,"MOTORSTOP")
-						#TURN OFF A MASTER POWER SWITCH TO PROTECT THE MOTOR
-	if (command.split("=")[0]=="TANK"):
-		if (command.split("=")[1]=="Tank 2"):
-			if (TANK=="Tank 1"):
-				GPIO.output(SWTANK,GPIO.LOW)
-		if (command.split("=")[1]=="Tank 1"):
-			if (TANK=="Tank 2"):
-				GPIO.output(SWTANK,GPIO.HIGH)
-				
-	if (command.split("=")[0]=="dMOTOR"):
-		if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
-			if (command.split("=")[1]=="ON"):
-				if (MOTOR=="OFF"):
-					#Build Safety - Stable voltage for 5 seconds(with in 20 volts), initial current draw
-					initialACVOLTAGE=ACVOLTAGE
-					time.sleep(5)
-					finalACVOLTAGE=ACVOLTAGE
-					if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
-						GPIO.output(SWSTARTPB,GPIO.HIGH)
-					else:# Doesn't meet voltage criteria - unstable or too low/too high
-						sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
+					GPIO.output(SWSTARTPB,GPIO.HIGH)
 			if (command.split("=")[1]=="OFF"):
 				if (MOTOR=="ON"):
 					GPIO.output(SWSTARTPB,GPIO.LOW)
-'''
-	if (command.split("=")[0]=="dMOTOR"):#Debugging mode - just one relay - MOTOR ON - high, Motor OFF - low
-		if (command.split("=")[1]=="ON"):
-			if (MOTOR=="OFF"):
-				GPIO.output(SWSTARTPB,GPIO.HIGH)
-		if (command.split("=")[1]=="OFF"):
-			if (MOTOR=="ON"):
-				GPIO.output(SWSTARTPB,GPIO.LOW)
-'''
-### HTTP REQUEST /WEB INTERFACE HANDLER FUNCTION####
-class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
-	def do_HEAD(s):
-		s.send_response(200)
-		s.send_header("Content-type", "text/html")
-		s.end_headers()
-	def do_GET(s):
-		"""Respond to a GET request."""
-		try:
-			#Declare some variables
-			modheader=s.headers.get('If-Modified-Since',"")
-			#Is the client requesting the home page
-			if (s.path=="/"):
-				if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+"sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
-					with open('/home/pi/sensor.html','r') as myfile:
-						s.send_response(200)
-						s.send_header("Content-type", "text/html")
-						s.send_header("Cache-Control","private")
-						s.send_header("Cache-Control","max-age=31536000")
-						s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+"sensor.html")).strftime('%c'))
-						myfiledescriptors=os.fstat(myfile.fileno())
-						s.send_header("Content-Length", str(myfiledescriptors.st_size))
-						s.end_headers()
-						shutil.copyfileobj(myfile, s.wfile)
-					myfile.close()
-				elif (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+"sensor.html")))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
-					s.send_response(304)
-			#So not requesting the home page - hence
-			else:
-				# First determine if file exists
-				if (os.path.isfile(mylocationdir+s.path)):
-					#File exists - solve the content type based on requested extenstion
-					try:
-						if (s.path.split(".")[1] == ""):
-							mytype="text/plain"
-						elif (s.path.split(".")[1] == "js"):
-							mytype="text/javascript"
-						elif (s.path.split(".")[1] == "html"):
-							mytype="text/html"
-						elif (s.path.split(".")[1] == "txt"):
-							mytype="text/plain"
-						else:
-							mytype="text/plain"
-					except IndexError:
-						mytype="text/plain" 
-					#Now Check if modheaders present etc.
-					if ((modheader=="") or (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()>1 )):
-						with open(mylocationdir+s.path,'r') as myfile:
-							s.send_response(200)
-							s.send_header("Content-type", mytype)
-							s.send_header("Cache-Control","private")
-							s.send_header("Cache-Control","max-age=31536000")
-							s.send_header("Last-Modified", datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+s.path)).strftime('%c'))
-							myfiledescriptors=os.fstat(myfile.fileno())
-							s.send_header("Content-Length", str(myfiledescriptors.st_size))
-							s.end_headers()
-							shutil.copyfileobj(myfile, s.wfile)
-						myfile.close()
-					elif (((datetime.datetime.fromtimestamp(os.path.getmtime(mylocationdir+s.path)))-(datetime.datetime.strptime(s.headers.get('If-Modified-Since',""), '%c'))).total_seconds()<1 ):
-						s.send_response(304)
-				# Requested file doesn't exist
-				else:
-					s.send_error(404,'File Not Found: %s' % s.path)
-		except IOError:
-			s.send_error(404,'File Not Found: %s' % s.path)
+		'''
+	except Exception as e:
+		error_handler(commandhandler.__name__,e)
+		pass
 ###SENSOR VALUES ARE RECEIVED, SAVED and UPDATED by THIS FUNCTION
 def worker_sensorthread(client_socket):
 	try:
@@ -492,15 +428,17 @@ def worker_sensorthread(client_socket):
 						break
 					i+=1
 	except Exception as e:
-		if hasattr(e, 'message'):
-			print(e.message)
-		else:
-			print(e)
+		error_handler(worker_sensorthread.__name__,e)
+		pass
 def savesensordatatofile(formattedsensordata):
-	fobj = open(mylocationdir+"sensordata"+time.strftime("%Y-%m-%d",time.localtime()), 'a+')
-	fobj.write(formattedsensordata)
-	fobj.write('\n')
-	fobj.close()
+	try:
+		fobj = open(mylocationdir+"sensordata"+time.strftime("%Y-%m-%d",time.localtime()), 'a+')
+		fobj.write(formattedsensordata)
+		fobj.write('\n')
+		fobj.close()
+	except Exception as e:
+		error_handler(savesensordatatofile.__name__,e)
+		pass
 #Request for plot will come as which sensor, starttime, stoptime.
 #open the file with name sensordata+startdate name, read lines, seek until time is >time from starttime
 #read line by line - if sensor matches the sensor requested - push the time and value data in the list
@@ -534,66 +472,26 @@ def sendstoreddata(data):
 		for sensorid in vars:
 			mymessagetosend = sensorid+"#"+mytempdataholdingdict[sensorid]
 			for ws in clients:
-				ws.sendMessage(u'StoredData='+mymessagetosend.strip(","))
+				ws.sendMessage(u'StoredData#'+mymessagetosend.strip(","))
 	except Exception as e:
-			if hasattr(e, 'message'):
-				print(e.message)
-				for ws in clients:
-					ws.sendMessage(u'Error='+e.message)
-			else:
-				print(e)
-			pass
+		error_handler(sendstoreddata.__name__,e)
+		pass
 
-
-
-### This function can return chunks of data from the saved sensordata file - useful for plotting by clients - not in use as of 2/19/18
-def plotcharts(inputfile,starttime,endtime,*vars):
-	try:
-		for k in vars:
-			mydict["x"+k]=[] # define the x and y variable lists
-			mydict["y"+k]=[]
-		frobj = open(inputfile, 'r') # input file has data in the form of 1480055273.46,T21.06
-		#Modified in order for it to work with saving Tanklevel instead of raw values (1/6/18)
-		#nOW - inputfile has data in the form of 1516156620.4,P 4.0\n
-		#1/21/18 - WILL NOT WORK with new format of saving 1516156620.4,P 4.0,B5000\n
-		#1/21/18 - modified - will work with new format
-		for line in frobj: # read the input file line by line
-			# line.split results in a list split at comma
-			step1=line.split(",") # step1[0]=1516156620.4 step1[1]=P 4.0 step1[2]=B5000
-			#-1 is the index from the right = last object in the list.
-			# strip removes leading and trailing characters, 
-			step2_1=str(step1[1]).strip()
-			step2_2=str(step1[2]).strip()
-			#[:1] gives the the ?2nd character P,T,L or B [1:] gives anything after ?2nd char
-			for variable in vars:
-				if (step2_1[:1]==variable):
-					if endtime > float(step1[0]) > starttime:
-					#Convert unix epoh time to human readable time
-						mydict["x"+variable].append(datetime.datetime.fromtimestamp(float(step1[0])).strftime('%Y-%m-%d %H:%M:%S'))
-						mydict["y"+variable].append(step2_1[1:])
-				elif (step2_2[:1]==variable):
-					if endtime > float(step1[0]) > starttime:
-					#Convert unix epoh time to human readable time
-						mydict["x"+variable].append(datetime.datetime.fromtimestamp(float(step1[0])).strftime('%Y-%m-%d %H:%M:%S'))
-						mydict["y"+variable].append(step2_2[1:])
-		return mydict
-	except Exception as e:
-		if hasattr(e, 'message'):
-			print(e.message)
-		else:
-			print(e)
 
 ## Sending the raw ADC values to the client - to plot- and use it to calibrate
 def send_raw_adc(param):
-	global sampleVArray
-	global sampleIArray
-	
-	#myPin=inPinV # default pin is voltage pin
-	if param=="VOLTAGE":
-		return sampleVArray
-	#	myPin=inPinV
-	elif param == "CURRENT":
-		return sampleIArray
+	try:
+		global sampleVArray
+		global sampleIArray
+		#myPin=inPinV # default pin is voltage pin
+		if param=="VOLTAGE":
+			return sampleVArray
+		#	myPin=inPinV
+		elif param == "CURRENT":
+			return sampleIArray
+	except Exception as e:
+		error_handler(send_raw_adc.__name__,e)
+		pass
 ##Analogread is the function from EMONPI example - currently not in use
 def analogread(crossings,timeouttime): #(20,2000) in emonpi example
 	#Using myanalogread instead of analogread - simpler - no phase difference calculation - just instantaneous V and I measurement
@@ -762,221 +660,270 @@ def analogread(crossings,timeouttime): #(20,2000) in emonpi example
 	'''
 ##THIS FUNCTION READs the analog ADC values (voltage and current)
 def myanalogread(timeout):
-	global ACVOLTAGE
-	global MOTORCURRENT
-	global sampleVArray
-	global sampleIArray
-	global VoltCalibrate
-	global VadcValue
-	global CurrentCalibrate
-	global CadcValue
-	global offsetI
-	global offsetV
-	global raw_RMS_Voltage_ADC
-	global raw_RMS_Current_ADC
-	VArray=[]
-	IArray=[]
-	sumV=0
-	sumI=0
-	numberOfSamples=0
-	#V_RATIO=110.0/140.0 # ADC Value of 140 for RMS AC Voltage  of 110 V
-	#I_RATIO=0.21/17.5 # ADC Value of 17.5 for RMS AC Current of 0.21 A
-	#offsetV=529 #see Emon pi function above for explanation
-	#offsetI=512
-	starttime=time.time()*1000 #(time in milliseconds)
-	#timeout= 4000
-	while ((time.time()*1000-starttime)<timeout): # Collect samples for the duration specified by timeout time.
-		#Bitbanging using python is slower than spidev using python
-		sampleV=mcp.read_adc(inPinV)
-		sampleI=mcp.read_adc(inPinI)
-		filteredV = sampleV - offsetV
-		filteredI = sampleI - offsetI
-		sqV= filteredV * filteredV	#1) square voltage values
-		sumV += sqV	#2) sum
-		sqI = filteredI * filteredI	#1) square current values
-		sumI += sqI	#2) sum
-		numberOfSamples+=1
-		VArray.append(sampleV)
-		IArray.append(sampleI)
-		#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-	#ACVOLTAGE = round((V_RATIO*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
-	ACVOLTAGE = round(((VoltCalibrate/VadcValue)*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
-	raw_RMS_Voltage_ADC=round(math.sqrt(sumV/numberOfSamples),1)
-	'''
-	print numberOfSamples
-	print sumV
-	print sumV/numberOfSamples
-	print math.sqrt(sumV / numberOfSamples)
-	print V_RATIO*math.sqrt(sumV / numberOfSamples)
-	print sumI
-	'''
-	#MOTORCURRENT = round((I_RATIO*math.sqrt(sumI / numberOfSamples)),2)
-	MOTORCURRENT = round(((CurrentCalibrate/CadcValue)*math.sqrt(sumI / numberOfSamples)),2)
-	raw_RMS_Current_ADC=round(math.sqrt(sumI/numberOfSamples),1)
-	sampleVArray=VArray
-	sampleIArray=IArray
-	
-	#############################################
-	# BACK UP AC/MOTOR STATUS DETECTION SECTION # 
-	#############################################
-	#ALSO USEFUL IN TESTING THE AUTOTHREAD with MOTOR instead of dMOTOR.
-	#Use a separate light switch and bulb-set the current sensor to sense this bulb current draw - manually turn on the bulb when SWSTARTPB relay is active and manually turn off the bulb when SWSTOPPB is active
-	global ACPOWER
-	global MOTOR
-	global MONCURR
-	#If Voltage >LOW VOLTAGE - AC present
-	if (ACVOLTAGE>LVLVL):
-		if (ACPOWER=="OFF"):
-			ACPOWER="ON"
-			sendchangedstatus("ACPOWER="+ACPOWER)
-	else:
-		if (ACPOWER=="ON"):
-			ACPOWER="OFF"
-			sendchangedstatus("ACPOWER="+ACPOWER)
-	#If Motor drawing more than MONCURR  - MOTOR is ON
-	if (MOTORCURRENT>MONCURR):
-		if (MOTOR=="OFF"):
-			MOTOR="ON"
-			sendchangedstatus("MOTOR="+MOTOR)
-	else:
-		if(MOTOR=="ON"):
-			MOTOR="OFF"
-			sendchangedstatus("MOTOR="+MOTOR)
-	#############################################
+	try:
+		global ACVOLTAGE
+		global MOTORCURRENT
+		global sampleVArray
+		global sampleIArray
+		global VoltCalibrate
+		global VadcValue
+		global CurrentCalibrate
+		global CadcValue
+		global offsetI
+		global offsetV
+		global raw_RMS_Voltage_ADC
+		global raw_RMS_Current_ADC
+		VArray=[]
+		IArray=[]
+		sumV=0
+		sumI=0
+		numberOfSamples=0
+		#V_RATIO=110.0/140.0 # ADC Value of 140 for RMS AC Voltage  of 110 V
+		#I_RATIO=0.21/17.5 # ADC Value of 17.5 for RMS AC Current of 0.21 A
+		#offsetV=529 #see Emon pi function above for explanation
+		#offsetI=512
+		starttime=time.time()*1000 #(time in milliseconds)
+		#timeout= 4000
+		while ((time.time()*1000-starttime)<timeout): # Collect samples for the duration specified by timeout time.
+			#Bitbanging using python is slower than spidev using python
+			sampleV=mcp.read_adc(inPinV)
+			sampleI=mcp.read_adc(inPinI)
+			filteredV = sampleV - offsetV
+			filteredI = sampleI - offsetI
+			sqV= filteredV * filteredV	#1) square voltage values
+			sumV += sqV	#2) sum
+			sqI = filteredI * filteredI	#1) square current values
+			sumI += sqI	#2) sum
+			numberOfSamples+=1
+			VArray.append(sampleV)
+			IArray.append(sampleI)
+			#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
+		#ACVOLTAGE = round((V_RATIO*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
+		ACVOLTAGE = round(((VoltCalibrate/VadcValue)*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
+		raw_RMS_Voltage_ADC=round(math.sqrt(sumV/numberOfSamples),1)
+		'''
+		print numberOfSamples
+		print sumV
+		print sumV/numberOfSamples
+		print math.sqrt(sumV / numberOfSamples)
+		print V_RATIO*math.sqrt(sumV / numberOfSamples)
+		print sumI
+		'''
+		#MOTORCURRENT = round((I_RATIO*math.sqrt(sumI / numberOfSamples)),2)
+		MOTORCURRENT = round(((CurrentCalibrate/CadcValue)*math.sqrt(sumI / numberOfSamples)),2)
+		raw_RMS_Current_ADC=round(math.sqrt(sumI/numberOfSamples),1)
+		sampleVArray=VArray
+		sampleIArray=IArray
+		#############################################
+		# BACK UP AC/MOTOR STATUS DETECTION SECTION # 
+		#############################################
+		#ALSO USEFUL IN TESTING THE AUTOTHREAD with MOTOR instead of dMOTOR.
+		#Use a separate light switch and bulb-set the current sensor to sense this bulb current draw - manually turn on the bulb when SWSTARTPB relay is active and manually turn off the bulb when SWSTOPPB is active
+		global ACPOWER
+		global MOTOR
+		global MONCURR
+		#If Voltage >LOW VOLTAGE - AC present
+		if (ACVOLTAGE>LVLVL):
+			if (ACPOWER=="OFF"):
+				ACPOWER="ON"
+				sendchangedstatus("ACPOWER="+ACPOWER)
+		else:
+			if (ACPOWER=="ON"):
+				ACPOWER="OFF"
+				sendchangedstatus("ACPOWER="+ACPOWER)
+		#If Motor drawing more than MONCURR  - MOTOR is ON
+		if (MOTORCURRENT>MONCURR):
+			if (MOTOR=="OFF"):
+				MOTOR="ON"
+				sendchangedstatus("MOTOR="+MOTOR)
+		else:
+			if(MOTOR=="ON"):
+				MOTOR="OFF"
+				sendchangedstatus("MOTOR="+MOTOR)
+		#############################################
+	except Exception as e:
+		error_handler(myanalogread.__name__,e)
+		pass
 ##This function loads and saves the voltage and current calibration settings
 def calibrationhandler(vals,operation):
-	global offsetI
-	global offsetV
-	global VadcValue
-	global CadcValue
-	global CurrentCalibrate
-	global VoltCalibrate
-	if (operation=="bakup"):
-		#Create Bakup of existing calibration
-		#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
-		sobj = open(mylocationdir+"ADCcalibrationbakup", 'w')
-		sobj.write("offsetI="+str(offsetI)+",")
-		sobj.write("offsetV="+str(offsetV)+",")
-		sobj.write("Vcal="+str(VoltCalibrate)+",")
-		sobj.write("Vadc="+str(VadcValue)+",")
-		sobj.write("Ccal="+str(CurrentCalibrate)+",")
-		sobj.write("Cadc="+str(CadcValue))
-		sobj.close()
-	if (operation=="save"):
-		if not ((vals=="null") or (vals=="")):
-			mylist=vals.split(",")
-			del mylist[-1] #delete the last comma
-			valsdict={}
-			for eachval in mylist: #vals get passed on as offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5  - this split converts it in to a list
-				valsdict[eachval.split("=")[0]]=eachval.split("=")[1]
+	try:
+		global offsetI
+		global offsetV
+		global VadcValue
+		global CadcValue
+		global CurrentCalibrate
+		global VoltCalibrate
+		if (operation=="bakup"):
+			#Create Bakup of existing calibration
 			#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
-			#Set the values for current instance of the script
+			sobj = open(mylocationdir+"ADCcalibrationbakup", 'w')
+			sobj.write("offsetI="+str(offsetI)+",")
+			sobj.write("offsetV="+str(offsetV)+",")
+			sobj.write("Vcal="+str(VoltCalibrate)+",")
+			sobj.write("Vadc="+str(VadcValue)+",")
+			sobj.write("Ccal="+str(CurrentCalibrate)+",")
+			sobj.write("Cadc="+str(CadcValue))
+			sobj.close()
+		if (operation=="save"):
+			if not ((vals=="null") or (vals=="")):
+				mylist=vals.split(",")
+				del mylist[-1] #delete the last comma
+				valsdict={}
+				for eachval in mylist: #vals get passed on as offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5  - this split converts it in to a list
+					valsdict[eachval.split("=")[0]]=eachval.split("=")[1]
+				#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
+				#Set the values for current instance of the script
+				offsetI=float(valsdict['offsetI'])
+				offsetV=float(valsdict['offsetV'])
+				VoltCalibrate=float(valsdict['Vcal'])
+				VadcValue=float(valsdict['Vadc'])
+				CurrentCalibrate=float(valsdict['Ccal'])
+				CadcValue=float(valsdict['Cadc'])
+			#Save the values for next run
+			sobj = open(mylocationdir+"ADCcalibration", 'w')
+			sobj.write("offsetI="+str(offsetI)+",")
+			sobj.write("offsetV="+str(offsetV)+",")
+			sobj.write("Vcal="+str(VoltCalibrate)+",")
+			sobj.write("Vadc="+str(VadcValue)+",")
+			sobj.write("Ccal="+str(CurrentCalibrate)+",")
+			sobj.write("Cadc="+str(CadcValue))
+			sobj.close()
+		if (operation=="load"):
+			sobj = open(mylocationdir+"ADCcalibration", 'r')
+			valsdata=sobj.readline()
+			valsdict={}
+			#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
+			for eachval in valsdata.split(","): 
+				valsdict[eachval.split("=")[0]]=eachval.split("=")[1]
+			#load the values from the file for current instance of the script
 			offsetI=float(valsdict['offsetI'])
 			offsetV=float(valsdict['offsetV'])
 			VoltCalibrate=float(valsdict['Vcal'])
 			VadcValue=float(valsdict['Vadc'])
 			CurrentCalibrate=float(valsdict['Ccal'])
 			CadcValue=float(valsdict['Cadc'])
-		#Save the values for next run
-		sobj = open(mylocationdir+"ADCcalibration", 'w')
-		sobj.write("offsetI="+str(offsetI)+",")
-		sobj.write("offsetV="+str(offsetV)+",")
-		sobj.write("Vcal="+str(VoltCalibrate)+",")
-		sobj.write("Vadc="+str(VadcValue)+",")
-		sobj.write("Ccal="+str(CurrentCalibrate)+",")
-		sobj.write("Cadc="+str(CadcValue))
-		sobj.close()
-	if (operation=="load"):
-		sobj = open(mylocationdir+"ADCcalibration", 'r')
-		valsdata=sobj.readline()
-		valsdict={}
-		#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc=17.5
-		for eachval in valsdata.split(","): 
-			valsdict[eachval.split("=")[0]]=eachval.split("=")[1]
-		#load the values from the file for current instance of the script
-		offsetI=float(valsdict['offsetI'])
-		offsetV=float(valsdict['offsetV'])
-		VoltCalibrate=float(valsdict['Vcal'])
-		VadcValue=float(valsdict['Vadc'])
-		CurrentCalibrate=float(valsdict['Ccal'])
-		CadcValue=float(valsdict['Cadc'])
-		sobj.close()
-	if (operation=="revert"):
-		sobj = open(mylocationdir+"ADCcalibrationbakup", 'r')
-		valsdata=sobj.readline()
-		valsdict={}
-		for eachval in valsdata.split(","): 
-			valsdict[eachval.split("=")[0]]=eachval.split("=")[1]
-		#load the values from the file for current instance of the script
-		offsetI=float(valsdict['offsetI'])
-		offsetV=float(valsdict['offsetV'])
-		VoltCalibrate=float(valsdict['Vcal'])
-		VadcValue=float(valsdict['Vadc'])
-		CurrentCalibrate=float(valsdict['Ccal'])
-		CadcValue=float(valsdict['Cadc'])
-		sobj.close()
+			sobj.close()
+		if (operation=="revert"):
+			sobj = open(mylocationdir+"ADCcalibrationbakup", 'r')
+			valsdata=sobj.readline()
+			valsdict={}
+			for eachval in valsdata.split(","): 
+				valsdict[eachval.split("=")[0]]=eachval.split("=")[1]
+			#load the values from the file for current instance of the script
+			offsetI=float(valsdict['offsetI'])
+			offsetV=float(valsdict['offsetV'])
+			VoltCalibrate=float(valsdict['Vcal'])
+			VadcValue=float(valsdict['Vadc'])
+			CurrentCalibrate=float(valsdict['Ccal'])
+			CadcValue=float(valsdict['Cadc'])
+			sobj.close()
+	except Exception as e:
+		error_handler(calibrationhandler.__name__,e)
+		pass
 ##This function loads and saves the general settings (tank high/low etc)
 def settingshandler(settings,operation):
-	global SOFTMODE
-	global HVLVL
-	global HMCURR
-	global T1HLVL
-	global T1LLVL
-	global T2HLVL
-	global T2LLVL
-	global LVLVL
-	global MAXT1
-	global MAXT2
-	global MINT1
-	global MINT2
-	global MONCURR
-	global sensortotankattachmentdict
-	if (operation=="bakup"):
-		#Create Bakup of existing settings
-		sobj = open(mylocationdir+"sensorsettingsbakup", 'w')
-		sobj.write("SOFTMODE="+str(SOFTMODE)+"\n")
-		sobj.write("HVLVL="+str(HVLVL)+"\n")
-		sobj.write("HMCURR="+str(HMCURR)+"\n")
-		sobj.write("T1HLVL="+str(T1HLVL)+"\n")
-		sobj.write("T1LLVL="+str(T1LLVL)+"\n")
-		sobj.write("T2HLVL="+str(T2HLVL)+"\n")
-		sobj.write("T2LLVL="+str(T2LLVL)+"\n")
-		sobj.write("LVLVL="+str(LVLVL)+"\n")
-		sobj.write("MAXT1="+str(MAXT1)+"\n")
-		sobj.write("MAXT2="+str(MAXT2)+"\n")
-		sobj.write("MINT1="+str(MINT1)+"\n")
-		sobj.write("MINT2="+str(MINT2)+"\n")
-		sobj.write("T1MAC="+sensortotankattachmentdict['T1MAC']+"\n")
-		sobj.write("T2MAC="+sensortotankattachmentdict['T2MAC']+"\n")
-		sobj.write("MONCURR="+str(MONCURR)+"\n")
-		sobj.close()
-	if (operation=="savemacaddr"):
-		#Save current settings including current mac addr
-		sobj = open(mylocationdir+"sensorsettings", 'w')
-		sobj.write("SOFTMODE="+str(SOFTMODE)+"\n")
-		sobj.write("HVLVL="+str(HVLVL)+"\n")
-		sobj.write("HMCURR="+str(HMCURR)+"\n")
-		sobj.write("T1HLVL="+str(T1HLVL)+"\n")
-		sobj.write("T1LLVL="+str(T1LLVL)+"\n")
-		sobj.write("T2HLVL="+str(T2HLVL)+"\n")
-		sobj.write("T2LLVL="+str(T2LLVL)+"\n")
-		sobj.write("LVLVL="+str(LVLVL)+"\n")
-		sobj.write("MAXT1="+str(MAXT1)+"\n")
-		sobj.write("MAXT2="+str(MAXT2)+"\n")
-		sobj.write("MINT1="+str(MINT1)+"\n")
-		sobj.write("MINT2="+str(MINT2)+"\n")
-		sobj.write("T1MAC="+sensortotankattachmentdict['T1MAC']+"\n")
-		sobj.write("T2MAC="+sensortotankattachmentdict['T2MAC']+"\n")
-		sobj.write("MONCURR="+str(MONCURR)+"\n")
-		sobj.close()
-	if (operation=="save"):
-		if not ((settings=="null") or (settings=="")):
-			mylist=settings.split(",")
-			del mylist[-1] #delete the last comma
+	try:
+		global SOFTMODE
+		global HVLVL
+		global HMCURR
+		global T1HLVL
+		global T1LLVL
+		global T2HLVL
+		global T2LLVL
+		global LVLVL
+		global MAXT1
+		global MAXT2
+		global MINT1
+		global MINT2
+		global MONCURR
+		global sensortotankattachmentdict
+		if (operation=="bakup"):
+			#Create Bakup of existing settings
+			sobj = open(mylocationdir+"sensorsettingsbakup", 'w')
+			sobj.write("SOFTMODE="+str(SOFTMODE)+"\n")
+			sobj.write("HVLVL="+str(HVLVL)+"\n")
+			sobj.write("HMCURR="+str(HMCURR)+"\n")
+			sobj.write("T1HLVL="+str(T1HLVL)+"\n")
+			sobj.write("T1LLVL="+str(T1LLVL)+"\n")
+			sobj.write("T2HLVL="+str(T2HLVL)+"\n")
+			sobj.write("T2LLVL="+str(T2LLVL)+"\n")
+			sobj.write("LVLVL="+str(LVLVL)+"\n")
+			sobj.write("MAXT1="+str(MAXT1)+"\n")
+			sobj.write("MAXT2="+str(MAXT2)+"\n")
+			sobj.write("MINT1="+str(MINT1)+"\n")
+			sobj.write("MINT2="+str(MINT2)+"\n")
+			sobj.write("T1MAC="+sensortotankattachmentdict['T1MAC']+"\n")
+			sobj.write("T2MAC="+sensortotankattachmentdict['T2MAC']+"\n")
+			sobj.write("MONCURR="+str(MONCURR)+"\n")
+			sobj.close()
+		if (operation=="savemacaddr"):
+			#Save current settings including current mac addr
+			sobj = open(mylocationdir+"sensorsettings", 'w')
+			sobj.write("SOFTMODE="+str(SOFTMODE)+"\n")
+			sobj.write("HVLVL="+str(HVLVL)+"\n")
+			sobj.write("HMCURR="+str(HMCURR)+"\n")
+			sobj.write("T1HLVL="+str(T1HLVL)+"\n")
+			sobj.write("T1LLVL="+str(T1LLVL)+"\n")
+			sobj.write("T2HLVL="+str(T2HLVL)+"\n")
+			sobj.write("T2LLVL="+str(T2LLVL)+"\n")
+			sobj.write("LVLVL="+str(LVLVL)+"\n")
+			sobj.write("MAXT1="+str(MAXT1)+"\n")
+			sobj.write("MAXT2="+str(MAXT2)+"\n")
+			sobj.write("MINT1="+str(MINT1)+"\n")
+			sobj.write("MINT2="+str(MINT2)+"\n")
+			sobj.write("T1MAC="+sensortotankattachmentdict['T1MAC']+"\n")
+			sobj.write("T2MAC="+sensortotankattachmentdict['T2MAC']+"\n")
+			sobj.write("MONCURR="+str(MONCURR)+"\n")
+			sobj.close()
+		if (operation=="save"):
+			if not ((settings=="null") or (settings=="")):
+				mylist=settings.split(",")
+				del mylist[-1] #delete the last comma
+				settingsdict={}
+				for eachsetting in mylist: #settings get passed on as HVLVL=350,LVLVL=170,T1HLVL=95,T1LLVL=75,MAXT1=590.0,MINT1=199.0,T2HLVL=95,T2LLVL=75,MAXT2=590.0,MINT2=199.0,HMCURR=7 - this split converts it in to a list
+					settingsdict[eachsetting.split("=")[0]]=eachsetting.split("=")[1]
+				#Set the values for current instance of the script
+				HVLVL=float(settingsdict['HVLVL'])
+				HMCURR=float(settingsdict['HMCURR'])
+				T1HLVL=float(settingsdict['T1HLVL'])
+				T1LLVL=float(settingsdict['T1LLVL'])
+				T2HLVL=float(settingsdict['T2HLVL'])
+				T2LLVL=float(settingsdict['T2LLVL'])
+				LVLVL=float(settingsdict['LVLVL'])
+				MAXT1=float(settingsdict['MAXT1'])
+				MAXT2=float(settingsdict['MAXT2'])
+				MINT1=float(settingsdict['MINT1'])
+				MINT2=float(settingsdict['MINT2'])
+				MONCURR=float(settingsdict['MONCURR'])
+			#Save the values for next run
+			sobj = open(mylocationdir+"sensorsettings", 'w')
+			sobj.write("SOFTMODE="+str(SOFTMODE)+"\n")
+			sobj.write("HVLVL="+str(HVLVL)+"\n")
+			sobj.write("HMCURR="+str(HMCURR)+"\n")
+			sobj.write("T1HLVL="+str(T1HLVL)+"\n")
+			sobj.write("T1LLVL="+str(T1LLVL)+"\n")
+			sobj.write("T2HLVL="+str(T2HLVL)+"\n")
+			sobj.write("T2LLVL="+str(T2LLVL)+"\n")
+			sobj.write("LVLVL="+str(LVLVL)+"\n")
+			sobj.write("MAXT1="+str(MAXT1)+"\n")
+			sobj.write("MAXT2="+str(MAXT2)+"\n")
+			sobj.write("MINT1="+str(MINT1)+"\n")
+			sobj.write("MINT2="+str(MINT2)+"\n")
+			sobj.write("T1MAC="+sensortotankattachmentdict['T1MAC']+"\n")
+			sobj.write("T2MAC="+sensortotankattachmentdict['T2MAC']+"\n")
+			sobj.write("MONCURR="+str(MONCURR)+"\n")
+			sobj.close()
+		if (operation=="load"):
 			settingsdict={}
-			for eachsetting in mylist: #settings get passed on as HVLVL=350,LVLVL=170,T1HLVL=95,T1LLVL=75,MAXT1=590.0,MINT1=199.0,T2HLVL=95,T2LLVL=75,MAXT2=590.0,MINT2=199.0,HMCURR=7 - this split converts it in to a list
-				settingsdict[eachsetting.split("=")[0]]=eachsetting.split("=")[1]
-			#Set the values for current instance of the script
+			try:
+				with open(mylocationdir+"sensorsettings", 'r') as sobj:
+					for settingsdata in sobj:
+						settingsdict[settingsdata.split("=")[0]]=settingsdata.split("=")[1].rstrip('\n')
+				sobj.close()
+			except IndexError:
+				pass
+			#load the values from the file for current instance of the script
+			SOFTMODE=str(settingsdict['SOFTMODE'])
 			HVLVL=float(settingsdict['HVLVL'])
 			HMCURR=float(settingsdict['HMCURR'])
 			T1HLVL=float(settingsdict['T1HLVL'])
@@ -988,87 +935,45 @@ def settingshandler(settings,operation):
 			MAXT2=float(settingsdict['MAXT2'])
 			MINT1=float(settingsdict['MINT1'])
 			MINT2=float(settingsdict['MINT2'])
+			sensortotankattachmentdict['T1MAC']=settingsdict['T1MAC']
+			sensortotankattachmentdict['T2MAC']=settingsdict['T2MAC']
 			MONCURR=float(settingsdict['MONCURR'])
-		#Save the values for next run
-		sobj = open(mylocationdir+"sensorsettings", 'w')
-		sobj.write("SOFTMODE="+str(SOFTMODE)+"\n")
-		sobj.write("HVLVL="+str(HVLVL)+"\n")
-		sobj.write("HMCURR="+str(HMCURR)+"\n")
-		sobj.write("T1HLVL="+str(T1HLVL)+"\n")
-		sobj.write("T1LLVL="+str(T1LLVL)+"\n")
-		sobj.write("T2HLVL="+str(T2HLVL)+"\n")
-		sobj.write("T2LLVL="+str(T2LLVL)+"\n")
-		sobj.write("LVLVL="+str(LVLVL)+"\n")
-		sobj.write("MAXT1="+str(MAXT1)+"\n")
-		sobj.write("MAXT2="+str(MAXT2)+"\n")
-		sobj.write("MINT1="+str(MINT1)+"\n")
-		sobj.write("MINT2="+str(MINT2)+"\n")
-		sobj.write("T1MAC="+sensortotankattachmentdict['T1MAC']+"\n")
-		sobj.write("T2MAC="+sensortotankattachmentdict['T2MAC']+"\n")
-		sobj.write("MONCURR="+str(MONCURR)+"\n")
-		sobj.close()
-	if (operation=="load"):
-		settingsdict={}
-		try:
-			with open(mylocationdir+"sensorsettings", 'r') as sobj:
-				for settingsdata in sobj:
-					settingsdict[settingsdata.split("=")[0]]=settingsdata.split("=")[1].rstrip('\n')
-			sobj.close()
-		except IndexError:
-			pass
-		#load the values from the file for current instance of the script
-		SOFTMODE=str(settingsdict['SOFTMODE'])
-		HVLVL=float(settingsdict['HVLVL'])
-		HMCURR=float(settingsdict['HMCURR'])
-		T1HLVL=float(settingsdict['T1HLVL'])
-		T1LLVL=float(settingsdict['T1LLVL'])
-		T2HLVL=float(settingsdict['T2HLVL'])
-		T2LLVL=float(settingsdict['T2LLVL'])
-		LVLVL=float(settingsdict['LVLVL'])
-		MAXT1=float(settingsdict['MAXT1'])
-		MAXT2=float(settingsdict['MAXT2'])
-		MINT1=float(settingsdict['MINT1'])
-		MINT2=float(settingsdict['MINT2'])
-		sensortotankattachmentdict['T1MAC']=settingsdict['T1MAC']
-		sensortotankattachmentdict['T2MAC']=settingsdict['T2MAC']
-		MONCURR=float(settingsdict['MONCURR'])
-	if (operation=="revert"):
-		settingsdict={}
-		try:
-			with open(mylocationdir+"sensorsettingsbakup", 'r') as sobj:
-				for settingsdata in sobj:
-					settingsdict[settingsdata.split("=")[0]]=settingsdata.split("=")[1].rstrip('\n')
-			sobj.close()
-		except IndexError:
-			pass
-		#load the values from the file for current instance of the script
-		HVLVL=float(settingsdict['HVLVL'])
-		HMCURR=float(settingsdict['HMCURR'])
-		T1HLVL=float(settingsdict['T1HLVL'])
-		T1LLVL=float(settingsdict['T1LLVL'])
-		T2HLVL=float(settingsdict['T2HLVL'])
-		T2LLVL=float(settingsdict['T2LLVL'])
-		LVLVL=float(settingsdict['LVLVL'])
-		MAXT1=float(settingsdict['MAXT1'])
-		MAXT2=float(settingsdict['MAXT2'])
-		MINT1=float(settingsdict['MINT1'])
-		MINT2=float(settingsdict['MINT2'])
-		sensortotankattachmentdict['T1MAC']=settingsdict['T1MAC']
-		sensortotankattachmentdict['T2MAC']=settingsdict['T2MAC']
-		MONCURR=float(settingsdict['MONCURR'])
+		if (operation=="revert"):
+			settingsdict={}
+			try:
+				with open(mylocationdir+"sensorsettingsbakup", 'r') as sobj:
+					for settingsdata in sobj:
+						settingsdict[settingsdata.split("=")[0]]=settingsdata.split("=")[1].rstrip('\n')
+				sobj.close()
+			except IndexError:
+				pass
+			#load the values from the file for current instance of the script
+			HVLVL=float(settingsdict['HVLVL'])
+			HMCURR=float(settingsdict['HMCURR'])
+			T1HLVL=float(settingsdict['T1HLVL'])
+			T1LLVL=float(settingsdict['T1LLVL'])
+			T2HLVL=float(settingsdict['T2HLVL'])
+			T2LLVL=float(settingsdict['T2LLVL'])
+			LVLVL=float(settingsdict['LVLVL'])
+			MAXT1=float(settingsdict['MAXT1'])
+			MAXT2=float(settingsdict['MAXT2'])
+			MINT1=float(settingsdict['MINT1'])
+			MINT2=float(settingsdict['MINT2'])
+			sensortotankattachmentdict['T1MAC']=settingsdict['T1MAC']
+			sensortotankattachmentdict['T2MAC']=settingsdict['T2MAC']
+			MONCURR=float(settingsdict['MONCURR'])
+	except Exception as e:
+		error_handler(settingshandler.__name__,e)
+		pass
 def handlemacaddresschange(data):
 	#MACADDR#T1MAC=5ccf7f1754d1
 	try:
 		global sensortotankattachmentdict
 		sensortotankattachmentdict[data.split("=")[0]]=data.split("=")[1]
-		for ws in clients:
-			ws.sendMessage(u'TANKtoMACADDR#T1MAC='+sensortotankattachmentdict['T1MAC']+'|T2MAC='+sensortotankattachmentdict['T2MAC'])
 		settingshandler("null","savemacaddr")
 	except Exception as e:
-		if hasattr(e, 'message'):
-			print(e.message)
-		else:
-			print(e)
+		error_handler(handlemacaddresschange.__name__,e)
+		pass
 ##This handles the "Manual mode"
 def manualmodehandler(data):
 	#Client sends data as either MANUAL#MANUALMODESHUTOFF=false,TANK1MANUALHIGHLEVEL=87,TANK2MANUALHIGHLEVEL=100
@@ -1090,7 +995,6 @@ def manualmodehandler(data):
 ###MAIN WEBSOCKET HANDLER - handle received messages, connecting and disconnecting clients
 class SimpleChat(WebSocket):
 	def handleMessage(self):
-		
 		global SOFTMODE
 		global HVLVL
 		global HMCURR
@@ -1104,95 +1008,83 @@ class SimpleChat(WebSocket):
 		global MINT1
 		global MINT2
 		try:
-			for client in clients:
-				#if client != self:
-				#client.sendMessage(self.address[0] + u' - ' + self.data)
-				if (self.data.split("#")[0]=="COMMAND"): #commands sent to server as COMMAND#MOTOR=ON
-					commandQ.append(self.data.split("#")[1])
-				elif (self.data.split("#")[0]=="STOREDDATA"): #Send last hour data on request as opposed to at the time of initial connection - improves UX. Send request from client as STOREDDATA-3600 for last 3600 seconds data 
-					#self.sendMessage(u'StoredData#'+str(plotcharts("./sensordata",(time.time()-int(self.data.split("#")[1])),time.time(),"P","p")))
-					try:
-						print "Working on it"
-						#self.sendMessage(u'StoredData-'+str(plotcharts("./sensordata",(time.time()-360),time.time(),"b")))
-						#self.sendMessage(u'StoredData-'+str(plotcharts(self.data.split("#")[1],float(self.data.split("#")[2]),float(self.data.split("#")[3]),str(self.data.split("#")[4]))))
-					except Exception as e:
-						if hasattr(e, 'message'):
-							print(e.message)
-						else:
-							print(e)
-				elif (self.data.split("#")[0]=="SOFTMODE"): #changing software mode SOFTMODE
-					SOFTMODE=self.data.split("#")[1]
+			#if client != self:
+			#client.sendMessage(self.address[0] + u' - ' + self.data)
+			if (self.data.split("#")[0]=="COMMAND"): #commands sent to server as COMMAND#MOTOR=ON
+				commandQ.append(self.data.split("#")[1])
+			elif (self.data.split("#")[0]=="STOREDDATA"): #Send last hour data on request as opposed to at the time of initial connection - improves UX. Send request from client as STOREDDATA-3600 for last 3600 seconds data 
+				#self.sendMessage(u'StoredData#'+str(plotcharts("./sensordata",(time.time()-int(self.data.split("#")[1])),time.time(),"P","p")))
+				try:
+					print "Working on it"
+					#self.sendMessage(u'StoredData-'+str(plotcharts("./sensordata",(time.time()-360),time.time(),"b")))
+					#self.sendMessage(u'StoredData-'+str(plotcharts(self.data.split("#")[1],float(self.data.split("#")[2]),float(self.data.split("#")[3]),str(self.data.split("#")[4]))))
+				except Exception as e:
+					error_handler("STOREDDATA",e)
+					pass
+			elif (self.data.split("#")[0]=="SOFTMODE"): #changing software mode SOFTMODE
+				SOFTMODE=self.data.split("#")[1]
+				for client in clients:
 					client.sendMessage(u'STATUS#SOFTMODE='+SOFTMODE) # Send change in mode to all connected clients
-				elif (self.data.split("#")[0]=="REQSETTINGS"): #Requesting software configurable settings 
-					self.sendMessage(u'raw#ADC='+str(raw_Sensor_1_Reading)+u','+str(raw_Sensor_2_Reading))
-					self.sendMessage(u'SETTINGS#HVLVL='+str(HVLVL)+u',LVLVL='+str(LVLVL)+u',T1HLVL='+str(T1HLVL)+u',T1LLVL='+str(T1LLVL)+u',MAXT1='+str(MAXT1)+u',MINT1='+str(MINT1)+u',T2HLVL='+str(T2HLVL)+u',T2LLVL='+str(T2LLVL)+u',MAXT2='+str(MAXT2)+u',MINT2='+str(MINT2)+u',HMCURR='+str(HMCURR)+u',MONCURR='+str(MONCURR)) # Send change in mode to all connected clients
-				elif (self.data.split("#")[0]=="REQCAL"):
-					self.sendMessage(u'raw#RMS='+str(raw_RMS_Current_ADC)+u','+str(raw_RMS_Voltage_ADC))
-					self.sendMessage(u'CAL#offsetI='+str(offsetI)+u',offsetV='+str(offsetV)+u',Vcal='+str(VoltCalibrate)+u',Vadc='+str(VadcValue)+u',Ccal='+str(CurrentCalibrate)+u',Cadc='+str(CadcValue)) # Send change in mode to all connected clients
-				elif (self.data.split("#")[0]=="SAVE"): #sending software configurable settings 
-					settingshandler("null","bakup")
-					settingshandler(self.data.split("#")[1],"save")
-					self.sendMessage(u'SETTINGS#SAVED')
-				elif (self.data.split("#")[0]=="SAVECAL"): #sending software configurable settings 
-					calibrationhandler("null","bakup")
-					calibrationhandler(self.data.split("#")[1],"save")
-					self.sendMessage(u'CAL#SAVED')
-				elif (self.data.split("#")[0]=="REVERTSETTINGS"): #sending software configurable settings 
-					settingshandler("null","revert")
-					self.sendMessage(u'SETTINGS#HVLVL='+str(HVLVL)+u',LVLVL='+str(LVLVL)+u',T1HLVL='+str(T1HLVL)+u',T1LLVL='+str(T1LLVL)+u',MAXT1='+str(MAXT1)+u',MINT1='+str(MINT1)+u',T2HLVL='+str(T2HLVL)+u',T2LLVL='+str(T2LLVL)+u',MAXT2='+str(MAXT2)+u',MINT2='+str(MINT2)+u',HMCURR='+str(HMCURR)+u',MONCURR='+str(MONCURR)) # Send change in mode to all connected clients
-				elif (self.data.split("#")[0]=="REVERTCAL"): #sending software configurable settings 
-					calibrationhandler("null","revert")
-					#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc-17.5
-					self.sendMessage(u'CAL#offsetI='+str(offsetI)+u',offsetV='+str(offsetV)+u',Vcal='+str(VoltCalibrate)+u',Vadc='+str(VadcValue)+u',Ccal='+str(CurrentCalibrate)+u',Cadc='+str(CadcValue)) # Send change in mode to all connected clients
-				elif (self.data.split("#")[0]=="MANUAL"): #sending software configurable settings 
-					manualmodehandler(self.data.split("#")[1])
+			elif (self.data.split("#")[0]=="REQSETTINGS"): #Requesting software configurable settings 
+				self.sendMessage(u'raw#ADC='+str(raw_Sensor_1_Reading)+u','+str(raw_Sensor_2_Reading))
+				self.sendMessage(u'SETTINGS#HVLVL='+str(HVLVL)+u',LVLVL='+str(LVLVL)+u',T1HLVL='+str(T1HLVL)+u',T1LLVL='+str(T1LLVL)+u',MAXT1='+str(MAXT1)+u',MINT1='+str(MINT1)+u',T2HLVL='+str(T2HLVL)+u',T2LLVL='+str(T2LLVL)+u',MAXT2='+str(MAXT2)+u',MINT2='+str(MINT2)+u',HMCURR='+str(HMCURR)+u',MONCURR='+str(MONCURR)) # Send change in mode to all connected clients
+			elif (self.data.split("#")[0]=="REQCAL"):
+				self.sendMessage(u'raw#RMS='+str(raw_RMS_Current_ADC)+u','+str(raw_RMS_Voltage_ADC))
+				self.sendMessage(u'CAL#offsetI='+str(offsetI)+u',offsetV='+str(offsetV)+u',Vcal='+str(VoltCalibrate)+u',Vadc='+str(VadcValue)+u',Ccal='+str(CurrentCalibrate)+u',Cadc='+str(CadcValue)) # Send change in mode to all connected clients
+			elif (self.data.split("#")[0]=="SAVE"): #sending software configurable settings 
+				settingshandler("null","bakup")
+				settingshandler(self.data.split("#")[1],"save")
+				self.sendMessage(u'SETTINGS#SAVED')
+			elif (self.data.split("#")[0]=="SAVECAL"): #sending software configurable settings 
+				calibrationhandler("null","bakup")
+				calibrationhandler(self.data.split("#")[1],"save")
+				self.sendMessage(u'CAL#SAVED')
+			elif (self.data.split("#")[0]=="REVERTSETTINGS"): #sending software configurable settings 
+				settingshandler("null","revert")
+				self.sendMessage(u'SETTINGS#HVLVL='+str(HVLVL)+u',LVLVL='+str(LVLVL)+u',T1HLVL='+str(T1HLVL)+u',T1LLVL='+str(T1LLVL)+u',MAXT1='+str(MAXT1)+u',MINT1='+str(MINT1)+u',T2HLVL='+str(T2HLVL)+u',T2LLVL='+str(T2LLVL)+u',MAXT2='+str(MAXT2)+u',MINT2='+str(MINT2)+u',HMCURR='+str(HMCURR)+u',MONCURR='+str(MONCURR)) # Send change in mode to all connected clients
+			elif (self.data.split("#")[0]=="REVERTCAL"): #sending software configurable settings 
+				calibrationhandler("null","revert")
+				#offsetI=512,offsetV=529,Vcal=110,Vadc=140,Ccal=0.21,Cadc-17.5
+				self.sendMessage(u'CAL#offsetI='+str(offsetI)+u',offsetV='+str(offsetV)+u',Vcal='+str(VoltCalibrate)+u',Vadc='+str(VadcValue)+u',Ccal='+str(CurrentCalibrate)+u',Cadc='+str(CadcValue)) # Send change in mode to all connected clients
+			elif (self.data.split("#")[0]=="MANUAL"): #sending software configurable settings 
+				manualmodehandler(self.data.split("#")[1])
+				for client in clients:
 					client.sendMessage(u'MANUAL#MANUALMODESHUTOFF='+MANUALMODESHUTOFF+u',TANK1MANUALHIGHLEVEL='+str(TANK1MANUALHIGHLEVEL)+u',TANK2MANUALHIGHLEVEL='+str(TANK2MANUALHIGHLEVEL))
-				elif (self.data.split("#")[0]=="RAWADC"):# Request for RawADC as RAWADC-VOLTAGE or RAWADC-CURRENT
-					self.sendMessage(u'RawADC#'+str(send_raw_adc(str(self.data.split("#")[1]))))
-				elif (self.data.split("#")[0]=="MACADDR"):# Sending updated mac addresses
-					handlemacaddresschange(self.data.split("#")[1])
-				elif client != self:
-					client.sendMessage(self.address[0] + u' # ' + self.data)
-		except Exception as e:
-			if hasattr(e, 'message'):
-				print(e.message)
+			elif (self.data.split("#")[0]=="RAWADC"):# Request for RawADC as RAWADC-VOLTAGE or RAWADC-CURRENT
+				self.sendMessage(u'RawADC#'+str(send_raw_adc(str(self.data.split("#")[1]))))
+			elif (self.data.split("#")[0]=="MACADDR"):# Sending updated mac addresses
+				handlemacaddresschange(self.data.split("#")[1])
+				for client in clients:
+					client.sendMessage(u'TANKtoMACADDR#T1MAC='+sensortotankattachmentdict['T1MAC']+'|T2MAC='+sensortotankattachmentdict['T2MAC'])
 			else:
-				print(e)
+				for client in clients:
+					if client != self:
+						client.sendMessage(self.address[0] + u' # ' + self.data)
+		except Exception as e:
+			error_handler(handleMessage.__name__,e)
+			pass
 	def handleConnected(self):
-		#2/18/18 - Connect to only one websocket client at a time
 		global SOFTMODE
 		global MODE
 		global ACPOWER
 		global MOTOR
-		global TANK
-		if len(clients)>(NUMofWebSocketClientsAllowed-1):
-			#There is a client already connected - send the connecting client a message - # 3/7/18 - changed it to 2 clients 
-			#self.sendMessage(u'E-TRYAGAIN')
-			#close the connecting client
-			self.close()
-			#print "Attempted to connect"
-		else:
+		global TANK	
+		try:
 			clients.append(self)
-			try:
-				self.sendMessage(u'STATUS#ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
-				self.sendMessage(u'SensorData#'+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME))+u'|T1MAC|'+str(TANK1LEVEL)+u'|'+str(battery1level)+u'|'+str(TANK1temp))
-				self.sendMessage(u'SensorData#'+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME))+u'|T2MAC|'+str(TANK2LEVEL)+u'|'+str(battery2level)+u'|'+str(TANK2temp))
-				self.sendMessage(u'TANKtoMACADDR#T1MAC='+sensortotankattachmentdict['T1MAC']+'|T2MAC='+sensortotankattachmentdict['T2MAC'])
-				if not (IsSENSOR1UP):
-					sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
-				if not (IsSENSOR2UP):
-					sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
-			except Exception as e:
-				if hasattr(e, 'message'):
-					print(e.message)
-				else:
-					print(e)
+			self.sendMessage(u'STATUS#ACPOWER='+ACPOWER+u',MOTOR='+MOTOR+u',TANK='+TANK+u',MODE='+MODE+u',SOFTMODE='+SOFTMODE)
+			self.sendMessage(u'SensorData#'+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME))+u'|T1MAC|'+str(TANK1LEVEL)+u'|'+str(battery1level)+u'|'+str(TANK1temp))
+			self.sendMessage(u'SensorData#'+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME))+u'|T2MAC|'+str(TANK2LEVEL)+u'|'+str(battery2level)+u'|'+str(TANK2temp))
+			self.sendMessage(u'TANKtoMACADDR#T1MAC='+sensortotankattachmentdict['T1MAC']+'|T2MAC='+sensortotankattachmentdict['T2MAC'])
+			if not (IsSENSOR1UP):
+				sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
+			if not (IsSENSOR2UP):
+				sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
+		except Exception as e:
+			error_handler(handleConnected.__name__,e)
+			pass
 	def handleClose(self):
 		try:
 			clients.remove(self)
-			#print self.address, 'closed'
-			#for client in clients:
-			#	client.sendMessage(self.address[0] + u' - disconnected')
 		except ValueError:
 			pass
 #This will reassess the given param (voltage, current, sensorvalue, sensorstatus etc after the timeout period and take appropriate action
@@ -1232,20 +1124,34 @@ def watchdoghandler(param,timeout):
 
 ### This will save the errors in a log file - this file can be requested by the client and will open on the client as a pop up
 def error_handler(calling_function_name,data):
-	global SOFTMODE
-	#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
-	#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
-	if (SOFTMODE=="Auto"):
-		SOFTMODE="Manual"
-		sendchangedstatus("SOFTMODE='+SOFTMODE")
-	fobj = open(mylocationdir+"errorlog", 'a')
-	fobj.write(str(time.asctime()))
-	fobj.write(",")
-	fobj.write(calling_function_name)
-	fobj.write(",")
-	fobj.write(data)
-	fobj.write('\n')
-	fobj.close()
+	try:
+		mystring="Error"
+		if hasattr (data,'message'):
+			mystring=data.message
+		if hasattr (data,'value'):
+			mystring=mystring+data.value
+		print calling_function_name
+		print mystring
+		print data
+		global SOFTMODE
+		#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
+		#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
+		if (SOFTMODE=="Auto"):
+			SOFTMODE="Manual"
+			sendchangedstatus("SOFTMODE="+SOFTMODE)
+		fobj = open(mylocationdir+"errorlog"+time.strftime("%Y-%m-%d",time.localtime()), 'a+')
+		fobj.write(time.strftime("%Y-%m-%d %H:%M:%S",time.localtime()))
+		fobj.write(",")
+		fobj.write(calling_function_name)
+		fobj.write(",")
+		fobj.write(data)
+		fobj.write(",")
+		fobj.write(mystring)
+		fobj.write('\n')
+		fobj.write('**')
+		fobj.close()
+	except Exception as e:
+		print(e)
 
 ######################################
 #LCD screen Defining functions
@@ -1372,37 +1278,28 @@ class GracefulKiller:
 		running_flag=False
 #Thread # 1
 def TCPserverthread(): 
-	#ESP8266 sends sensor data to Raspberry Pi using TCP Server Client 
-	#TCP Server for sensor
-	TCPserverthread.srvr = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	#Fixes address already in use error due to socket being in "TIME_WAIT" stae. allow reusing of socket address
-	TCPserverthread.srvr.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	TCPserverthread.srvr.bind((TCP_IP, TCP_PORT))
-	TCPserverthread.srvr.listen(5)
-	#print 'Listening on {}:{}'.format(TCP_IP, TCP_PORT)
-	while running_flag:
-		client_sock, address = TCPserverthread.srvr.accept()
-		#print 'Accepted connection from {}:{}'.format(address[0], address[1])
-		client_handler = Thread(
-			target=worker_sensorthread,
-			args=(client_sock,)  # without comma you'd get a... TypeError: handle_client_connection() argument after * must be a sequence, not _socketobject
-		)
-		client_handler.start()
-#Thread # 2
-def servarthread(): 
 	try:
-		#3-7-18 - Using Apache2 HTTP server instead of python server
-		'''
-		servarthread.server_class = BaseHTTPServer.HTTPServer
-		servarthread.httpd = servarthread.server_class((TCP_IP, HTTP_PORT), MyHandler)
-		servarthread.httpd.serve_forever()
-		print time.asctime(), "Server Starts - %s:%s" % (TCP_IP, HTTP_PORT)
-		'''
+		#ESP8266 sends sensor data to Raspberry Pi using TCP Server Client 
+		#TCP Server for sensor
+		TCPserverthread.srvr = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		#Fixes address already in use error due to socket being in "TIME_WAIT" stae. allow reusing of socket address
+		TCPserverthread.srvr.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		TCPserverthread.srvr.bind((TCP_IP, TCP_PORT))
+		TCPserverthread.srvr.listen(5)
+		#print 'Listening on {}:{}'.format(TCP_IP, TCP_PORT)
+		while running_flag:
+			client_sock, address = TCPserverthread.srvr.accept()
+			#print 'Accepted connection from {}:{}'.format(address[0], address[1])
+			client_handler = Thread(
+				target=worker_sensorthread,
+				args=(client_sock,)  # without comma you'd get a... TypeError: handle_client_connection() argument after * must be a sequence, not _socketobject
+			)
+			client_handler.start()
 	except Exception as e:
-		if hasattr(e, 'message'):
-			print(e.message)
-		else:
-			print(e)
+		error_handler(TCPserverthread.__name__,e)
+		pass
+#Thread # 2
+#was HTTP Server
 #Thread # 3
 def websocketservarthread(): 
 	try:
@@ -1410,12 +1307,8 @@ def websocketservarthread():
 		websocketservarthread.server.serveforever()
 		#print time.asctime(), "Websocket Server Starts - %s:%s" % (TCP_IP, WS_PORT)
 	except Exception as e:
-		# Just print(e) is cleaner and more likely what you want,
-		# but if you insist on printing message specifically whenever possible...
-		if hasattr(e, 'message'):
-			print(e.message)
-		else:
-			print(e)
+		error_handler(websocketservarthread.__name__,e.message)
+		pass
 #Thread # 4
 def analogreadthread(): 
 	try:
@@ -1476,19 +1369,19 @@ def autothread():
 							#Check if both SENSORS are up (TODO : What if one sensor is up and the other one is down??)
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If both Tanks > 95% - turn off the motor
-								if ((float(TANK1LEVEL[:-1])>T1HLVL) and (float(TANK2LEVEL[:-1])>T2HLVL)):
+								if ((TANK1LEVEL>T1HLVL) and (TANK2LEVEL>T2HLVL)):
 									commandQ.append("MOTOR=OFF")
 									#What if both tanks are full and we want to just get water downstairs?
 									# set to manual mode and do it..
 								#If tank 1 >95% and tank 2 <95%
-								elif ((float(TANK1LEVEL[:-1])>T1HLVL) and (float(TANK2LEVEL[:-1])<T2HLVL)):
-									if(float(TANK2LEVEL[:-1])<T2LLVL):
+								elif ((TANK1LEVEL>T1HLVL) and (TANK2LEVEL<T2HLVL)):
+									if(TANK2LEVEL<T2LLVL):
 										commandQ.append("TANK=Tank 2")
 									else:
 										commandQ.append("MOTOR=OFF")
 								#If tank 1 >95% and Tank 2 < 75% then switch to tank2 AND vice versa
-								elif ((float(TANK2LEVEL[:-1])>T2HLVL) and (float(TANK1LEVEL[:-1])<T1HLVL)):
-									if(float(TANK1LEVEL[:-1])<T1LLVL):
+								elif ((TANK2LEVEL>T2HLVL) and (TANK1LEVEL<T1HLVL)):
+									if(TANK1LEVEL<T1LLVL):
 										commandQ.append("TANK=Tank 1")
 									else:
 										commandQ.append("MOTOR=OFF")
@@ -1500,10 +1393,10 @@ def autothread():
 							#Sensors are UP?
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
-								if (float(TANK1LEVEL[:-1])<T1LLVL):
+								if (TANK1LEVEL<T1LLVL):
 									commandQ.append("TANK=Tank 1")
 									commandQ.append("MOTOR=ON")
-								elif(float(TANK2LEVEL[:-1])<T2LLVL):
+								elif(TANK2LEVEL<T2LLVL):
 									commandQ.append("TANK=Tank 2")
 									commandQ.append("MOTOR=ON")
 					#Software mode or SMART MODE is set to Manual
@@ -1519,15 +1412,15 @@ def autothread():
 									#motor will shut off
 									#2/19/18 - let's switch the tanks and when both are full - shut off the Motor
 									if (TANK=="Tank 1"):
-										if (float(TANK1LEVEL[:-1])>TANK1MANUALHIGHLEVEL): 
-											if (float(TANK2LEVEL[:-1])>TANK2MANUALHIGHLEVEL):
+										if (TANK1LEVEL>TANK1MANUALHIGHLEVEL): 
+											if (TANK2LEVEL>TANK2MANUALHIGHLEVEL):
 												commandQ.append("MOTOR=OFF")
 												MANUALMODESHUTOFF="false"
 											else:
 												commandQ.append("TANK=Tank 2")
 									elif (TANK=="Tank 2"):
-										if (float(TANK2LEVEL[:-1])>TANK2MANUALHIGHLEVEL):
-											if (float(TANK1LEVEL[:-1])>TANK1MANUALHIGHLEVEL):
+										if (TANK2LEVEL>TANK2MANUALHIGHLEVEL):
+											if (TANK1LEVEL>TANK1MANUALHIGHLEVEL):
 												commandQ.append("MOTOR=OFF")
 												MANUALMODESHUTOFF="false"
 											else:
@@ -1537,51 +1430,54 @@ def autothread():
 		pass
 #Thread # 7
 def watchdogthread():
-	global IsSENSOR1UP
-	global IsSENSOR2UP
-	global watchdog_flag
-	# If in COMPUTER mode - Keep an eye on Motor Current, Supply Voltage and status of the sensors. Trigger a watchdog sequence with a timeout if something is not right
-	while running_flag:
-		if(MODE=="COMPUTER"):
-			# when Motor is on - look at motor current draw and motor voltage
-			if(MOTOR=="ON"):
-				if ((ACVOLTAGE>HVLVL) or (ACVOLTAGE<LVLVL)):
-					#Voltage too high/too low - set the watchdog flag and let the watchdog reassess the voltage after timeout (in seconds) period
-					#If voltage still low or high - turn off the motor, switch the SOFTMODE to Manual if it was in Auto
-					#Log an error with timestamp
-					if not watchdog_flag:
-						watchdog_flag=True
-						watchdoghandler("voltage",10)
-				if (MOTORCURRENT>HMCURR):
-					#Motor drawing too much current??
-					if not watchdog_flag:
-						watchdog_flag=True
-						watchdoghandler("current",5)
-		#Irrespective of Motor on/off or Mode - monitor the status and accuracy of sensors 
-		# First - check if the sensors have n't sent data in last SENSORTIMEOUT seconds
-		# If either sensor is down - notify clients, log into errorlog
-		if (time.time()-SENSOR1TIME>SENSORTIMEOUT): #Sensor 1 timed out
-			if (IsSENSOR1UP):
-				IsSENSOR1UP=False
-				sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
-				error_handler("Watchdogthread","SENSORDOWN=1")
-		else: #Sensor 1 not timed out
-			if not (IsSENSOR1UP):
-				IsSENSOR1UP=True
-				sendchangedstatus("SENSORUP=1")
-		if (time.time()-SENSOR2TIME>SENSORTIMEOUT): #Sensor 2 timed out
-			if (IsSENSOR2UP):
-				IsSENSOR2UP=False
-				sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
-				error_handler("Watchdogthread","SENSORDOWN=2")
-		else: #Sensor 2 not timed out
-			if not (IsSENSOR2UP):
-				IsSENSOR2UP=True
-				sendchangedstatus("SENSORUP=2")
-		#Then - let's look at the last two sensor readings - if difference is > SENSORACCURACY - mark that sensor as Down so if the autothread is evaluating - will see it as down and act accrordingly. 
-		#appears challenging to implement - will need synchronization of autothread with sensor times.
-		#Watch for increase in that tank's water level (if water being used at the same time - level might not rise).
-		time.sleep(1)
+	try:
+		global IsSENSOR1UP
+		global IsSENSOR2UP
+		global watchdog_flag
+		# If in COMPUTER mode - Keep an eye on Motor Current, Supply Voltage and status of the sensors. Trigger a watchdog sequence with a timeout if something is not right
+		while running_flag:
+			if(MODE=="COMPUTER"):
+				# when Motor is on - look at motor current draw and motor voltage
+				if(MOTOR=="ON"):
+					if ((ACVOLTAGE>HVLVL) or (ACVOLTAGE<LVLVL)):
+						#Voltage too high/too low - set the watchdog flag and let the watchdog reassess the voltage after timeout (in seconds) period
+						#If voltage still low or high - turn off the motor, switch the SOFTMODE to Manual if it was in Auto
+						#Log an error with timestamp
+						if not watchdog_flag:
+							watchdog_flag=True
+							watchdoghandler("voltage",10)
+					if (MOTORCURRENT>HMCURR):
+						#Motor drawing too much current??
+						if not watchdog_flag:
+							watchdog_flag=True
+							watchdoghandler("current",5)
+			#Irrespective of Motor on/off or Mode - monitor the status and accuracy of sensors 
+			# First - check if the sensors have n't sent data in last SENSORTIMEOUT seconds
+			# If either sensor is down - notify clients, log into errorlog
+			if (time.time()-SENSOR1TIME>SENSORTIMEOUT): #Sensor 1 timed out
+				if (IsSENSOR1UP):
+					IsSENSOR1UP=False
+					sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
+					error_handler("Watchdogthread","SENSORDOWN=1")
+			else: #Sensor 1 not timed out
+				if not (IsSENSOR1UP):
+					IsSENSOR1UP=True
+					sendchangedstatus("SENSORUP=1")
+			if (time.time()-SENSOR2TIME>SENSORTIMEOUT): #Sensor 2 timed out
+				if (IsSENSOR2UP):
+					IsSENSOR2UP=False
+					sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
+					error_handler("Watchdogthread","SENSORDOWN=2")
+			else: #Sensor 2 not timed out
+				if not (IsSENSOR2UP):
+					IsSENSOR2UP=True
+					sendchangedstatus("SENSORUP=2")
+			#Then - let's look at the last two sensor readings - if difference is > SENSORACCURACY - mark that sensor as Down so if the autothread is evaluating - will see it as down and act accrordingly. 
+			#appears challenging to implement - will need synchronization of autothread with sensor times.
+			#Watch for increase in that tank's water level (if water being used at the same time - level might not rise).
+			time.sleep(1)
+	except KeyboardInterrupt:
+		pass
 
 if __name__ == '__main__':
 	#server_class = BaseHTTPServer.HTTPServer
@@ -1595,7 +1491,6 @@ if __name__ == '__main__':
 		#Check initial GPIO statuses - added 2/19/18
 		init_status()
 		t1=Thread(target=TCPserverthread)  
-		#t2=Thread(target=servarthread)
 		t3=Thread(target=websocketservarthread)
 		t4=Thread(target=analogreadthread)
 		t5=Thread(target=commandthread)
@@ -1603,7 +1498,6 @@ if __name__ == '__main__':
 		t7=Thread(target=watchdogthread)
 		#Daemon - means threads will exit when the main thread exits
 		t1.daemon=True
-		#t2.daemon=True
 		t3.daemon=True
 		t4.daemon=True
 		t5.daemon=True
@@ -1611,7 +1505,6 @@ if __name__ == '__main__':
 		t7.daemon=True
 		#Start the threads 
 		t1.start()
-		#t2.start()
 		t3.start()
 		t4.start()
 		t5.start()
@@ -1635,15 +1528,9 @@ if __name__ == '__main__':
 				TCPserverthread.srvr.close()
 				t1.join #TCPserverthread - has runningflag
 				print "TCP server closed"
-				#3-7-18 - Using Apache2 HTTP server instead of python server
-				'''
-				servarthread.httpd.server_close()
-				print "http server closed"
-				'''
-				#t2.join #servarthread
 				websocketservarthread.server.close()
-				print "websocket closed"
 				t3.join #websocketservarthread
+				print "websocket closed"
 				t4.join #analogreadthread - has runningflag
 				t5.join #commandthread - has runningflag
 				t6.join	#autothread - has runningflag
