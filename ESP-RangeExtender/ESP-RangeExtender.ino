@@ -41,7 +41,6 @@ netDump(Serial, data, len);
 WiFiClient client;
 const char* host = "192.168.1.152";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
-const int maxmillistotryfortcp = 200;
 char mydata[512]; //Create a 64 byte "ring buffer" to handle 16 byte data arriving from up to 4 nodes
 bool dataavailable = false;
 int mydatapointer=0; //increase the pointer by 16 everytime data arrives, send data via tcp and reset to zero.

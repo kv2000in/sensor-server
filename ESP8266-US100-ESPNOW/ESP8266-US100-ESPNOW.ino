@@ -39,11 +39,11 @@ uint8_t peer0[] = {0x6A, 0xC6, 0x3A, 0xF4, 0x59, 0x9D};//marked 9d
 uint8_t peer1[] = {0x6A, 0xC6, 0x3A, 0xF4, 0x59, 0x42};//marked 42
 
 
-bool DEBUG = true;
+bool DEBUG = false;
 bool sendviaESPNOWsuccess;
 bool sendviawifisuccess;
 int ESPNOWresendcounter;
-int maxESPNOWresendattempts=2; //Data buffer on the ESP-rangeextenders is 64 bytes so 2 nodes 16 bytes x2 = 64
+int maxESPNOWresendattempts=5; //Data buffer on the ESP-rangeextenders is 512 bytes so 2 nodes 16 bytes x5 = 160
 int maxmillistotryforwifi = 6000;
 int maxmillistowaitforUS100serialdata = 200; //Was working well with 500
 char str[16]; //6 bytes + macaddr + 2 bytes distance + 2 bytes temp + 2 bytes battery + 4 bytes zeros
