@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html>
+	
+	<head>
+		
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> 
+			<meta http-equiv="Content-Language" content="hi" />
+			<title>Smart Sensors</title>
+			<style>
+				* {
+					box-sizing: border-box;
+				}
+			
+			html {
+				font-family: "Lucida Sans", sans-serif;
+				font-size: 100%;
+			}
+			
+			[class*="col-"] {
+				float: left;
+				padding-left: 15px;
+				padding-right: 15px;
+			}
+			
+			/* For mobile phones: */
+			[class*="col-"] {
+				width: 100%;
+			}
+			.topright{
+				height:160px;
+			}
+			
+			@media only screen and (min-width: 768px) {
+				/* For desktop: */ .col-1 {
+					width: 8.33%;
+				}
+				
+				.col-2 {
+					width: 16.66%;
+				}
+				
+				.col-3 {
+					width: 25%;
+				}
+				
+				.col-4 {
+					width: 33.33%;
+				}
+				
+				.col-5 {
+					width: 41.66%;
+				}
+				
+				.col-6 {
+					width: 50%;
+				}
+				
+				.col-7 {
+					width: 58.33%;
+				}
+				
+				.col-8 {
+					width: 66.66%;
+				}
+				
+				.col-9 {
+					width: 75%;
+				}
+				
+				.col-10 {
+					width: 83.33%;
+				}
+				
+				.col-11 {
+					width: 91.66%;
+				}
+				
+				.col-12 {
+					width: 100%;
+				}
+				
+				.topright{
+					
+					margin-top:160px;
+					height:290px;
+				}
+			}
+			
+			
+			/* For mobile*/
+			
+			ul {
+				list-style-type: none;
+				margin: 0;
+				padding: 0;
+			}
+			
+			.digitaldisplay {
+				color: #2509e8;
+				text-align: center;
+				width: 40px;
+				float: left;
+				font-weight: bold;
+				padding-top: 5px;
+				padding-bottom: 5px;
+				font-size: x-large;
+				position: absolute;
+				z-index: -1;
+				margin-left: 15px;
+			}
+			
+			.Psensordisplay{
+				color:blue;
+			}
+			.Tsensordisplay{
+				color:blue;
+			}
+			.topleft{
+				
+				margin-top:160px;
+			}
+			
+			.statuslight {
+				background-color: rgba(220, 187, 187, 0.41);
+				width: 30px;
+				height: 30px;
+				border-radius: 25%;
+				border-width: 0px;
+				padding-top: 7.5px;
+				padding-bottom: 7.5px;
+				position: absolute;
+				z-index: -1;
+				margin-left: 15px;
+			}  
+			.statuslight:focus{
+				border-collapse: collapse;
+				
+			}
+			.statuslight:active{
+				box-shadow: 0px 0px 60px 7px orange;
+				background-color: crimson;  
+			}
+			
+			.activebutton{
+				box-shadow: 0px 0px 20px 12px #ffb700;
+				background-color: #ed1414;
+				width: 30px;
+				height: 30px;
+				border-radius: 25%;
+				border-width: 0px;
+				position: absolute;
+				z-index: -1;
+				margin-left: 15px;
+				
+			}
+			.labeltxts {
+				padding-left: 90px;
+				padding-top: 7.5px;
+				padding-bottom: 7.5px;
+				position: absolute;
+				z-index: -1;
+			}
+			
+			/* The animation code */
+			@keyframes example {
+				0%   {right:0px; }
+				100% {right:180px;}
+			}
+			
+			.softmode{
+				border-color:aqua;
+				
+				
+			}
+			.softmodeactive{
+				border-style:solid;
+				border-color: red;
+			}
+			
+			.switch {
+				position: relative;
+				display: inline-block;
+				width: 60px;
+				height: 40px;
+			}
+			.switch input {display:none;}
+			
+			.slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: white;
+				-webkit-transition: .4s;
+				transition: .4s;
+				border-bottom-left-radius: 50%;
+				border-top-left-radius: 50%
+			}
+			
+			.slider:before {
+				position: absolute;
+				content: "";
+				height: 28px;
+				width: 16px;
+				left: 14px;
+				bottom: 5px;
+				background-color: black;
+				-webkit-transition: .4s;
+				transition: .4s;
+			}
+			
+			input:checked + .slider {
+				background-color: #2196F3;
+			}
+			
+			input:focus + .slider {
+				box-shadow: 0 0 1px #2196F3;
+			}
+			
+			input:checked + .slider:before {
+				-webkit-transform: translateX(16px);
+				-ms-transform: translateX(16px);
+				transform: translateX(16px);
+			}
+			input:checked + .slider {
+				/*input+slider - only works for slider class immediatley after the input*/
+				
+				border-bottom-left-radius: 0%;
+				border-top-left-radius: 0%;
+				border-bottom-right-radius: 50%;
+				border-top-right-radius: 50%   
+			}  
+			
+			
+			
+			
+			td.label{
+				flex-wrap: nowrap; 
+			}
+			.topbar{
+				position: fixed;
+				top: 0;
+				width: 80%;
+				left: 10%;
+				margin: auto;
+				text-align: center;
+				border-radius: 5%;
+				background-color: #10ede2;
+				z-index: 10;
+			}          
+			
+			
+			
+			.control li{
+				
+				height: 80px;
+				width:100%;
+				display: inline-flex;
+			}
+			.tankanim{
+				
+				
+				animation-name: example;
+				position: relative;
+				animation-duration: 10s;
+				animation-iteration-count: 2;
+			}
+			table,  td {
+			}
+			.top table{
+				width:100%
+			}
+			.status td {
+				padding: 8px;
+				width: 250px;
+				height:76px;
+				margin-bottom: 7px;
+			}
+			.activesensor {
+				text-align: center;
+				padding: 8px;
+				border-radius: 25px;
+				margin-bottom: 7px;
+				background-color: #33cc46;
+				color: #ffffff;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+			}
+			
+			.downsensor{
+				background-color: #ccc;
+				text-align: center;
+				padding: 8px;
+				border-radius: 25px;
+				margin-bottom: 7px;
+				color: #ffffff;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+				
+			}
+			
+			.activesensor li {
+				padding: 8px;
+				margin-bottom: 7px;
+				border-radius: 25px;
+				background-color: #e53333;
+				color: #ffffff;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+			}
+			
+			.downsensor li {
+				padding: 8px;
+				margin-bottom: 7px;
+				border-radius: 25px;
+				background-color: black;
+				color: #ffffff;
+				box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+			}
+			
+			.hide{
+				visibility: hidden
+			}
+			.pushbtn{
+				width:120px;
+				height:60px;
+				/*border-radius: 40%;*/
+				font-size:200%; 
+				/*background-color: red;*/
+				
+				
+			}
+			
+			
+			
+			.topleft li{
+				height:40px;
+			}      
+			.buttonpressedeffect {
+				display: inline-block;
+				padding: 15px 25px;
+				font-size: 24px;
+				cursor: pointer;
+				text-align: center;
+				text-decoration: none;
+				outline: none;
+				color: #fff;
+				background-color: #4CAF50;
+				border: none;
+				border-radius: 15px;
+				box-shadow: 0 9px #999;
+			}
+			
+			/*.buttonpressedeffect:hover {background-color: #3e8e41}*/
+			
+			.buttonpressedeffect:active {
+				background-color: #3e8e41;
+				box-shadow: 0 5px #666;
+				transform: translateX(4px);
+			}
+			.tankslider{
+				
+				background-color: #2196F3;
+				z-index:-1
+			}
+			
+			.tankbtn{
+				
+				background-color:#2196F3 ;
+				width: 120px;
+				height: 40px;
+				border-radius: 15px;
+				border-style: hidden;
+				font-size: 20px;
+				/*background-color:#10ede2; */
+			}
+			
+			.tankbtn:disabled{
+				
+				background-color: #ccc;
+				box-shadow: none;
+				color: #999; 
+			}
+			
+			/*   .softmode{
+			 
+			 border-style: solid;
+			 border-color: black;
+			 -webkit-transition: .4s;
+			 transition: .4s;
+			 }*/
+			
+			.tanklevelbg{
+				
+				background-color: aliceblue;
+				border-radius: 15px;
+				padding: 0px;
+			}
+			.tanklevelfg{
+				background-color: blue;
+				border-right-style: solid;
+				border-right-color: black;
+				
+				
+			}
+			
+			
+			/* Tooltip container */
+			#settings {
+				position: relative;
+				display: inline-block;
+				/*border-bottom: 1px dotted black; *//* If you want dots under the hoverable text */
+			}
+			
+			/* Tooltip text */
+			#settings+.settingsbox {
+				visibility: hidden;
+				top:0%;
+				left:0%;
+				background-color: #4c45ad;
+				color: #fff;
+				text-align: center;
+				padding: 5px 0;
+				border-radius: 6px;
+				
+				/* Position the tooltip text - see examples below! */
+				position: absolute;
+				z-index: 1;
+			}
+			.settingsbox input {
+				font-style: normal;
+				font-weight: bold;
+			}
+			
+			#cal {
+				position: relative;
+				display: inline-block;
+				/*border-bottom: 1px dotted black; *//* If you want dots under the hoverable text */
+			}
+			
+			/* Tooltip text */
+			#cal+.calbox {
+				visibility: hidden;
+				top:0%;
+				left:0%;
+				background-color: #4c45ad;
+				color: #fff;
+				text-align: center;
+				padding: 5px 0;
+				border-radius: 6px;
+				
+				/* Position the tooltip text - see examples below! */
+				position: absolute;
+				z-index: 1;
+			}
+			.calbox input {
+				font-style: normal;
+				font-weight: bold;
+			}
+			/* Show the tooltip text when you mouse over the tooltip container 
+			 #settings:hover+.settingsbox {
+			 visibility: visible;
+			 }
+			 */     
+			
+			
+			.tooltip {
+				position: relative;
+				/*display: inline-block;*/
+				border-bottom: 1px dotted black;
+			}
+			
+			.tooltip .tooltiptext {
+				visibility: hidden;
+				width: 120px;
+				background-color: #555;
+				color: #fff;
+				text-align: center;
+				border-radius: 6px;
+				padding: 5px 0;
+				position: absolute;
+				z-index: 1;
+				bottom: 125%;
+				left: 50%;
+				margin-left: -60px;
+				opacity: 0;
+				transition: opacity 1s;
+			}
+			
+			.tooltip .tooltiptext::after {
+				content: "";
+				position: absolute;
+				top: 100%;
+				left: 50%;
+				margin-left: -5px;
+				border-width: 5px;
+				border-style: solid;
+				border-color: #555 transparent transparent transparent;
+			}
+			
+			.tooltip:hover .tooltiptext {
+				visibility: visible;
+				opacity: 1;
+			}
+			
+				</style>
+			<script src="plotly.js" type="text/javascript" charset="utf-8"></script>
+
+			</head>
+	<!--<body onload="queryServer3()"> -->
+	<body style="margin:0;" onload="setbuttonstatus()">
+		
+		
+
+		
+		<div class = "col-12 selectsensorsforplot">
+    
+
+					<label class = "genericlabels">From</label><input type="datetime-local" id="plotfromthistime">
+						<label class = "genericlabels">To</label><input type="datetime-local" id="plottothistime">
+							<br>
+							<input type="button" id="buildplotrequest" value="GetData" onclick="getdataforchart()">
+								<input type="button" id="plotexecute" value="Plot" onclick="plotchart()">
+									<button class="genericbuttons" id="removeplots" onclick="clearplots()">Clear Plots</button>	
+                                    <button class="genericbuttons" id="clearlocaldata" onclick="clearlocaldata()">Clear Data</button>	
+									</div> 
+		
+	</body>
+	<script type="text/javascript">
+        
+        
+        var filepath="/data/";
+        
+			//global arrays for plotting graphs
+			var mylistofarrays={};
+        var mylistofplotvariables=["T1MAC","T2MAC"];
+       
+   
+				// old list of sensors to plot element;
+				var mylistofoldchild={};
+				var plotidarray=[];
+				var plotcounter=0;
+				/*This function sets the status of buttons on load*/
+				function setbuttonstatus(){
+					document.getElementById("removeplots").disabled=true;
+					document.getElementById("plotexecute").disabled=true;
+				}
+
+         
+	/*This function requests stored data from server*/ 
+	function clearlocaldata(){
+        mylistofarrays={};
+        document.getElementById("plotexecute").disabled=true;
+    }
+    function getdataforchart(){
+        if (mylistofarrays.length==undefined)
+            {
+                
+        for(j=0;j<mylistofplotvariables.length;j++){ 
+             mylistofarrays [mylistofplotvariables[j]+"-time"]=[];
+             mylistofarrays [mylistofplotvariables[j]+"-level"]=[];
+             mylistofarrays [mylistofplotvariables[j]+"-battery"]=[];
+             mylistofarrays [mylistofplotvariables[j]+"-temp"]=[];
+         }
+            }
+
+		var fromtime = document.getElementById("plotfromthistime").value;
+		var totime = document.getElementById("plottothistime").value;
+		
+        for (var d = new Date(fromtime); d <= new Date(totime); d.setDate(d.getDate() + 1)) {
+        
+            getsensordatafileandpushdataintoarrays("sensordata"+returnformattedtime(d));
+}
+		}
+	
+	/*This function plots the chart based on data loaded in the arrays by getdataforchart and sensor list*/ 
+	function plotchart(){
+		
+		var paramsforplotly=[];
+		
+		for(j=0;j<mylistofplotvariables.length;j++)     
+			
+			{
+			
+			var myobj;
+				
+				
+				 myobj = {
+					y: mylistofarrays [mylistofplotvariables[j]+"-level"], 
+					x: mylistofarrays [mylistofplotvariables[j]+"-time"], 
+					type: "scatter", 
+					name: mylistofplotvariables[j]+"-level",
+					mode:"markers"
+				};
+				paramsforplotly.push(myobj);
+				
+                 myobj = {
+					y: mylistofarrays [mylistofplotvariables[j]+"-battery"], 
+					x: mylistofarrays [mylistofplotvariables[j]+"-time"], 
+					type: "scatter", 
+					name: mylistofplotvariables[j]+"-battery",
+					mode:"markers"
+				};
+				paramsforplotly.push(myobj);
+
+                  myobj = {
+					y: mylistofarrays [mylistofplotvariables[j]+"-temp"], 
+					x: mylistofarrays [mylistofplotvariables[j]+"-time"], 
+					type: "scatter", 
+					name: mylistofplotvariables[j]+"-temp",
+					mode:"markers"
+				};
+				paramsforplotly.push(myobj);
+				
+			}
+			var newdivid="abcdefgh"+plotcounter;
+			var newdiv=document.createElement("Div");
+			newdiv.setAttribute("id",newdivid);
+			
+			newdiv.setAttribute("class","plotly-graph-div col-12");
+			document.body.appendChild(newdiv);
+			Plotly.newPlot("abcdefgh"+plotcounter,paramsforplotly, {"xaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}, "yaxis": {"ticks": "outside", "tickwidth": 4, "tick0": 0, "ticklen": 8, "dtick": 0.25, "tickcolor": "#000", "autotick": true}}, {"linkText": "E", "showLink": false})
+			;
+			plotidarray.push(plotcounter); 
+			document.getElementById("removeplots").disabled=false;
+			window.addEventListener("resize", function(){Plotly.Plots.resize(document.getElementById(newdivid));});
+			plotcounter=plotcounter+1;
+		
+	}
+	/* clear all the plots and remove all the data from arrays*/
+	function clearplots(){
+		
+		
+		mylengthofarray=plotidarray.length;
+		for (i=0;i<mylengthofarray;i++){
+			window.removeEventListener("resize", function(){Plotly.Plots.resize(document.getElementById("abcdefgh"+plotidarray[i]));});
+			mychild=document.getElementById("abcdefgh"+plotidarray[i]);
+			document.body.removeChild(mychild);
+			
+			
+		}
+		document.getElementById("removeplots").disabled=true;
+		//document.getElementById("plotexecute").disabled=true;
+		plotidarray=[];
+		plotcounter=0;
+	}
+        
+    function getsensordatafileandpushdataintoarrays(filename){
+            var myRequest=filepath+filename;
+        fetch(myRequest)
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error("HTTP error, status = " + response.status);
+        }
+        return response.text();
+   
+      })
+      .then(function(text) {
+                //promise has been fulfilled - we have the data
+        document.getElementById("plotexecute").disabled=false;
+        console.log("done!"); 
+            
+        var myblob = text;
+            
+        var mybloblines=myblob.split("\n");
+            
+        for (i=0;i<mybloblines.length;i++){
+            var mysplitline=mybloblines[i].split("|");
+            for (k=0;k<mylistofplotvariables.length;k++){ 
+                if (mysplitline[1]==mylistofplotvariables[k]){
+                    mylistofarrays [mylistofplotvariables[k]+"-time"].push(mysplitline[0]);
+                    mylistofarrays [mylistofplotvariables[k]+"-level"].push(mysplitline[2]);
+                    mylistofarrays [mylistofplotvariables[k]+"-battery"].push(mysplitline[3]);
+                    mylistofarrays [mylistofplotvariables[k]+"-temp"].push(mysplitline[4]);
+                }
+            } 
+            
+        }
+        })
+            
+        }
+	
+	/* As the name suggest - this function returns time formatted as %Y-%m-%d %H:%M:%S */
+	function returnformattedtime(mytime){
+		var response=mytime;
+		var date = new Date(response);
+		/*
+        var hours = date.getHours();
+		
+		var minutes = "0" + date.getMinutes();
+		
+		var seconds = "0" + date.getSeconds();
+		*/
+        var year    = date.getFullYear();
+		var month   = date.getMonth()+1;
+		
+        
+        var day     = date.getDate();
+        if (day<10){day = "0"+day};
+        if (month<10){month = "0"+month};
+		/*
+		
+		var formattedTime =year+'-'+month+'-'+day+' '+ hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2);
+        
+        */
+		/*var formattedTime =day+'-'+month+'-'+year+' '+ hours + ':' + minutes.substr(-2) + ':' + seconds.substr(-2); */
+		
+        var formattedTime=year+'-'+month+'-'+day;
+		return formattedTime;
+        //return day;
+        
+	} 
+	
+	
+	
+	
+	
+	
+	
+		</script>
+	
+	
+</html>
+

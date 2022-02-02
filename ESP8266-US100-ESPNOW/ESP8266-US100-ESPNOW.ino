@@ -24,7 +24,23 @@ DOESN't GO TO SLEEP. Porbably this is what drains the battery etc.
 It keeps on looking for that SSID forever. It doesn't matter what the code logic says..
 kind of does its own thing. Calling wifi.Begin after wifi is already connected also leads to same/similar problems
 
-
+**** ESP8266 gets stuck at bootloader if the power supply isnt adequate while booting***
+* Reproducible- Powersupply off due to low battery voltage then  - shine the solar panel - while ESP8266 is turning on - disconnect or shade the panel
+* Red power LED stays on - no wifi (checked via wireshark) - no serial output (didn't check at boot but after boot - no serial or swserial output)
+* Connecting serial (rx0tx0) - doesn't affect functionality
+* ESP outputs boot data at rx0tx0 @ 74880 baud rate.
+* Going to reproduce above with serial connected.
+* It happens after complete discharge and onset of recharge. Either stuck looking for wifi AP (unlikely - checked with wireshark)
+* or stuck at Bootloader. No output @ 74880 serial 0. Only red light on, no blue light activity, consuming current (humming high freq switching sound from power module)
+* 3300 uF capacitor at the output of power module /5 V input of ESP201 doesn't seem to help.
+* ? External reset switch needed??
+* Power supply outputing 5 V when sun is shinning so it doesn't seem to be a powersupply issue. ESP gets stuck - needs complete removal of power and reset
+* 3300 uF Capacitor probably doesn't discharge all the way - even if ESP8266 has shutoff. Voltage stays around 1.2 V even with POWER Supply in cut off
+* Battery removed. No solar input. 3300 uF cap at powersupply output still reading 0.82 V. Cap shorted out. Now reads zero V. Battery re-attached.
+* Powersupply now turns on with cap still present at the output. So CAPACITOR seems to be hurting the cause. It doesn't let the voltage go 
+* down to zero  which doesn't let either the poser supply or the ESP reset. 
+* 3300uF Cap removed. ESP rarely gets stuck in no macns land (most likely at bootloader or incomplete reset due to residual voltage- sort of like a brown out state)
+* 
 
 */
 #include <ESP8266WiFi.h>
@@ -35,8 +51,8 @@ kind of does its own thing. Calling wifi.Begin after wifi is already connected a
 //uint8_t peer0[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};// Each specific peer gets 6-7 packets per send. Broadcast peer only gets one packet.
 //uint8_t peer0[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};//86:CC:A8:AA:20:F9 softAP MAC of server Also - sending to broadcast always results in "success" even in the absence of ACK so need to specify peer MAC Address
 
-uint8_t peer0[] = {0x6A, 0xC6, 0x3A, 0xF4, 0x59, 0x9D};//marked 9d
-uint8_t peer1[] = {0x6A, 0xC6, 0x3A, 0xF4, 0x59, 0x42};//marked 42
+uint8_t peer1[] = {0x6A, 0xC6, 0x3A, 0xF4, 0x59, 0x9D};//marked 9d
+uint8_t peer0[] = {0x6A, 0xC6, 0x3A, 0xF4, 0x59, 0x42};//marked 42
 
 
 bool DEBUG = false;
@@ -58,7 +74,7 @@ const char* WIFI_SSID0 = "*";
 const char* WIFI_SSID1 = "*";
 const char* WIFI_PASS = "*";
 
-const char* host = "192.168.1.152";  // TCP Server IP
+const char* host = "192.168.1.110";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 
 //*************************************************

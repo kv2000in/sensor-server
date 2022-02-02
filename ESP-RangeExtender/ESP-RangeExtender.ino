@@ -39,7 +39,7 @@ netDump(Serial, data, len);
 }
 #endif
 WiFiClient client;
-const char* host = "192.168.1.152";  // TCP Server IP
+const char* host = "192.168.1.110";  // TCP Server IP
 const int   port = 9999;            // TCP Server Port
 char mydata[512]; //Create a 64 byte "ring buffer" to handle 16 byte data arriving from up to 4 nodes
 bool dataavailable = false;

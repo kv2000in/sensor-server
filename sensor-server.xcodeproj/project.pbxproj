@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		2A1452AF27A7892E00266B9A /* plot.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = plot.html; sourceTree = "<group>"; };
+		2A1452B027A78A6400266B9A /* myplotly.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = myplotly.js; sourceTree = "<group>"; };
 		2A2591ED2741B542001CE4F1 /* Atmega328-US100 */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Atmega328-US100"; sourceTree = "<group>"; };
 		2A2591EE2741C4FA001CE4F1 /* ESP8266-US100 */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "ESP8266-US100"; sourceTree = "<group>"; };
 		2A285AF12780C3B600B07269 /* ESP8266-RSSI-Test */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "ESP8266-RSSI-Test"; sourceTree = "<group>"; };
@@ -33,6 +35,8 @@
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
+				2A1452B027A78A6400266B9A /* myplotly.js */,
+				2A1452AF27A7892E00266B9A /* plot.html */,
 				2A578569279BEE73003E13EF /* checkandsend.sh */,
 				2A285AF32783D7E800B07269 /* ESP-NOW-to-WiFi */,
 				2A285AF22780E2B200B07269 /* ESP-RangeExtender */,
