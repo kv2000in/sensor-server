@@ -172,8 +172,8 @@ IsSENSOR1UP=True
 IsSENSOR2UP=True
 #This is used if SOFTMODE=Manual and client wants to shutoff the motor after filling the tanks
 MANUALMODESHUTOFF="false"
-TANK1MANUALHIGHLEVEL=100
-TANK2MANUALHIGHLEVEL=100
+TANK1MANUALHIGHLEVEL=85
+TANK2MANUALHIGHLEVEL=85
 #1/19/18 For calibration purposes - need to send raw values (can back calculate on client - but this is cleaner)
 raw_RMS_Current_ADC=999
 raw_RMS_Voltage_ADC=999
@@ -302,10 +302,10 @@ def commandhandler(command):
 		if (command.split("=")[0]=="TANK"):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
-					GPIO.output(SWTANK,GPIO.LOW)
+					GPIO.output(SWTANK,GPIO.HIGH)
 			if (command.split("=")[1]=="Tank 1"):
 				if (TANK=="Tank 2"):
-					GPIO.output(SWTANK,GPIO.HIGH)
+					GPIO.output(SWTANK,GPIO.LOW)
 					
 		if (command.split("=")[0]=="dMOTOR"):
 			if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
@@ -1157,8 +1157,8 @@ def error_handler(calling_function_name,data):
 #LCD screen Defining functions
 ######################################
 # Define some device parameters
-#I2C_ADDR  = 0x27 # I2C device address # Jan 2022 - device marked 2 - address = 0x3F . i2cdetect -l , i2cdetect -y 1
-I2C_ADDR  = 0x3F
+I2C_ADDR  = 0x27 # I2C device address # Jan 2022 - device marked 2 - address = 0x3F . i2cdetect -l , i2cdetect -y 1
+#I2C_ADDR  = 0x3F
 LCD_WIDTH = 16   # Maximum characters per line
 
 # Define some device constants
@@ -1373,18 +1373,14 @@ def autothread():
 									commandQ.append("MOTOR=OFF")
 									#What if both tanks are full and we want to just get water downstairs?
 									# set to manual mode and do it..
-								#If tank 1 >95% and tank 2 <95%
-								elif ((TANK1LEVEL>T1HLVL) and (TANK2LEVEL<T2HLVL)):
-									if(TANK2LEVEL<T2LLVL):
+									#If tank 1  >  95% but tank 2 < 95%, Switch to tank 2
+								elif (TANK =="Tank 1"):
+									if(TANK1LEVEL>T1HLVL):
 										commandQ.append("TANK=Tank 2")
-									else:
-										commandQ.append("MOTOR=OFF")
 								#If tank 1 >95% and Tank 2 < 75% then switch to tank2 AND vice versa
-								elif ((TANK2LEVEL>T2HLVL) and (TANK1LEVEL<T1HLVL)):
-									if(TANK1LEVEL<T1LLVL):
+								elif (TANK == "Tank 2"):
+									if(TANK2LEVEL>T2HLVL):
 										commandQ.append("TANK=Tank 1")
-									else:
-										commandQ.append("MOTOR=OFF")
 							#SENSORS are DOWN but MODE=AUTO and MOTOR=ON  : Turn off the Motor
 							else:
 								commandQ.append("MOTOR=OFF")
