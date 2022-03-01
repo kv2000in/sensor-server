@@ -158,6 +158,9 @@ T2HLVL=95
 TANK1LEVEL=999 # Define Tank level variable - initial value
 TANK2LEVEL=999
 
+TANK1AVERAGINGLIST=[85.0,85.0,85.0,85.0,85.0] # use the running average of the list to determine whether or not to turn on the motor. Not using it for turning the motor off - one value higher than set enough.
+TANK2AVERAGINGLIST=[85.0,85.0,85.0,85.0,85.0]
+
 timebetweensensordata = 20 # Time in seconds - if the same sensor sends data with less than this much time gap from previous data - ignore that data
 SENSORTIMEOUT=120 # Time in seconds - for which if the sensor hasn't posted data - it will be considered to be "Down"
 
@@ -270,6 +273,7 @@ def commandhandler(command):
 						if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
 							GPIO.output(SWSTARTPB,GPIO.HIGH) # Active low relays - GPIO HIGH turns on the relay by forward biasing the base of the NPN transistor - which brings the collector (Relay IN pin) to ground
 							time.sleep(3)
+							activity_handler("Motor On")
 							if (MOTOR=="ON"): #wait 3 seconds for Motor status to change to ON
 								GPIO.output(SWSTARTPB,GPIO.LOW) # then release the STARTPB 
 								#Check motor current draw and turn off motor if current > limit
@@ -294,6 +298,7 @@ def commandhandler(command):
 						time.sleep(3) # Wait for 3 seconds
 						if (MOTOR=="OFF"): # If Motor turned off
 							GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
+							activity_handler("Motor Off")
 						else: # Motor didn't stop
 							GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
 							sendchangedstatus("ERROR=MOTORSTOP")
@@ -303,10 +308,11 @@ def commandhandler(command):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
 					GPIO.output(SWTANK,GPIO.HIGH)
+					activity_handler("Tank 2")
 			if (command.split("=")[1]=="Tank 1"):
 				if (TANK=="Tank 2"):
 					GPIO.output(SWTANK,GPIO.LOW)
-					
+					activity_handler("Tank 1")
 		if (command.split("=")[0]=="dMOTOR"):
 			if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
 				if (command.split("=")[1]=="ON"):
@@ -360,7 +366,11 @@ def worker_sensorthread(client_socket):
 				if((currtime-SENSOR1TIME)>timebetweensensordata):
 					SENSOR1TIME=currtime
 					#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-					TANK1LEVEL=round((((MINT1-float(struct.unpack('h',request[6:8])[0]))/(MINT1-MAXT1))*100),1)
+					myTANK1LEVEL=round((((MINT1-float(struct.unpack('h',request[6:8])[0]))/(MINT1-MAXT1))*100),1)
+					if (myTANK1LEVEL>0):
+						TANK1LEVEL=myTANK1LEVEL
+						TANK1AVERAGINGLIST.pop(0)
+						TANK1AVERAGINGLIST.append(myTANK1LEVEL)
 					#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
 					raw_Sensor_1_Reading=struct.unpack('h',request[6:8])[0]
 					battery1level=struct.unpack('h',request[10:12])[0]
@@ -374,7 +384,11 @@ def worker_sensorthread(client_socket):
 				if((currtime-SENSOR2TIME)>timebetweensensordata):
 					SENSOR2TIME=currtime
 					#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-					TANK2LEVEL=round((((MINT2-float(struct.unpack('h',request[6:8])[0]))/(MINT2-MAXT2))*100),1)
+					myTANK2LEVEL=round((((MINT2-float(struct.unpack('h',request[6:8])[0]))/(MINT2-MAXT2))*100),1)
+					if (myTANK2LEVEL>0):
+						TANK2LEVEL=myTANK2LEVEL
+						TANK2AVERAGINGLIST.pop(0)
+						TANK2AVERAGINGLIST.append(myTANK2LEVEL)
 					raw_Sensor_2_Reading=struct.unpack('h',request[6:8])[0]
 					battery2level=struct.unpack('h',request[10:12])[0]
 					TANK2temp = struct.unpack('h',request[8:10])[0]
@@ -439,45 +453,6 @@ def savesensordatatofile(formattedsensordata):
 	except Exception as e:
 		error_handler(savesensordatatofile.__name__,e)
 		pass
-#Request for plot will come as which sensor, starttime, stoptime.
-#open the file with name sensordata+startdate name, read lines, seek until time is >time from starttime
-#read line by line - if sensor matches the sensor requested - push the time and value data in the list
-#reached EOF but time>stoptime - open next file sensordata+startdate+1 name and start reading lines.
-# uniformly date time format yyyy-mm-dd hh:mm:ss seems to work
-#request comes as STOREDDATA#2021-02-26 09:47:52#2021-02-26 10:47:52#t#a#A
-#return data as "t$2021-02-20 21:04:33|-1.09,2021-02-20 21:04:41|-1.08,"
-def sendstoreddata(data):
-	vars=[]
-	mytempdataholdingdict={} #get all the data in a list and send it to javascript in chunks of "numberofdatapoints" length
-	mystarttimedatetimeformat=datetime.strptime(data.split("#")[1],"%Y-%m-%d %H:%M:%S")
-	myendtimedatetimeformat=datetime.strptime(data.split("#")[2],"%Y-%m-%d %H:%M:%S")
-	mystartdate=mystarttimedatetimeformat.date()
-	vars=data.split('#')[3:]
-	for sensorid in vars:
-		mytempdataholdingdict[sensorid]=""
-	try:
-		while (myendtimedatetimeformat.date()>=mystartdate):
-			if os.path.exists(mylocationdir+"sensordata"+str(mystartdate)):
-				with open(mylocationdir+"sensordata"+str(mystartdate),"r") as fobj:
-					for myline in fobj:
-						myline=myline.strip()
-						mystoreddatetime=myline.split("|")[0]
-						mystoredsensor=myline.split("|")[1]
-						mystoredsensorvalue=myline.split("|")[2]
-						if (datetime.strptime(mystoreddatetime,"%Y-%m-%d %H:%M:%S")>mystarttimedatetimeformat):
-							for sensorid in vars:
-								if (mystoredsensor==sensorid):
-									mytempdataholdingdict[sensorid]+=mystoreddatetime+"|"+mystoredsensorvalue+","
-			mystartdate+=timedelta(days=1)
-		for sensorid in vars:
-			mymessagetosend = sensorid+"#"+mytempdataholdingdict[sensorid]
-			for ws in clients:
-				ws.sendMessage(u'StoredData#'+mymessagetosend.strip(","))
-	except Exception as e:
-		error_handler(sendstoreddata.__name__,e)
-		pass
-
-
 ## Sending the raw ADC values to the client - to plot- and use it to calibrate
 def send_raw_adc(param):
 	try:
@@ -492,172 +467,6 @@ def send_raw_adc(param):
 	except Exception as e:
 		error_handler(send_raw_adc.__name__,e)
 		pass
-##Analogread is the function from EMONPI example - currently not in use
-def analogread(crossings,timeouttime): #(20,2000) in emonpi example
-	#Using myanalogread instead of analogread - simpler - no phase difference calculation - just instantaneous V and I measurement
-	global ACVOLTAGE
-	global MOTORCURRENT
-	global inPinV
-	global inPinI
-	global offsetV
-	global offsetI
-	global VoltCalibrate
-	global VadcValue
-	global CurrentCalibrate
-	global CadcValue
-	ADC_COUNTS=1024
-	'''
-	SupplyVoltage=3300 #mcp3008 supply voltage
-	VCAL=110 # Volt for highest ADC
-	ICAL=1.5
-	'''
-	'''
-	# These offset values are true if the bias voltage is mid supply rail
-	#i.e. 2.5 V for a 5 V ADC and 1.65 V for a 3.3 V ADC
-	# in our case for AC Volt - at current settings mid point is around ADC value of 422
-	# for Current mid point is ADC=505 ### NOW I KNOW WHY NOT 512 - Voltage divider source resistance too high - ADC pin presents a "load" to the voltage divider
-	#Changed the resistors to 4.7k instead of 47k and 470k.
-	#VCC 5.12V gives midrail 2.56V - going through 4.68k/9.36k divider gives 1.707V = 529 read by ADC with V ref of 3.3V
-	offsetV = ADC_COUNTS>>1 #Divide ADC_COUNTS by 2 - for 1024 - result is 512
-	offsetI = ADC_COUNTS>>1
-	
-	'''
-	crossCount = 0 #Used to measure number of times threshold is crossed.
-	numberOfSamples = 0#This is now incremented
-	'''
-	//Reset accumulators
-	'''
-	sumV = 0
-	sumI = 0
-	sumP = 0
-	'''
-	//-------------------------------------------------------------------------------------------------------------------------
-	// 1) Waits for the waveform to be close to 'zero' (mid-scale adc) part in sin curve.
-	//-------------------------------------------------------------------------------------------------------------------------
-	'''
-	st=False#an indicator to exit the while loop
-	starttime = time.time()*1000 # millis()-start makes sure it doesnt get stuck in the loop if there is an error.
-	while(st==False):#the while loop
-		startV = mcp.read_adc(inPinV)#using the voltage waveform
-		'''
-		#See above - since ADC isn't exactly mid rail - I am substituting with actually Midpoint ADC
-		if ((startV < (ADC_COUNTS*0.55)) and (startV > (ADC_COUNTS*0.45))):
-			st=True#check its within range
-		'''
-		if ((startV < 400) and (startV > 450)):
-			st=True#check its within range
-		if ((time.time()*1000-starttime)>timeouttime):
-			st=True
-	'''
-	//-------------------------------------------------------------------------------------------------------------------------
-	// 2) Main measurement loop
-	//-------------------------------------------------------------------------------------------------------------------------
-	'''
-	starttime = time.time()*1000
-	while ((crossCount < crossings)and((time.time()*1000-starttime)<timeouttime)):
-		numberOfSamples+=1#Count number of times looped.
-		#lastFilteredV = filteredV#Used for delay/phase compensation
-		'''
-		//-----------------------------------------------------------------------------
-		// A) Read in raw voltage and current samples
-		//-----------------------------------------------------------------------------
-		'''
-		sampleV = mcp.read_adc(inPinV)#Read in raw voltage signal
-		sampleI = mcp.read_adc(inPinI)#Read in raw current signal
-		'''
-		//-----------------------------------------------------------------------------
-		// B) Apply digital low pass filters to extract the 2.5 V or 1.65 V dc offset,
-		//     then subtract this - signal is now centred on 0 counts.
-		//-----------------------------------------------------------------------------
-		'''
-		offsetV = offsetV + ((sampleV-offsetV)/1024)
-		filteredV = sampleV - offsetV
-		offsetI = offsetI + ((sampleI-offsetI)/1024)
-		filteredI = sampleI - offsetI
-		'''
-		//-----------------------------------------------------------------------------
-		// C) Root-mean-square method voltage
-		//-----------------------------------------------------------------------------
-		'''
-		sqV= filteredV * filteredV	#1) square voltage values
-		sumV += sqV	#2) sum
-		'''
-		//-----------------------------------------------------------------------------
-		// D) Root-mean-square method current
-		//-----------------------------------------------------------------------------
-		'''
-		sqI = filteredI * filteredI	#1) square current values
-		sumI += sqI	#2) sum
-		'''
-		//-----------------------------------------------------------------------------
-		// E) Phase calibration
-		//-----------------------------------------------------------------------------
-		'''
-		#phaseShiftedV = lastFilteredV + PHASECAL * (filteredV - lastFilteredV)
-		'''
-		//-----------------------------------------------------------------------------
-		// F) Instantaneous power calc
-		//-----------------------------------------------------------------------------
-		'''
-		#instP = phaseShiftedV * filteredI	#Instantaneous Power
-		#sumP +=instP	#Sum
-		'''
-		//-----------------------------------------------------------------------------
-		// G) Find the number of times the voltage has crossed the initial voltage
-		//    - every 2 crosses we will have sampled 1 wavelength
-		//    - so this method allows us to sample an integer number of half wavelengths which increases accuracy
-		//-----------------------------------------------------------------------------
-		'''
-		#lastVCross = checkVCross
-		if(sampleV > startV):
-			checkVCross = True
-		else:
-			checkVCross = False
-		if(numberOfSamples==1):
-			checkVCross = False
-		if(checkVCross):
-			crossCount+=1
-	'''
-	//-------------------------------------------------------------------------------------------------------------------------
-	// 3) Post loop calculations
-	//-------------------------------------------------------------------------------------------------------------------------
-	//Calculation of the root of the mean of the voltage and current squared (rms)
-	//Calibration coefficients applied.
-	'''
-	''' To figure out the sampling frequency
-	
-	timediff=time.time()*1000-starttime
-	print numberOfSamples
-	print timediff
-	print (numberOfSamples/timediff)*1000
-	'''
-	'''
-	#ADC of 140 ~ AC V RMS of 110 => each ADC = 110/140
-	#ADC of 17.5 ~ AC I RMS of 0.21 A
-	'''
-	'''
-	#double V_RATIO = VCAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
-	V_RATIO = VCAL *((SupplyVoltage/1000.0) / (ADC_COUNTS))
-	'''
-	#V_RATIO=110.0/140.0
-	#ACVOLTAGE = V_RATIO*math.sqrt(sumV / numberOfSamples)
-	ACVOLTAGE = (VoltCalibrate/VadcValue)*math.sqrt(sumV / numberOfSamples)
-	'''
-	#double I_RATIO = ICAL *((SupplyVoltage/1000.0) / (ADC_COUNTS));
-	I_RATIO = ICAL *((SupplyVoltage/1000.0) / (ADC_COUNTS))
-	'''
-	#I_RATIO= 0.21/17.5
-	#MOTORCURRENT = I_RATIO*math.sqrt(sumI / numberOfSamples)
-	MOTORCURRENT = (CurrentCalibrate/CadcValue)*math.sqrt(sumI / numberOfSamples)
-	'''
-	//Calculation power values
-	realPower = V_RATIO * I_RATIO * sumP / numberOfSamples;
-	apparentPower = Vrms * Irms;
-	powerFactor=realPower / apparentPower;
-	'''
-	#print ACVOLTAGE
-	'''//--------------------------------------------------------------------------------------
-	'''
 ##THIS FUNCTION READs the analog ADC values (voltage and current)
 def myanalogread(timeout):
 	try:
@@ -1152,7 +961,23 @@ def error_handler(calling_function_name,data):
 		fobj.close()
 	except Exception as e:
 		print(e)
-
+### This will save activity (motor-on/off for now) in the errorlog (will create an activity log file in future).
+### log the software mode and hardware mode. Cannot motor on from "human" hardware mode but can motor off and hence logging
+def activity_handler(activity_name):
+	try:
+		fobj = open(mylocationdir+"errorlog"+time.strftime("%Y-%m-%d",time.localtime()), 'a+')
+		fobj.write(time.strftime("%Y-%m-%d %H:%M:%S",time.localtime()))
+		fobj.write(",")
+		fobj.write(SOFTMODE)
+		fobj.write(",")
+		fobj.write(activity_name)
+		fobj.write(",")
+		fobj.write(MODE)
+		fobj.write('\n')
+		fobj.write('**')
+		fobj.close()
+	except Exception as e:
+		print(e)
 ######################################
 #LCD screen Defining functions
 ######################################
@@ -1365,7 +1190,7 @@ def autothread():
 								# Why not just do the current check when Motor is starting and not in the autothread
 								# Then - there will no "Monitoring" of current draw
 							#if (MOTORCURRENT>HMCURR):
-						#		commandQ.append("dMOTOR=OFF")
+								#commandQ.append("dMOTOR=OFF")
 							#Check if both SENSORS are up (TODO : What if one sensor is up and the other one is down??)
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If both Tanks > 95% - turn off the motor
@@ -1388,11 +1213,13 @@ def autothread():
 						else: 
 							#Sensors are UP?
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
+								myTANK1AVERAGELEVEL = sum(TANK1AVERAGINGLIST)/len(TANK1AVERAGINGLIST)
+								myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
 								#WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
-								if (TANK1LEVEL<T1LLVL):
+								if (myTANK1AVERAGELEVEL<T1LLVL):
 									commandQ.append("TANK=Tank 1")
 									commandQ.append("MOTOR=ON")
-								elif(TANK2LEVEL<T2LLVL):
+								elif(myTANK2AVERAGELEVEL<T2LLVL):
 									commandQ.append("TANK=Tank 2")
 									commandQ.append("MOTOR=ON")
 					#Software mode or SMART MODE is set to Manual
