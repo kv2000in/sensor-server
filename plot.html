@@ -502,6 +502,11 @@
 				visibility: visible;
 				opacity: 1;
 			}
+                #drop_zone {
+  border: 5px solid blue;
+  width:  200px;
+  height: 100px;
+}
 			
 				</style>
 			<script src="plotly.js" type="text/javascript" charset="utf-8"></script>
@@ -523,8 +528,13 @@
 								<input type="button" id="plotexecute" value="Plot" onclick="plotchart()">
 									<button class="genericbuttons" id="removeplots" onclick="clearplots()">Clear Plots</button>	
                                     <button class="genericbuttons" id="clearlocaldata" onclick="clearlocaldata()">Clear Data</button>	
-									</div> 
+									
+        <div id="drop_zone" ondrop="dropHandler(event);" ondragover="dragOverHandler(event);">
+  <p>Drag one or more sensordata files to this Drop Zone ...</p>
+</div>
+            </div> 
 		
+        
 	</body>
 	<script type="text/javascript">
         
@@ -647,7 +657,15 @@
         
     function getsensordatafileandpushdataintoarrays(filename){
             var myRequest=filepath+filename;
-        fetch(myRequest)
+            var myHeaders = new Headers();
+                myHeaders.append('pragma', 'no-cache');
+                myHeaders.append('cache-control', 'no-cache');
+
+            var myInit = {
+                        method: 'GET',
+                        headers: myHeaders,
+                        };
+        fetch(myRequest,myInit)
       .then(function(response) {
         if (!response.ok) {
           throw new Error("HTTP error, status = " + response.status);
@@ -680,6 +698,69 @@
             
         }
 	
+        
+    function dropHandler(ev) {
+  console.log('File(s) dropped');
+
+  // Prevent default behavior (Prevent file from being opened)
+  ev.preventDefault();
+
+  if (ev.dataTransfer.items) {
+    // Use DataTransferItemList interface to access the file(s)
+    for (var i = 0; i < ev.dataTransfer.items.length; i++) {
+      // If dropped items aren't files, reject them
+      if (ev.dataTransfer.items[i].kind === 'file') {
+        var file = ev.dataTransfer.items[i].getAsFile();
+        console.log('... file[' + i + '].name = ' + file.name);
+      file.text().then(function(text){ //promise has been fulfilled - we have the data
+        document.getElementById("plotexecute").disabled=false;
+        console.log("done!"); 
+            
+        var myblob = text;
+            
+        var mybloblines=myblob.split("\n");
+                if (mylistofarrays.length==undefined)
+            {
+                
+        for(j=0;j<mylistofplotvariables.length;j++){ 
+             mylistofarrays [mylistofplotvariables[j]+"-time"]=[];
+             mylistofarrays [mylistofplotvariables[j]+"-level"]=[];
+             mylistofarrays [mylistofplotvariables[j]+"-battery"]=[];
+             mylistofarrays [mylistofplotvariables[j]+"-temp"]=[];
+         }
+            }
+          
+        for (i=0;i<mybloblines.length;i++){
+            var mysplitline=mybloblines[i].split("|");
+            for (k=0;k<mylistofplotvariables.length;k++){ 
+                if (mysplitline[1]==mylistofplotvariables[k]){
+                    mylistofarrays [mylistofplotvariables[k]+"-time"].push(mysplitline[0]);
+                    mylistofarrays [mylistofplotvariables[k]+"-level"].push(mysplitline[2]);
+                    mylistofarrays [mylistofplotvariables[k]+"-battery"].push(mysplitline[3]);
+                    mylistofarrays [mylistofplotvariables[k]+"-temp"].push(mysplitline[4]);
+                }
+            } 
+            
+        }
+        })
+      }
+    }
+  } else {
+    // Use DataTransfer interface to access the file(s)
+    for (var i = 0; i < ev.dataTransfer.files.length; i++) {
+      console.log('... file[' + i + '].name = ' + ev.dataTransfer.files[i].name);
+    }
+  }
+}
+
+function dragOverHandler(ev) {
+  console.log('File(s) in drop zone');
+
+  // Prevent default behavior (Prevent file from being opened)
+  ev.preventDefault();
+}
+
+        
 	/* As the name suggest - this function returns time formatted as %Y-%m-%d %H:%M:%S */
 	function returnformattedtime(mytime){
 		var response=mytime;

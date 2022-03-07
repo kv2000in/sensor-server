@@ -374,7 +374,9 @@ def worker_sensorthread(client_socket):
 					#TANK1LEVEL=sensorvalue.split(':')[1]+"%"# For sending RAW CM OUTPUT TO CLIENT FOR CALIBRATION
 					raw_Sensor_1_Reading=struct.unpack('h',request[6:8])[0]
 					battery1level=struct.unpack('h',request[10:12])[0]
-					TANK1temp = struct.unpack('h',request[8:10])[0]
+					myTANK1temp = struct.unpack('h',request[8:10])[0]
+					if (myTANK1temp<70):
+						TANK1temp=myTANK1temp
 					message2=u'SensorData#'+strcurrtime+u'|T1MAC|'+str(TANK1LEVEL)+u'|'+str(battery1level)+u'|'+str(TANK1temp)
 					message1=strcurrtime+'|T1MAC|'+str(TANK1LEVEL)+'|'+str(battery1level)+'|'+str(TANK1temp)
 					for ws in clients:
@@ -391,7 +393,9 @@ def worker_sensorthread(client_socket):
 						TANK2AVERAGINGLIST.append(myTANK2LEVEL)
 					raw_Sensor_2_Reading=struct.unpack('h',request[6:8])[0]
 					battery2level=struct.unpack('h',request[10:12])[0]
-					TANK2temp = struct.unpack('h',request[8:10])[0]
+					myTANK2temp = struct.unpack('h',request[8:10])[0]
+					if (myTANK2temp<70):
+						TANK2temp=myTANK2temp
 					message2=u'SensorData#'+strcurrtime+u'|T2MAC|'+str(TANK2LEVEL)+u'|'+str(battery2level)+u'|'+str(TANK2temp)
 					message1=strcurrtime+'|T2MAC|'+str(TANK2LEVEL)+'|'+str(battery2level)+'|'+str(TANK2temp)
 					for ws in clients:
@@ -412,10 +416,16 @@ def worker_sensorthread(client_socket):
 							if((currtime-SENSOR1TIME)>timebetweensensordata):
 								SENSOR1TIME=currtime
 								#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-								TANK1LEVEL=round((((MINT1-float(struct.unpack('h',request[6+i*16:8+i*16])[0]))/(MINT1-MAXT1))*100),1)
+								myTANK1LEVEL=round((((MINT1-float(struct.unpack('h',request[6+i*16:8+i*16])[0]))/(MINT1-MAXT1))*100),1)
+								if (myTANK1LEVEL>0):
+									TANK1LEVEL=myTANK1LEVEL
+									TANK1AVERAGINGLIST.pop(0)
+									TANK1AVERAGINGLIST.append(myTANK1LEVEL)
 								raw_Sensor_1_Reading=struct.unpack('h',request[6+i*16:8+i*16])[0]
 								battery1level=struct.unpack('h',request[10+i*16:12+i*16])[0]
-								TANK1temp = struct.unpack('h',request[8+i*16:10+i*16])[0]
+								myTANK1temp = struct.unpack('h',request[8+i*16:10+i*16])[0]
+								if (myTANK1temp<70):
+									TANK1temp=myTANK1temp
 								message2=u'SensorData#'+strcurrtime+u'|T1MAC|'+str(TANK1LEVEL)+u'|'+str(battery1level)+u'|'+str(TANK1temp)
 								message1=strcurrtime+'|T1MAC|'+str(TANK1LEVEL)+'|'+str(battery1level)+'|'+str(TANK1temp)
 								for ws in clients:
@@ -425,10 +435,16 @@ def worker_sensorthread(client_socket):
 							if((currtime-SENSOR2TIME)>timebetweensensordata):
 								SENSOR2TIME=currtime
 								#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-								TANK2LEVEL=round((((MINT2-float(struct.unpack('h',request[6+i*16:8+i*16])[0]))/(MINT2-MAXT2))*100),1)
+								myTANK2LEVEL=round((((MINT2-float(struct.unpack('h',request[6+i*16:8+i*16])[0]))/(MINT2-MAXT2))*100),1)
+								if (myTANK2LEVEL>0):
+									TANK2LEVEL=myTANK2LEVEL
+									TANK2AVERAGINGLIST.pop(0)
+									TANK2AVERAGINGLIST.append(myTANK2LEVEL)
 								raw_Sensor_2_Reading=struct.unpack('h',request[6+i*16:8+i*16])[0]
 								battery2level=struct.unpack('h',request[10+i*16:12+i*16])[0]
-								TANK2temp = struct.unpack('h',request[8+i*16:10+i*16])[0]
+								myTANK2temp = struct.unpack('h',request[8+i*16:10+i*16])[0]
+								if (myTANK2temp<70):
+									TANK2temp=myTANK2temp
 								message2=u'SensorData#'+strcurrtime+u'|T2MAC|'+str(TANK2LEVEL)+u'|'+str(battery2level)+u'|'+str(TANK2temp)
 								message1=strcurrtime+'|T2MAC|'+str(TANK2LEVEL)+'|'+str(battery2level)+'|'+str(TANK2temp)
 								for ws in clients:
@@ -1310,7 +1326,7 @@ if __name__ == '__main__':
 		settingshandler("null","load")
 		calibrationhandler("null","load")
 		#initialize the LCD screen
-		lcd_init()
+		#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
 		#Check initial GPIO statuses - added 2/19/18
 		init_status()
 		t1=Thread(target=TCPserverthread)  
@@ -1336,7 +1352,7 @@ if __name__ == '__main__':
 		#For killing gracefully
 		killer = GracefulKiller()
 		while True:
-			lcdticker()
+			#lcdticker() #March 2022 -Getting I/O error - disable LCD
 			time.sleep(1) # Makes a huge difference in CPU usage - without >95%, with <10%
 			if killer.kill_now:
 				#clean the GPIO
