@@ -54,7 +54,6 @@ import math
 import signal
 import socket
 from threading import Thread
-import BaseHTTPServer
 from SimpleWebSocketServer import SimpleWebSocketServer, WebSocket
 import binascii
 import struct
@@ -66,7 +65,6 @@ import Adafruit_MCP3008
 
 #### GLOBAL VARIABLES ######
 TCP_IP=''
-HTTP_PORT = 62246
 WS_PORT= 8000
 TCP_PORT=9999
 
@@ -245,6 +243,7 @@ def sendchangedstatus(mymsg):
 	try:
 		for ws in clients:
 			ws.sendMessage(u'STATUS#'+mymsg)
+		activity_handler(mymsg)
 	except Exception as e:
 		error_handler(sendchangedstatus.__name__,e)
 		pass
@@ -260,6 +259,7 @@ mcp = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(0, 1,20000)) # (0,0) was being use
 
 ## Commands are handled in the order they are received - this function is invoked by commandthread
 def commandhandler(command):
+	global SOFTMODE
 	try:
 		#global variable declaration needed if modifying global variables - not needed if just using global variables
 		if (command.split("=")[0]=="MOTOR"):
@@ -282,6 +282,11 @@ def commandhandler(command):
 									GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
 									sendchangedstatus("ERROR=MOTORHIGHCURRENT")
 									error_handler(commandhandler.__name__,"MOTORHIGHCURRENT")
+									#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
+									#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
+									if (SOFTMODE=="Auto"):
+										SOFTMODE="Manual"
+										sendchangedstatus("SOFTMODE="+SOFTMODE)
 									time.sleep(3) # Wait for 3 seconds
 									if (MOTOR=="OFF"): # If motor turned off
 										GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
@@ -289,9 +294,19 @@ def commandhandler(command):
 								GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
 								sendchangedstatus("ERROR=MOTORSTART")
 								error_handler(commandhandler.__name__,"MOTORSTART")
+								#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
+								#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
+								if (SOFTMODE=="Auto"):
+									SOFTMODE="Manual"
+									sendchangedstatus("SOFTMODE="+SOFTMODE)
 						else:# Doesn't meet voltage criteria - unstable or too low/too high
 							sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
 							error_handler(commandhandler.__name__,"MOTORNOTSTABLEVOLTAGE")
+							#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
+							#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
+							if (SOFTMODE=="Auto"):
+								SOFTMODE="Manual"
+								sendchangedstatus("SOFTMODE="+SOFTMODE)
 				if (command.split("=")[1]=="OFF"):
 					if (MOTOR=="ON"):
 						GPIO.output(SWSTOPPB,GPIO.HIGH) #Press STOP PB
@@ -303,16 +318,21 @@ def commandhandler(command):
 							GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB and send error
 							sendchangedstatus("ERROR=MOTORSTOP")
 							error_handler(commandhandler.__name__,"MOTORSTOP")
+							#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
+							#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
+							if (SOFTMODE=="Auto"):
+								SOFTMODE="Manual"
+								sendchangedstatus("SOFTMODE="+SOFTMODE)
 							#TURN OFF A MASTER POWER SWITCH TO PROTECT THE MOTOR
 		if (command.split("=")[0]=="TANK"):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
 					GPIO.output(SWTANK,GPIO.HIGH)
-					activity_handler("Tank 2")
+					#activity_handler("Tank 2") #Using the statuschange of Tank instead to capture human mode actions
 			if (command.split("=")[1]=="Tank 1"):
 				if (TANK=="Tank 2"):
 					GPIO.output(SWTANK,GPIO.LOW)
-					activity_handler("Tank 1")
+					#activity_handler("Tank 1") #Using the statuschange of Tank instead to capture human mode actions
 		if (command.split("=")[0]=="dMOTOR"):
 			if (ACPOWER=="ON"):# Execute motor commands only if ACPOWER is ON
 				if (command.split("=")[1]=="ON"):
@@ -850,6 +870,7 @@ class SimpleChat(WebSocket):
 				SOFTMODE=self.data.split("#")[1]
 				for client in clients:
 					client.sendMessage(u'STATUS#SOFTMODE='+SOFTMODE) # Send change in mode to all connected clients
+				activity_handler("SOFTMODE="+SOFTMODE)
 			elif (self.data.split("#")[0]=="REQSETTINGS"): #Requesting software configurable settings 
 				self.sendMessage(u'raw#ADC='+str(raw_Sensor_1_Reading)+u','+str(raw_Sensor_2_Reading))
 				self.sendMessage(u'SETTINGS#HVLVL='+str(HVLVL)+u',LVLVL='+str(LVLVL)+u',T1HLVL='+str(T1HLVL)+u',T1LLVL='+str(T1LLVL)+u',MAXT1='+str(MAXT1)+u',MINT1='+str(MINT1)+u',T2HLVL='+str(T2HLVL)+u',T2LLVL='+str(T2LLVL)+u',MAXT2='+str(MAXT2)+u',MINT2='+str(MINT2)+u',HMCURR='+str(HMCURR)+u',MONCURR='+str(MONCURR)) # Send change in mode to all connected clients
@@ -958,12 +979,6 @@ def error_handler(calling_function_name,data):
 		print calling_function_name
 		print mystring
 		print data
-		global SOFTMODE
-		#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
-		#3-10-18 - TODO - if the motor is ON and in Auto mode - any error - will switch the mode to manual and motor will never turn off since the user doesn't know that motor is on and mode is now manual.
-		if (SOFTMODE=="Auto"):
-			SOFTMODE="Manual"
-			sendchangedstatus("SOFTMODE="+SOFTMODE)
 		fobj = open(mylocationdir+"errorlog"+time.strftime("%Y-%m-%d",time.localtime()), 'a+')
 		fobj.write(time.strftime("%Y-%m-%d %H:%M:%S",time.localtime()))
 		fobj.write(",")
@@ -1297,20 +1312,22 @@ def watchdogthread():
 				if (IsSENSOR1UP):
 					IsSENSOR1UP=False
 					sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
-					error_handler("Watchdogthread","SENSORDOWN=1")
+					activity_handler("Watchdogthread - SENSORDOWN=1")
 			else: #Sensor 1 not timed out
 				if not (IsSENSOR1UP):
 					IsSENSOR1UP=True
 					sendchangedstatus("SENSORUP=1")
+					activity_handler("Watchdogthread- SENSORUP=1")
 			if (time.time()-SENSOR2TIME>SENSORTIMEOUT): #Sensor 2 timed out
 				if (IsSENSOR2UP):
 					IsSENSOR2UP=False
 					sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
-					error_handler("Watchdogthread","SENSORDOWN=2")
+					activity_handler("Watchdogthread- SENSORDOWN=2")
 			else: #Sensor 2 not timed out
 				if not (IsSENSOR2UP):
 					IsSENSOR2UP=True
 					sendchangedstatus("SENSORUP=2")
+					activity_handler("Watchdogthread- SENSORUP=2")
 			#Then - let's look at the last two sensor readings - if difference is > SENSORACCURACY - mark that sensor as Down so if the autothread is evaluating - will see it as down and act accrordingly. 
 			#appears challenging to implement - will need synchronization of autothread with sensor times.
 			#Watch for increase in that tank's water level (if water being used at the same time - level might not rise).
@@ -1319,14 +1336,15 @@ def watchdogthread():
 		pass
 
 if __name__ == '__main__':
-	#server_class = BaseHTTPServer.HTTPServer
-	#httpd = server_class((TCP_IP, HTTP_PORT), MyHandler)
-	#print time.asctime(), "Server Starts - %s:%s" % (TCP_IP, HTTP_PORT)
 	try:#Load the settings
 		settingshandler("null","load")
 		calibrationhandler("null","load")
 		#initialize the LCD screen
-		#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
+		try:
+			lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
+		except Exception as e:
+			print(e)
+			pass
 		#Check initial GPIO statuses - added 2/19/18
 		init_status()
 		t1=Thread(target=TCPserverthread)  
@@ -1352,7 +1370,11 @@ if __name__ == '__main__':
 		#For killing gracefully
 		killer = GracefulKiller()
 		while True:
-			#lcdticker() #March 2022 -Getting I/O error - disable LCD
+			try:
+				lcdticker() #March 2022 -Getting I/O error - disable LCD
+			except Exception as e:
+				print(e)
+				pass
 			time.sleep(1) # Makes a huge difference in CPU usage - without >95%, with <10%
 			if killer.kill_now:
 				#clean the GPIO
