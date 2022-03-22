@@ -563,7 +563,7 @@
         document.getElementById("plotexecute").disabled=true;
     }
     function getdataforchart(){
-        if (mylistofarrays.length==undefined)
+        if (Object.keys(mylistofarrays).length == 0)
             {
                 
         for(j=0;j<mylistofplotvariables.length;j++){ 
@@ -719,7 +719,7 @@
         var myblob = text;
             
         var mybloblines=myblob.split("\n");
-                if (mylistofarrays.length==undefined)
+                if (Object.keys(mylistofarrays).length == 0)
             {
                 
         for(j=0;j<mylistofplotvariables.length;j++){ 
