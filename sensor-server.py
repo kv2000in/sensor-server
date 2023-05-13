@@ -1343,7 +1343,7 @@ def watchdogthread():
 						if not watchdog_flag:
 							watchdog_flag=True
 							watchdoghandler("current",5)
-					if (time.time()-MOTORONTIMESTAMP>70)
+					if ((time.time()-MOTORONTIMESTAMP)>70)
 						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
 						if not ((TANK1LEVEL>myTANK1AVERAGELEVEL) or (TANK2LEVEL>myTANK2AVERAGELEVEL)):
 							#MOTOR ON but tanks not filling up. No WATER DRAW - send it to the watchdog and wait for one more sensor value (40 seconds)
