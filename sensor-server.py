@@ -159,6 +159,9 @@ TANK2LEVEL=999
 TANK1AVERAGINGLIST=[85.0,85.0,85.0,85.0,85.0] # use the running average of the list to determine whether or not to turn on the motor. Not using it for turning the motor off - one value higher than set enough.
 TANK2AVERAGINGLIST=[85.0,85.0,85.0,85.0,85.0]
 
+myTANK1AVERAGELEVEL = sum(TANK1AVERAGINGLIST)/len(TANK1AVERAGINGLIST)
+myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
+
 timebetweensensordata = 20 # Time in seconds - if the same sensor sends data with less than this much time gap from previous data - ignore that data
 SENSORTIMEOUT=120 # Time in seconds - for which if the sensor hasn't posted data - it will be considered to be "Down"
 
@@ -198,7 +201,11 @@ ACPOWER="OFF"
 MOTOR="OFF"
 TANK="DEFINE"
 
-
+#Define Season
+SUMMER=True
+TODAY = datetime.datetime.today()
+HASMOTORBEENONTODAY = False
+MOTORONTIMESTAMP=time.time()
 
 #Read initial GPIO status
 def init_status():
@@ -207,6 +214,8 @@ def init_status():
 	global ACPOWER
 	global MOTOR
 	global TANK
+	global SUMMER
+	global TODAY
 	if (GPIO.input(STATUSMODE)==1):
 		MODE="HUMAN"
 	else:
@@ -218,6 +227,11 @@ def init_status():
 		TANK="Tank 2"
 	else:
 		TANK="undefined"
+	Month = TODAY.month
+	if (3<Month<9):
+		SUMMER=True
+	else:
+		SUMMER=False
 #Function called by change in STATUSMODE GPIO
 def modeswitch(channel):
 	global MODE
@@ -290,6 +304,8 @@ def commandhandler(command):
 									time.sleep(3) # Wait for 3 seconds
 									if (MOTOR=="OFF"): # If motor turned off
 										GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
+							#Motor has been turned ON successfully. Set the motoroontimestamp
+							MOTORONTIMESTAMP=time.time()
 							else:#Motor didn't start,
 								GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
 								sendchangedstatus("ERROR=MOTORSTART")
@@ -373,6 +389,8 @@ def worker_sensorthread(client_socket):
 		global battery2level
 		global TANK1temp
 		global TANK2temp
+		global myTANK1AVERAGELEVEL
+		global myTANK2AVERAGELEVEL
 		if (client_socket):
 			request = client_socket.recv(512)
 			#Data arrives as multiples of 16 bytes - 6 bytes of MAC Addr, 2 bytes Short Int/'h' Distance, 2 bytes temp and 2 bytes battery voltage, 4 bytes zeroes padding
@@ -477,6 +495,8 @@ def worker_sensorthread(client_socket):
 								ws.sendMessage(message2)
 						break
 					i+=1
+		myTANK1AVERAGELEVEL = sum(TANK1AVERAGINGLIST)/len(TANK1AVERAGINGLIST)
+		myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
 	except Exception as e:
 		error_handler(worker_sensorthread.__name__,e)
 		pass
@@ -967,6 +987,20 @@ def watchdoghandler(param,timeout):
 			else:
 				#Current draw is stable so leave the motor running and clear the watchdog flag
 				watchdog_flag=False
+	if (param=="NoWaterDraw"):
+		#watchdog triggerred by NoWaterDraw - motor on but tanks not filling up
+		while watchdog_flag:
+			#First sleep for timeout period (wait for one sensor value)
+			time.sleep(timeout)
+			#Then reassess the tank levels
+			if not ((TANK1LEVEL>myTANK1AVERAGELEVEL) or (TANK2LEVEL>myTANK2AVERAGELEVEL)):
+				commandQ.append("MOTOR=OFF")
+				sendchangedstatus("ERROR=NOWATERDRAW")
+				error_handler(watchdoghandler.__name__,"NOWATERDRAW")
+				watchdog_flag=False
+			else:
+				#Tanks are actually filling up, clear the watchdog flag.
+				watchdog_flag=False
 
 ### This will save the errors in a log file - this file can be requested by the client and will open on the client as a pop up
 def error_handler(calling_function_name,data):
@@ -1227,6 +1261,7 @@ def autothread():
 								#If both Tanks > 95% - turn off the motor
 								if ((TANK1LEVEL>T1HLVL) and (TANK2LEVEL>T2HLVL)):
 									commandQ.append("MOTOR=OFF")
+									HASMOTORBEENONTODAY = True
 									#What if both tanks are full and we want to just get water downstairs?
 									# set to manual mode and do it..
 									#If tank 1  >  95% but tank 2 < 95%, Switch to tank 2
@@ -1244,15 +1279,18 @@ def autothread():
 						else: 
 							#Sensors are UP?
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
-								myTANK1AVERAGELEVEL = sum(TANK1AVERAGINGLIST)/len(TANK1AVERAGINGLIST)
-								myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
-								#WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
-								if (myTANK1AVERAGELEVEL<T1LLVL):
-									commandQ.append("TANK=Tank 1")
-									commandQ.append("MOTOR=ON")
-								elif(myTANK2AVERAGELEVEL<T2LLVL):
-									commandQ.append("TANK=Tank 2")
-									commandQ.append("MOTOR=ON")
+								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
+								if SUMMER:
+									if (2<TODAY.hour<3) and not HASMOTORBEENONTODAY:
+										commandQ.append("MOTOR=ON")
+								else:
+									#Not SUMMER - WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
+									if (myTANK1AVERAGELEVEL<T1LLVL):
+										commandQ.append("TANK=Tank 1")
+										commandQ.append("MOTOR=ON")
+									elif(myTANK2AVERAGELEVEL<T2LLVL):
+										commandQ.append("TANK=Tank 2")
+										commandQ.append("MOTOR=ON")
 					#Software mode or SMART MODE is set to Manual
 					if (SOFTMODE=="Manual"):
 						#Does the user want motor to be shutoff when tanks are full?
@@ -1305,6 +1343,13 @@ def watchdogthread():
 						if not watchdog_flag:
 							watchdog_flag=True
 							watchdoghandler("current",5)
+					if (time.time()-MOTORONTIMESTAMP>70)
+						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
+						if not ((TANK1LEVEL>myTANK1AVERAGELEVEL) or (TANK2LEVEL>myTANK2AVERAGELEVEL)):
+							#MOTOR ON but tanks not filling up. No WATER DRAW - send it to the watchdog and wait for one more sensor value (40 seconds)
+							if not watchdog_flag:
+								watchdog_flag=True
+								watchdoghandler("NoWaterDraw",40)
 			#Irrespective of Motor on/off or Mode - monitor the status and accuracy of sensors 
 			# First - check if the sensors have n't sent data in last SENSORTIMEOUT seconds
 			# If either sensor is down - notify clients, log into errorlog
