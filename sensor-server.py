@@ -304,8 +304,8 @@ def commandhandler(command):
 									time.sleep(3) # Wait for 3 seconds
 									if (MOTOR=="OFF"): # If motor turned off
 										GPIO.output(SWSTOPPB,GPIO.LOW) # Release STOP PB
-							#Motor has been turned ON successfully. Set the motoroontimestamp
-							MOTORONTIMESTAMP=time.time()
+								#Motor has been turned ON successfully. Set the motoroontimestamp
+								MOTORONTIMESTAMP=time.time()
 							else:#Motor didn't start,
 								GPIO.output(SWSTARTPB,GPIO.LOW) #  Release START PB and send Error
 								sendchangedstatus("ERROR=MOTORSTART")
