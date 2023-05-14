@@ -1230,6 +1230,7 @@ def commandthread():
 #Thread # 6
 def autothread():
 	try:
+		global HASMOTORBEENONTODAY
 		global MANUALMODESHUTOFF # Only global variable being modified
 		#Currently using dMOTOR for debugging - change to make it work on the real system.
 		#To do - due to sensor unreliability - may be wait for 2 consecutive readings before triggering start/stop
