@@ -1281,7 +1281,7 @@ def autothread():
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
 								if SUMMER:
-									if (2<TODAY.hour<3) and not HASMOTORBEENONTODAY:
+									if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
 										commandQ.append("MOTOR=ON")
 								else:
 									#Not SUMMER - WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
