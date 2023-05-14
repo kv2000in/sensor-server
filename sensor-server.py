@@ -1283,10 +1283,8 @@ def autothread():
 								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
 								if SUMMER:
 									if (4<TODAY.hour<6) and not HASMOTORBEENONTODAY:
-										#commandQ.append("MOTOR=ON")
-										print "Motor -ON"
+										commandQ.append("MOTOR=ON")
 								else:
-									print "Not Summer"
 									#Not SUMMER - WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
 									if (myTANK1AVERAGELEVEL<T1LLVL):
 										commandQ.append("TANK=Tank 1")
