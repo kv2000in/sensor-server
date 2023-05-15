@@ -172,8 +172,8 @@ SENSORTIMEOUT=120 # Time in seconds - for which if the sensor hasn't posted data
 SENSOR1TIME=time.time()-timebetweensensordata+5# OR datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 SENSOR2TIME=time.time()-timebetweensensordata+5# OR datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 #SO in the beginning both sensors are assumed to be down - as soon as a sensor reading is received - it will be set to True 
-IsSENSOR1UP=True
-IsSENSOR2UP=True
+IsSENSOR1UP=False
+IsSENSOR2UP=False
 #This is used if SOFTMODE=Manual and client wants to shutoff the motor after filling the tanks
 MANUALMODESHUTOFF="false"
 TANK1MANUALHIGHLEVEL=85
@@ -1283,7 +1283,13 @@ def autothread():
 								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
 								if SUMMER:
 									if (4<TODAY.hour<6) and not HASMOTORBEENONTODAY:
-										commandQ.append("MOTOR=ON")
+										#Check which tank needs water and then start the motor.
+										if ((TANK1LEVEL<T1HLVL) or (TANK2LEVEL<T2HLVL)) and not ((TANK1LEVEL>99) or (TANK2LEVEL>99)):
+											if(TANK2LEVEL<TANK1LEVEL):
+												commandQ.append("TANK=Tank 2")
+											else:
+												commandQ.append("TANK=Tank 1")
+											commandQ.append("MOTOR=ON")
 								else:
 									#Not SUMMER - WHEN either Tank level goes below set low level - Switch to that Tank - send motor on command
 									if (myTANK1AVERAGELEVEL<T1LLVL):
