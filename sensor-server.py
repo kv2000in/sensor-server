@@ -165,6 +165,7 @@ myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
 timebetweensensordata = 20 # Time in seconds - if the same sensor sends data with less than this much time gap from previous data - ignore that data
 SENSORTIMEOUT=120 # Time in seconds - for which if the sensor hasn't posted data - it will be considered to be "Down"
 
+WATERDRAWTIMELIMIT=90 # Time is seconds before watchdog is triggerred - if no increase in either tank levels and motor has been on for this long.
 #SENSOR1TIME=time.time()-SENSORTIMEOUT # Define initial update time for the sensors#
 #SENSOR2TIME=time.time()-SENSORTIMEOUT# 60 seconds prior to start of the script - so that - if sensor is down at the runtime-auto mode won't progress
 #2/19/18 updates - global sensor status - start with assumption that sensors are down.
@@ -1260,7 +1261,7 @@ def autothread():
 							#Check if both SENSORS are up (TODO : What if one sensor is up and the other one is down??)
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If both Tanks > 95% - turn off the motor
-								if (((TANK1LEVEL>T1HLVL) and (TANK2LEVEL>T2HLVL)) or ((TANK1LEVEL>99) or (TANK2LEVEL>99))):
+								if (((TANK1LEVEL>T1HLVL) and (TANK2LEVEL>T2HLVL)) or ((TANK1LEVEL>98) or (TANK2LEVEL>98))):
 									commandQ.append("MOTOR=OFF")
 									HASMOTORBEENONTODAY = True
 									#What if both tanks are full and we want to just get water downstairs?
@@ -1282,9 +1283,9 @@ def autothread():
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
 								if SUMMER:
-									if (3<TODAY.hour<5) and not HASMOTORBEENONTODAY:
+									if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
 										#Check which tank needs water and then start the motor.
-										if ((TANK1LEVEL<T1HLVL) or (TANK2LEVEL<T2HLVL)) and not ((TANK1LEVEL>99) or (TANK2LEVEL>99)):
+										if ((TANK1LEVEL<T1HLVL) or (TANK2LEVEL<T2HLVL)) and not ((TANK1LEVEL>98) or (TANK2LEVEL>98)):
 											if(TANK2LEVEL<TANK1LEVEL):
 												commandQ.append("TANK=Tank 2")
 											else:
@@ -1350,7 +1351,7 @@ def watchdogthread():
 						if not watchdog_flag:
 							watchdog_flag=True
 							watchdoghandler("current",5)
-					if ((time.time()-MOTORONTIMESTAMP)>70):
+					if ((time.time()-MOTORONTIMESTAMP)>WATERDRAWTIMELIMIT):
 						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
 						if not ((TANK1LEVEL>myTANK1AVERAGELEVEL) or (TANK2LEVEL>myTANK2AVERAGELEVEL)):
 							#MOTOR ON but tanks not filling up. No WATER DRAW - send it to the watchdog and wait for one more sensor value (40 seconds)
