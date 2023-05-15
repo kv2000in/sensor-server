@@ -1282,7 +1282,7 @@ def autothread():
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
 								if SUMMER:
-									if (4<TODAY.hour<6) and not HASMOTORBEENONTODAY:
+									if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
 										#Check which tank needs water and then start the motor.
 										if ((TANK1LEVEL<T1HLVL) or (TANK2LEVEL<T2HLVL)) and not ((TANK1LEVEL>99) or (TANK2LEVEL>99)):
 											if(TANK2LEVEL<TANK1LEVEL):
