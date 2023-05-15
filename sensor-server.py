@@ -1260,7 +1260,7 @@ def autothread():
 							#Check if both SENSORS are up (TODO : What if one sensor is up and the other one is down??)
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If both Tanks > 95% - turn off the motor
-								if (((TANK1LEVEL>T1HLVL) and (TANK2LEVEL>T2HLVL)) OR ((TANK1LEVEL>99) OR (TANK2LEVEL>99))):
+								if (((TANK1LEVEL>T1HLVL) and (TANK2LEVEL>T2HLVL)) or ((TANK1LEVEL>99) or (TANK2LEVEL>99))):
 									commandQ.append("MOTOR=OFF")
 									HASMOTORBEENONTODAY = True
 									#What if both tanks are full and we want to just get water downstairs?
