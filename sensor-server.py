@@ -944,10 +944,12 @@ class SimpleChat(WebSocket):
 			self.sendMessage(u'SensorData#'+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME))+u'|T1MAC|'+str(TANK1LEVEL)+u'|'+str(battery1level)+u'|'+str(TANK1temp))
 			self.sendMessage(u'SensorData#'+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME))+u'|T2MAC|'+str(TANK2LEVEL)+u'|'+str(battery2level)+u'|'+str(TANK2temp))
 			self.sendMessage(u'TANKtoMACADDR#T1MAC='+sensortotankattachmentdict['T1MAC']+'|T2MAC='+sensortotankattachmentdict['T2MAC'])
+			'''
 			if not (IsSENSOR1UP):
 				sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
 			if not (IsSENSOR2UP):
 				sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
+			'''
 		except Exception as e:
 			error_handler(handleConnected.__name__,e)
 			pass
@@ -1454,7 +1456,7 @@ def watchdogthread():
 			if (time.time()-SENSOR1TIME>SENSORTIMEOUT): #Sensor 1 timed out
 				if (IsSENSOR1UP):
 					IsSENSOR1UP=False
-					sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
+					#sendchangedstatus("SENSORDOWN=1,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR1TIME)))
 					activity_handler("Watchdogthread - SENSORDOWN=1")
 			else: #Sensor 1 not timed out
 				if not (IsSENSOR1UP):
@@ -1464,7 +1466,7 @@ def watchdogthread():
 			if (time.time()-SENSOR2TIME>SENSORTIMEOUT): #Sensor 2 timed out
 				if (IsSENSOR2UP):
 					IsSENSOR2UP=False
-					sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
+					#sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
 					activity_handler("Watchdogthread- SENSORDOWN=2")
 			else: #Sensor 2 not timed out
 				if not (IsSENSOR2UP):
