@@ -166,6 +166,8 @@ timebetweensensordata = 20 # Time in seconds - if the same sensor sends data wit
 SENSORTIMEOUT=120 # Time in seconds - for which if the sensor hasn't posted data - it will be considered to be "Down"
 
 WATERDRAWTIMELIMIT=90 # Time is seconds before watchdog is triggerred - if no increase in either tank levels and motor has been on for this long.
+MOTORONTIMELIMIT=8*60 # 8 minutes maximum time for motor to be on in Auto mode regardless of tank level.
+
 #SENSOR1TIME=time.time()-SENSORTIMEOUT # Define initial update time for the sensors#
 #SENSOR2TIME=time.time()-SENSORTIMEOUT# 60 seconds prior to start of the script - so that - if sensor is down at the runtime-auto mode won't progress
 #2/19/18 updates - global sensor status - start with assumption that sensors are down.
@@ -1331,6 +1333,77 @@ def autothread():
 			time.sleep(15) # Evaluate @ twice the frequency of sensor update - in this case every 15 seconds
 	except KeyboardInterrupt:
 		pass
+def autothread2023():
+	#Sensor #2 destroyed by hanuman jee. Running Auto on Sensor 1 and timed filling (10 minutes each tank) only.
+	try:
+		global HASMOTORBEENONTODAY
+		global MANUALMODESHUTOFF # Only global variable being modified
+		#Currently using dMOTOR for debugging - change to make it work on the real system.
+		#To do - due to sensor unreliability - may be wait for 2 consecutive readings before triggering start/stop
+		while running_flag:
+			#First check is AC POWER is present
+			if (ACPOWER=="ON"):
+				# This is the hardware MODE switch - set to human - no auto shut off, no auto tank switch
+				# No auto start. Can still "remotely" turn on or turn off the motor
+				# Won't be able to switch tanks
+				if (MODE=="COMPUTER"):
+					#If SMART MODE is ON - renamed it as SOFTMODE = Auto
+					if (SOFTMODE=="Auto"): # Separate from computer (instead of using AND logic) in order to be able to keep some basic functions
+						#separate, if needed. Such as - keep turning off when Tanks are full separate from Turning on when empty.
+						#Is MOTOR On?
+						if (MOTOR=="ON"):
+							#Check if motor has been on for longer than per tank set time limit
+							if ((time.time()-MOTORONTIMESTAMP)>MOTORONTIMELIMIT):
+								# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1
+								if (TANK == "Tank 2"):
+									commandQ.append("TANK=Tank 1")
+								else:
+									#Tank is Tank 1
+									if IsSENSOR1UP:
+										#If Tank 1 > high level %  turn off the motor
+										if ((TANK1LEVEL>T1HLVL)):
+											commandQ.append("MOTOR=OFF")
+											HASMOTORBEENONTODAY = True
+									else:
+										#Sensor 1 is down - check how long the motor has been on.
+										if ((time.time()-MOTORONTIMESTAMP)>MOTORONTIMELIMIT*2):
+											commandQ.append("MOTOR=OFF")
+											HASMOTORBEENONTODAY = True
+						#Motor is not ON
+						else: 
+							#Turn on Motor every night at 2 am and fill tanks for 10 min each.
+							if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
+								print "Time is 2 O clock and Motor has not been on today"
+								#Switch to Tank 2 (Summer 2023 - on switching to Tank2 - water goes in both Tank 1 and 2.
+								commandQ.append("TANK=Tank 2")
+								print "Tank 2 switched"
+								commandQ.append("MOTOR=ON")
+								print "Motor ON"
+					#Software mode or SMART MODE is set to Manual
+					if (SOFTMODE=="Manual"):
+						#Does the user want motor to be shutoff when tanks are full?
+						if(MANUALMODESHUTOFF=="true"):
+							if (MOTOR=="ON"):
+								#Check if motor has been on for longer than per tank set time limit
+								if ((time.time()-MOTORONTIMESTAMP)>MOTORONTIMELIMIT):
+									# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1
+									if (TANK == "Tank 2"):
+										commandQ.append("TANK=Tank 1")
+									else:
+										#Tank is Tank 1
+										if IsSENSOR1UP:
+											#If Tank 1 > high level %  turn off the motor
+											if ((TANK1LEVEL>T1HLVL)):
+												commandQ.append("MOTOR=OFF")
+												HASMOTORBEENONTODAY = True
+										else:
+											#Sensor 1 is down - check how long the motor has been on.
+											if ((time.time()-MOTORONTIMESTAMP)>MOTORONTIMELIMIT*2):
+												commandQ.append("MOTOR=OFF")
+												HASMOTORBEENONTODAY = True
+			time.sleep(15) # Evaluate @ twice the frequency of sensor update - in this case every 15 seconds
+	except KeyboardInterrupt:
+		pass
 #Thread # 7
 def watchdogthread():
 	try:
@@ -1407,7 +1480,7 @@ if __name__ == '__main__':
 		t3=Thread(target=websocketservarthread)
 		t4=Thread(target=analogreadthread)
 		t5=Thread(target=commandthread)
-		t6=Thread(target=autothread)
+		t6=Thread(target=autothread2023)
 		t7=Thread(target=watchdogthread)
 		#Daemon - means threads will exit when the main thread exits
 		t1.daemon=True
