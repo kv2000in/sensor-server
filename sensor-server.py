@@ -1354,9 +1354,16 @@ def autothread2023():
 						if (MOTOR=="ON"):
 							#Check if motor has been on for longer than per tank set time limit
 							if ((time.time()-MOTORONTIMESTAMP)>MOTORONTIMELIMIT):
-								# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1
+								# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1 (unless Tank 1 is full)
 								if (TANK == "Tank 2"):
-									commandQ.append("TANK=Tank 1")
+									if IsSENSOR1UP:
+										#If Tank 1 > high level %  turn off the motor
+										if ((TANK1LEVEL>T1HLVL)):
+											commandQ.append("MOTOR=OFF")
+											HASMOTORBEENONTODAY = True
+									else:
+										#Sensor 1 is down - so switch to Tank 1 and fill up for fixed number of minutes.
+										commandQ.append("TANK=Tank 1")
 								else:
 									#Tank is Tank 1
 									if IsSENSOR1UP:
@@ -1386,9 +1393,16 @@ def autothread2023():
 							if (MOTOR=="ON"):
 								#Check if motor has been on for longer than per tank set time limit
 								if ((time.time()-MOTORONTIMESTAMP)>MOTORONTIMELIMIT):
-									# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1
+									# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1 (unless Tank 1 is full)
 									if (TANK == "Tank 2"):
-										commandQ.append("TANK=Tank 1")
+										if IsSENSOR1UP:
+											#If Tank 1 > high level %  turn off the motor
+											if ((TANK1LEVEL>T1HLVL)):
+												commandQ.append("MOTOR=OFF")
+												HASMOTORBEENONTODAY = True
+										else:
+											#Sensor 1 is down - so switch to Tank 1 and fill up for fixed number of minutes.
+											commandQ.append("TANK=Tank 1")
 									else:
 										#Tank is Tank 1
 										if IsSENSOR1UP:
