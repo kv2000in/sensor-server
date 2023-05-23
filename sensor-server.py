@@ -1380,6 +1380,7 @@ def autothread2023():
 											HASMOTORBEENONTODAY = True
 						#Motor is not ON
 						else: 
+							print "Motor is not on"
 							#Turn on Motor every night at 2 am and fill tanks for 10 min each.
 							if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
 								print "Time is 2 O clock and Motor has not been on today"
@@ -1388,6 +1389,11 @@ def autothread2023():
 								print "Tank 2 switched"
 								commandQ.append("MOTOR=ON")
 								print "Motor ON"
+							else:
+								print "Time or hasmotorbeenontoday incorrect"
+								print HASMOTORBEENONTODAY
+								print TODAY.hour
+								
 					#Software mode or SMART MODE is set to Manual
 					if (SOFTMODE=="Manual"):
 						#Does the user want motor to be shutoff when tanks are full?
@@ -1482,6 +1488,9 @@ def watchdogthread():
 
 if __name__ == '__main__':
 	try:#Load the settings
+		print "Starting sensor-server script \n"
+		print "Date Time is :" 
+		print datetime.datetime.today()
 		settingshandler("null","load")
 		calibrationhandler("null","load")
 		#initialize the LCD screen
