@@ -206,7 +206,6 @@ TANK="DEFINE"
 
 #Define Season
 SUMMER=True
-TODAY = datetime.datetime.today()
 HASMOTORBEENONTODAY = False
 MOTORONTIMESTAMP=time.time()
 
@@ -218,7 +217,7 @@ def init_status():
 	global MOTOR
 	global TANK
 	global SUMMER
-	global TODAY
+	TODAY = datetime.datetime.today()
 	if (GPIO.input(STATUSMODE)==1):
 		MODE="HUMAN"
 	else:
@@ -1287,6 +1286,7 @@ def autothread():
 							if ((IsSENSOR1UP) and (IsSENSOR2UP)):
 								#If it is summer (April to August) - regardless of tank levels - turn on the motor at 2 am else follow level based 
 								if SUMMER:
+									TODAY = datetime.datetime.today()
 									print "Summer is True"
 									if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
 										print "Time is 2 O clock and Motor has not been on today"
@@ -1380,7 +1380,7 @@ def autothread2023():
 											HASMOTORBEENONTODAY = True
 						#Motor is not ON
 						else: 
-							print "Motor is not on"
+							TODAY = datetime.datetime.today()
 							#Turn on Motor every night at 2 am and fill tanks for 10 min each.
 							if (1<TODAY.hour<3) and not HASMOTORBEENONTODAY:
 								print "Time is 2 O clock and Motor has not been on today"
