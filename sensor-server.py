@@ -276,6 +276,7 @@ mcp = Adafruit_MCP3008.MCP3008(spi=SPI.SpiDev(0, 1,20000)) # (0,0) was being use
 ## Commands are handled in the order they are received - this function is invoked by commandthread
 def commandhandler(command):
 	global SOFTMODE
+	global MOTORONTIMESTAMP
 	try:
 		#global variable declaration needed if modifying global variables - not needed if just using global variables
 		if (command.split("=")[0]=="MOTOR"):
@@ -1359,10 +1360,13 @@ def autothread2023():
 								# Since starting the motor from Tank 2 - if it is still on Tank 2 - switch to Tank 1 (unless Tank 1 is full)
 								if (TANK == "Tank 2"):
 									if IsSENSOR1UP:
-										#If Tank 1 > high level %  turn off the motor
+										#If Tank 1 > high level %  turn off the motor (Weird logic because Tank1 fills up even when Tank is set to Tank 2)
 										if ((TANK1LEVEL>T1HLVL)):
 											commandQ.append("MOTOR=OFF")
 											HASMOTORBEENONTODAY = True
+										else:
+											#Tank 1 isn't full yet so switch to Tank 1
+											commandQ.append("TANK=Tank 1")
 									else:
 										#Sensor 1 is down - so switch to Tank 1 and fill up for fixed number of minutes.
 										commandQ.append("TANK=Tank 1")
@@ -1389,10 +1393,6 @@ def autothread2023():
 								print "Tank 2 switched"
 								commandQ.append("MOTOR=ON")
 								print "Motor ON"
-							else:
-								print "Time or hasmotorbeenontoday incorrect"
-								print HASMOTORBEENONTODAY
-								print TODAY.hour
 								
 					#Software mode or SMART MODE is set to Manual
 					if (SOFTMODE=="Manual"):
