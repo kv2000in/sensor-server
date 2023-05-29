@@ -153,8 +153,8 @@ T1HLVL=95
 T2LLVL=75 # less than this % value - switch tank or motor on
 T2HLVL=95
 
-TANK1LEVEL=999 # Define Tank level variable - initial value
-TANK2LEVEL=999
+TANK1LEVEL=111 # Define Tank level variable - initial value
+TANK2LEVEL=111
 
 TANK1AVERAGINGLIST=[85.0,85.0,85.0,85.0,85.0] # use the running average of the list to determine whether or not to turn on the motor. Not using it for turning the motor off - one value higher than set enough.
 TANK2AVERAGINGLIST=[85.0,85.0,85.0,85.0,85.0]
