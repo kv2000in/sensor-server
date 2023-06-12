@@ -1618,7 +1618,7 @@ def watchdogthread():
 					if (TANK == "Tank 1"):
 						if ((time.time()-TANK1FILLINGSTARTTIME)>WATERDRAWTIMELIMIT):
 						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
-							if not ((TANK1LEVEL>myTANK1AVERAGELEVEL):
+							if not (TANK1LEVEL>myTANK1AVERAGELEVEL):
 							#MOTOR ON but tanks not filling up. No WATER DRAW - send it to the watchdog and wait for one more sensor value (40 seconds)
 							##### PROBLEM SCENARIO IF TANK IS FULL### THE LEVEL WILL NOT?CAN NOT RISE### 
 								if not watchdog_flag:
@@ -1627,7 +1627,7 @@ def watchdogthread():
 					if (TANK == "Tank 2"):
 						if ((time.time()-TANK2FILLINGSTARTTIME)>WATERDRAWTIMELIMIT):
 						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
-							if not ((TANK2LEVEL>myTANK2AVERAGELEVEL):
+							if not (TANK2LEVEL>myTANK2AVERAGELEVEL):
 							#MOTOR ON but tanks not filling up. No WATER DRAW - send it to the watchdog and wait for one more sensor value (40 seconds)
 							##### PROBLEM SCENARIO IF TANK IS FULL### THE LEVEL WILL NOT?CAN NOT RISE### 
 								if not watchdog_flag:
