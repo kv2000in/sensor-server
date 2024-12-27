@@ -14,6 +14,8 @@
 		2A285AF12780C3B600B07269 /* ESP8266-RSSI-Test */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "ESP8266-RSSI-Test"; sourceTree = "<group>"; };
 		2A285AF22780E2B200B07269 /* ESP-RangeExtender */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "ESP-RangeExtender"; sourceTree = "<group>"; };
 		2A285AF32783D7E800B07269 /* ESP-NOW-to-WiFi */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "ESP-NOW-to-WiFi"; sourceTree = "<group>"; };
+		2A4319392D1F4A960033D160 /* piESPNow.ino */ = {isa = PBXFileReference; lastKnownFileType = text; name = piESPNow.ino; path = piESPNow/piESPNow.ino; sourceTree = "<group>"; };
+		2A43193A2D1F50940033D160 /* ESP32PLCHub.ino */ = {isa = PBXFileReference; lastKnownFileType = text; name = ESP32PLCHub.ino; path = ESP32PLCHub/ESP32PLCHub.ino; sourceTree = "<group>"; };
 		2A578569279BEE73003E13EF /* checkandsend.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = checkandsend.sh; sourceTree = "<group>"; };
 		2A5A58C521EC10C0001653D3 /* sensorsettings */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettings; sourceTree = "<group>"; };
 		2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = ADCcalibrationbakup; sourceTree = "<group>"; };
@@ -35,6 +37,8 @@
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
+				2A4319392D1F4A960033D160 /* piESPNow.ino */,
+				2A43193A2D1F50940033D160 /* ESP32PLCHub.ino */,
 				2A1452B027A78A6400266B9A /* myplotly.js */,
 				2A1452AF27A7892E00266B9A /* plot.html */,
 				2A578569279BEE73003E13EF /* checkandsend.sh */,
