@@ -5,7 +5,6 @@
 *  Copyright (C) 2015 -2018  Espressif System
 *
 
-
 #ifndef __ESPNOW_H__
 #define __ESPNOW_H__
 
