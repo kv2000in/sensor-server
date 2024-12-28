@@ -1,91 +1,188 @@
 #include <esp_now.h>
 #include <WiFi.h>
 
+// Configuration
+#define ONBOARD_LED 5
+#define MAX_PACKET_SIZE 250
+#define MAC_ADDR_SIZE 6
+
+unsigned long lastSendTime = 0; // Store the last send time
+const unsigned long sendInterval = 2000; // Interval between data sends in milliseconds
 
 
+// Replace with the receiver's MAC address
+uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8};
 
+// Data buffers for ADC readings
+#define ADC_CHANNELS 2
+#define SAMPLES_PER_SECOND 250
+int16_t adcBuffer[ADC_CHANNELS][SAMPLES_PER_SECOND];
 
+// Packet buffer
+uint8_t packetBuffer[MAX_PACKET_SIZE];
 
-// Structure for sending and receiving data
-typedef struct struct_message {
-int id;
-int adcValue;
-char command[32];
-#define ONBOARD_LED  5
+// Retransmission queue
+struct Packet {
+    uint8_t data[MAX_PACKET_SIZE];
+    size_t length;
+    uint8_t retries;
+};
 
-} struct_message;
-uint8_t peerMAC[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with ESP-01 MAC address
-struct_message dataToSend, receivedData;
+QueueHandle_t packetQueue;
 
-// Callback for receiving data
-void onDataRecv(const uint8_t *macAddr, const uint8_t *data, int len) {
-memcpy(&receivedData, data, sizeof(receivedData));
-Serial.print("Received Command: ");
-Serial.println(receivedData.command);
-digitalWrite(ONBOARD_LED,HIGH);
+// ESP-NOW callbacks
+void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        Serial.println("Packet sent successfully.");
+    } else {
+        Serial.println("Packet failed. Retrying...");
+    }
+}
+
+void onDataReceived(const uint8_t* mac, const uint8_t* incomingData, int len) {
+    String command = String((char*)incomingData).substring(0, len);
+    Serial.print("Command received: ");
+    Serial.println(command);
+
+    if (command == "sendstatus") {
+        // Prepare status response
+        String status = "ESP32 is ready!";
+        esp_now_send(mac, (uint8_t*)status.c_str(), status.length());
+       
+    } else if (command == "reset") {
+        ESP.restart();
+     } else if (command == "LED_ON") {
+        digitalWrite(ONBOARD_LED, HIGH);
+     } else if (command == "LED_OFF") {
+        digitalWrite(ONBOARD_LED, LOW);
+        
+    } else {
+        Serial.println("Unknown command received.");
+    }
 }
 
 
+// Function to calculate checksum
+uint8_t calculateChecksum(uint8_t *data, size_t length) {
+    uint8_t sum = 0;
+    for (size_t i = 0; i < length; i++) {
+        sum += data[i];
+    }
+    return sum;
+}
+
+// Function to send data packets
+void sendDataTask(void *param) {
+    Packet packet;
+
+    while (true) {
+        if (xQueueReceive(packetQueue, &packet, portMAX_DELAY) == pdTRUE) {
+            esp_err_t result = esp_now_send(piMacAddr, packet.data, packet.length);
+
+            if (result != ESP_OK) {
+                Serial.println("Failed to send packet. Retrying...");
+                packet.retries++;
+                if (packet.retries < 3) {
+                    xQueueSend(packetQueue, &packet, 0);
+                } else {
+                    Serial.println("Max retries reached. Dropping packet.");
+                }
+            }
+        }
+    }
+}
+
+// Function to prepare and queue data packets
+void prepareData() {
+
+    size_t packetCount = 0;
+    size_t payloadSize = min((size_t)(MAX_PACKET_SIZE - 9), sizeof(adcBuffer) - packetCount);
+    size_t totalPackets = (sizeof(adcBuffer) + MAX_PACKET_SIZE - 9 - 1) / (MAX_PACKET_SIZE - 9); // Calculate total packets needed
+
+
+    for (size_t i = 0; i < totalPackets; i++) {
+        memcpy(packetBuffer, WiFi.macAddress().c_str(), MAC_ADDR_SIZE);
+        packetBuffer[6] = totalPackets;
+        packetBuffer[7] = i;
+
+        size_t payloadStart = 8;
+        memcpy(&packetBuffer[payloadStart], &adcBuffer[0][packetCount], payloadSize);
+
+        packetBuffer[payloadStart + payloadSize] = calculateChecksum(packetBuffer, payloadStart + payloadSize);
+
+        Packet packet;
+        memcpy(packet.data, packetBuffer, payloadStart + payloadSize + 1);
+        packet.length = payloadStart + payloadSize + 1;
+        packet.retries = 0;
+
+        xQueueSend(packetQueue, &packet, 0);
+
+        packetCount += payloadSize;
+    }
+}
+
+
+// Prepare ESP-NOW communication
 void prepareESPNOW() {
 
 
-    // Initializing the ESP-NOW
-  if (esp_now_init() != 0) {
-    Serial.println("Problem during ESP-NOW init");
-    return;
-  }
-  // Define the peer information
-  esp_now_peer_info_t peerInfo;
-  memset(&peerInfo, 0, sizeof(esp_now_peer_info_t)); // Clear the structure
-  memcpy(peerInfo.peer_addr, peerMAC, ESP_NOW_ETH_ALEN); // Set peer MAC address
-  peerInfo.channel = 1; // Replace with the actual channel of the peer
-  peerInfo.encrypt = false; // Set to true if encryption is used
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("ESP-NOW Initialization Failed!");
+        return;
+    }
 
-  // Add the peer
-  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-    Serial.println("Failed to add peer");
-    return;
-  }
+    esp_now_register_send_cb(onDataSent);
+    esp_now_register_recv_cb(onDataReceived);
 
-  Serial.println("Peer added successfully");
+    esp_now_peer_info_t peerInfo;
+    memcpy(peerInfo.peer_addr, piMacAddr, MAC_ADDR_SIZE);
+    peerInfo.channel = 1;
+    peerInfo.encrypt = false;
+
+    if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+        Serial.println("Failed to add peer!");
+        return;
+    }
+
 
 }
 
-void onsentviaESPNOW(uint8_t *mac_addr, uint8_t sendStatus) {
-  Serial.println("Great Success with ESP Now ");
-}
-
-void sendDatatoPi()
-{
-  // Read ADC value
-int adcValue = analogRead(34); // Replace with your ADC pin
-dataToSend.id = 1;
-dataToSend.adcValue = adcValue;
-
-// Send data
-
-esp_now_send(peerMAC, (uint8_t *)&dataToSend, sizeof(dataToSend));
-
-Serial.print("Sent ADC Value: ");
-Serial.println(adcValue);
-digitalWrite(ONBOARD_LED,LOW);
-  }
 
 
 void setup() {
-  pinMode(ONBOARD_LED,OUTPUT);
-Serial.begin(115200);
-WiFi.mode(WIFI_STA); // Set to Station mode
+    Serial.begin(115200);
+    WiFi.mode(WIFI_STA);
 
+ pinMode(ONBOARD_LED, OUTPUT);
+    digitalWrite(ONBOARD_LED, LOW);
+    
 prepareESPNOW();
 
+    
 
-// Register receive callback
-esp_now_register_recv_cb(onDataRecv);
+    packetQueue = xQueueCreate(10, sizeof(Packet));
+    if (packetQueue == NULL) {
+        Serial.println("Failed to create packet queue.");
+        return;
+    }
+
+    xTaskCreate(sendDataTask, "SendDataTask", 4096, NULL, 1, NULL);
+
+    Serial.println("ESP-NOW Initialized. Ready for bidirectional communication.");
 }
 
 void loop() {
-sendDatatoPi();
-delay(1000); // Adjust as needed
+    // Continuously sample ADC values
+    for (size_t i = 0; i < SAMPLES_PER_SECOND; i++) {
+        adcBuffer[0][i] = analogRead(34);
+        adcBuffer[1][i] = analogRead(35);
+    }
 
+    // Check if it's time to send data (every 2 seconds)
+    if (millis() - lastSendTime >= sendInterval) {
+        prepareData();
+        lastSendTime = millis(); // Update the last send time
+    }
+
+    // No delay, ADC samples continuously
 }
