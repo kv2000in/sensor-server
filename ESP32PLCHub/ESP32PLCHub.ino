@@ -10,6 +10,8 @@
 #define MAX_RETRIES 3
 #define MAX_SEND_QUEUE_SIZE 30
 #define MAX_RECV_QUEUE_SIZE 10
+#define APPLICATION_LAYER_ACK_TIMEOUT 2000
+
 
 uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
@@ -108,37 +110,96 @@ void sendHeartbeat() {
     
 }
 
-// Send data function
+// Function to send data for a specific ADC channel (on demand)
+void requestSendADCData(uint8_t channel) {
+    // Send the data for the selected ADC channel (0 or 1)
+    sendADCData(channel);
+}
+
+// Function to send the entire buffer from either ADC channel 0 or 1
+void sendADCData(uint8_t channel) {
+    const size_t MAX_PAYLOAD_SIZE = MAX_PACKET_SIZE - 12; // Header + Footer size
+    size_t totalPackets = (BUFFER_SIZE * sizeof(int16_t)) / MAX_PAYLOAD_SIZE;
+    if ((BUFFER_SIZE * sizeof(int16_t)) % MAX_PAYLOAD_SIZE != 0) {
+        totalPackets++; // Round up if not evenly divisible
+    }
+
+    // Buffer to hold data for each packet
+    uint8_t payload[MAX_PAYLOAD_SIZE];
+
+    // Determine which channel to send (channel 0 or channel 1)
+    for (uint8_t seq = 0; seq < totalPackets; seq++) {
+        size_t startIdx = seq * MAX_PAYLOAD_SIZE / sizeof(int16_t);
+        size_t endIdx = min<size_t>((seq + 1) * MAX_PAYLOAD_SIZE / sizeof(int16_t), (size_t)BUFFER_SIZE);
+        
+        // Prepare the payload for this packet
+        size_t payloadLength = 0;
+        for (size_t i = startIdx; i < endIdx; i++) {
+            int16_t value = circularBuffer[channel][i];
+            memcpy(&payload[payloadLength], &value, sizeof(value));
+            payloadLength += sizeof(value);
+        }
+
+        // Queue the packet with appropriate data type for the channel
+        uint8_t dataType = (channel == 0) ? 10 : 11; // Channel 0 -> 10, Channel 1 -> 11
+        queuePacket(dataType, payload, payloadLength, totalPackets, seq + 1);
+    }
+}
+
 bool sendData(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence) {
-    
-    size_t headerSize = MAC_ADDR_SIZE + 3; // Header size
-    size_t footerSize = 2; // Footer size
+    // Define constants
+    const size_t packetIdSize = 2;          // Size of the unique packet ID
+    size_t headerSize = MAC_ADDR_SIZE + 5;  // Header size with packet ID
+    size_t footerSize = 2;                  // Footer size for checksum
     size_t packetLength = headerSize + payloadLength + footerSize;
 
+    // Check packet size validity
     if (packetLength > MAX_PACKET_SIZE) return false;
 
-    // Fill header
-    memcpy(packetBuffer, WiFi.macAddress().c_str(), MAC_ADDR_SIZE);
-    packetBuffer[6] = totalPackets;
-    packetBuffer[7] = sequence;
-    packetBuffer[8] = payloadLength;
+    // Fill the header with MAC address
+    uint8_t macAddr[MAC_ADDR_SIZE];
+    WiFi.macAddress(macAddr);  // Fill the MAC address buffer
+    memcpy(packetBuffer, macAddr, MAC_ADDR_SIZE);
 
-    // Fill payload
-    memcpy(&packetBuffer[9], payload, payloadLength);
+    // Add packet ID (2 random bytes)
+    uint16_t packetId = random(0, 65536);  // Generate random packet ID
+    packetBuffer[6] = packetId & 0xFF;     // Lower byte
+    packetBuffer[7] = (packetId >> 8) & 0xFF;  // Upper byte
+
+    // Add total packets, sequence, and payload length
+    packetBuffer[8] = totalPackets;
+    packetBuffer[9] = sequence;
+    packetBuffer[10] = payloadLength;
+
+    // Fill the payload
+    memcpy(&packetBuffer[11], payload, payloadLength);
 
     // Calculate and append checksum
     uint16_t checksum = calculateChecksum(packetBuffer, headerSize + payloadLength);
-    packetBuffer[headerSize + payloadLength] = checksum & 0xFF;
-    packetBuffer[headerSize + payloadLength + 1] = (checksum >> 8) & 0xFF;
+    packetBuffer[headerSize + payloadLength] = checksum & 0xFF;        // Lower byte
+    packetBuffer[headerSize + payloadLength + 1] = (checksum >> 8) & 0xFF;  // Upper byte
 
-    //reset maclayer and application layer
-    macLayerAckReceived=false;
-    applicationLayerAckReceived=false;
-    
-    // Send data
+    // Reset ACK flags
+    macLayerAckReceived = false;
+    applicationLayerAckReceived = false;
+
+       // Print the packet in hexadecimal format
+    printPacketHex(packetBuffer, packetLength);
+
+    // Send the packet via ESP-NOW
     esp_err_t result = esp_now_send(piMacAddr, packetBuffer, packetLength);
-    return result == ESP_OK; 
+    return result == ESP_OK;
 }
+
+void printPacketHex(uint8_t *packet, size_t length) {
+    Serial.print("Packet (Hex): ");
+    for (size_t i = 0; i < length; i++) {
+        if (i > 0) Serial.print(" ");
+        Serial.printf("%02X", packet[i]);
+    }
+    Serial.println();
+}
+
 
 // Prepare ESP-NOW communication
 void prepareESPNOW() {
@@ -210,11 +271,11 @@ void processReceivedDataTask(void *param) {
             } else if (command == "LED_OFF") {
                 digitalWrite(ONBOARD_LED, LOW);
             } else if (command == "ACK") {
-              applicationLayerAckReceived = true;
+                applicationLayerAckReceived = true;
             
-            } else if (command == "NoACK") {
-              applicationLayerAckReceived = false;
-              
+            } else if (command == "NACK") {
+                applicationLayerAckReceived = false;
+                
             } else if (command.startsWith("ACK")) {
                 handleApplicationLayerAck(packet.data, packet.length);
             } else {
@@ -236,38 +297,45 @@ void packetTransmitTask(void *param) {
         // Wait for a packet in the queue
         if (xQueueReceive(packetQueue, &currentPacket, portMAX_DELAY) == pdPASS) {
             currentPacket.retryCount = 0;
+            bool packetSent = false;
 
             // Retry logic
-            while (!applicationLayerAckReceived && currentPacket.retryCount < MAX_RETRIES) {
+            while (!packetSent && currentPacket.retryCount < MAX_RETRIES) {
                 // Attempt to send the packet
                 if (sendData(currentPacket.dataType, currentPacket.payload, currentPacket.payloadLength,
                              currentPacket.totalPackets, currentPacket.sequence)) {
                     Serial.println("Packet sent. Waiting for acknowledgment...");
+                    
+                    // Reset ACK flag before waiting
+                    applicationLayerAckReceived = false;
 
                     // Wait for ACK with timeout
-                    int timeout = 100;  // 1 second
+                    int timeout = 1000;  // 1 second
                     while (timeout > 0 && !applicationLayerAckReceived) {
                         vTaskDelay(10 / portTICK_PERIOD_MS);
                         timeout -= 10;
                     }
+
+                    // If ACK received
+                    if (applicationLayerAckReceived) {
+                        Serial.println("Packet acknowledged.");
+                        packetSent = true; // Successfully acknowledged, exit retry loop
+                    } else {
+                        Serial.println("Acknowledgment not received. Retrying...");
+                        currentPacket.retryCount++;
+                    }
                 } else {
                     Serial.println("Failed to send packet.");
-                }
-
-                if (applicationLayerAckReceived) {
-                    Serial.println("Packet acknowledged.");
-                } else {
-                    Serial.println("Acknowledgment not received. Retrying...");
                     currentPacket.retryCount++;
                 }
             }
 
-            if (!applicationLayerAckReceived) {
-                Serial.println("Packet not acknowledged. Moving to next packet.");
+            if (!packetSent) {
+                Serial.println("Packet not acknowledged after retries. Moving to next packet.");
             }
         }
     }
-}  
+}
 
 void queuePacket(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence) {
     Packet packet;
