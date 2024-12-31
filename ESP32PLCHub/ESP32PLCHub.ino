@@ -9,11 +9,13 @@
 #define ADC_CHANNELS 2
 #define SAMPLES_PER_SECOND 500
 #define BUFFER_SIZE 1000 // Circular buffer size per channel
-#define MAX_RETRIES 3
-#define MAX_SEND_QUEUE_SIZE 30
-#define MAX_RECV_QUEUE_SIZE 10
-#define APPLICATION_LAYER_ACK_TIMEOUT 1000
+#define MAX_RETRIES 2
+#define MAX_SEND_QUEUE_SIZE 20
+#define MAX_RECV_QUEUE_SIZE 20
+#define MAX_SENTPACKETS_QUEUE_SIZE 24
+#define APPLICATION_LAYER_ACK_TIMEOUT 1500
 
+bool DEBUG = true;
 
 uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
@@ -21,7 +23,6 @@ volatile size_t bufferIndex = 0; // Circular buffer index
 unsigned long lastSendTime = 0;
 const unsigned long sendInterval = 2000;
 bool macLayerAckReceived = false;
-bool applicationLayerAckReceived = false;
 uint8_t packetBuffer[MAX_PACKET_SIZE];
 
 // Define a packet queue handle
@@ -58,22 +59,7 @@ struct ReceivedPacket {
 
 };
 
-Ticker cleanupTicker; // Ticker object for periodic cleanup
 
-
-void cleanupSentPackets() {
-    // Process the queue and clean up acknowledged packets
-    SentPacket packet;
-    while (xQueueReceive(sentPacketQueue, &packet, 0) == pdTRUE) {
-        if (packet.acknowledged) {
-            // Do your clean up here
-            Serial.println("Cleaned up acknowledged packet");
-        } else {
-            // Reinsert unacknowledged packet back into the queue if needed
-            xQueueSend(sentPacketQueue, &packet, portMAX_DELAY);
-        }
-    }
-}
 
 // Calculate checksum
 uint16_t calculateChecksum(uint8_t *data, size_t length) {
@@ -183,7 +169,7 @@ void queuePacket(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8
     packet.retryCount = 0;
 
     if (xQueueSend(packetQueue, &packet, 0) != pdPASS) {
-        Serial.println("Packet queue full! Dropping packet.");
+      if (DEBUG) { Serial.println("Packet queue full! Dropping packet.");}
     }
 }
 
@@ -219,7 +205,6 @@ bool sendData(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t 
 
     // Reset ACK flags
     macLayerAckReceived = false;
-    applicationLayerAckReceived = false;
 
     printPacketHex(packetBuffer, packetLength);
 
@@ -228,12 +213,12 @@ bool sendData(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t 
     return result == ESP_OK;
 }
 void printPacketHex(const uint8_t *packet, size_t length) {
-    Serial.print("Packet (Hex): ");
+   if (DEBUG) { Serial.print("Packet (Hex): ");
     for (size_t i = 0; i < length; i++) {
         if (i > 0) Serial.print(" ");
-        Serial.printf("%02X", packet[i]);
+     Serial.printf("%02X", packet[i]);
     }
-    Serial.println();
+    Serial.println();}
 }
 
 // Prepare ESP-NOW communication
@@ -241,7 +226,7 @@ void prepareESPNOW() {
 
 
     if (esp_now_init() != ESP_OK) {
-        Serial.println("ESP-NOW Initialization Failed!");
+        if (DEBUG) {Serial.println("ESP-NOW Initialization Failed!");}
         return;
     }
 
@@ -254,7 +239,7 @@ void prepareESPNOW() {
     peerInfo.encrypt = false;
 
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-        Serial.println("Failed to add peer!");
+        if (DEBUG) {Serial.println("Failed to add peer!");}
         return;
     }
 
@@ -265,9 +250,9 @@ void prepareESPNOW() {
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     if (status == ESP_NOW_SEND_SUCCESS) {
       macLayerAckReceived=true;
-        Serial.println("MAC Layer ACK recieved");
+        if (DEBUG) {Serial.println("MAC Layer ACK recieved");}
     } else {
-        Serial.println("no MAC Layer ACK");
+       if (DEBUG) { Serial.println("no MAC Layer ACK");}
         macLayerAckReceived=false;
     }
 }
@@ -280,80 +265,86 @@ void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
 
     // Post the packet to the queue
     if (xQueueSend(recvQueue, &packet, 0) != pdPASS) {
-        Serial.println("Queue full! Dropping packet.");
+      if (DEBUG)  { Serial.println("Queue full! Dropping packet.");}
     }
 }
 
 void handleApplicationLayerAck(const uint8_t *data, int len) {
-    Serial.println("DATA in ACK Packet");
-    printPacketHex(data, len);
-    
-    // Ensure we have enough data (minimum 5 bytes for "ACK" + 2 bytes for packet ID)
-    if (len > 4) {
-        // Extract packet ID from the last two bytes (4th and 5th byte)
-        uint16_t receivedPacketId = (data[3] << 8) | data[4];  // Packet ID is in positions 3 and 4
-        Serial.print("Received packet ID: ");
-        Serial.println(receivedPacketId);
+   if (DEBUG) { Serial.println("DATA in ACK Packet");
+    printPacketHex(data, len);}
 
-        // Process ACK or NACK
-        if (String((char*)data).startsWith("ACK")) {
-            // It's an ACK, mark as acknowledged
-            Serial.print("ACK received for packet ID: ");
-            Serial.println(receivedPacketId);
+    // Ensure we have enough data for "ACK" + 2 bytes for packet ID
+    if (len > 4 && String((char *)data).startsWith("ACK")) {
+        // Extract packet ID from the last two bytes
+        uint16_t receivedPacketId = (data[4] << 8) | data[3];
+        if (DEBUG) {Serial.print("Received ACK for packet ID: ");
+        Serial.println(receivedPacketId);}
 
-            // Find the matching packet in the sentPacketQueue and mark as acknowledged
-            SentPacket receivedPacket;
-            bool found = false;
-            for (int i = 0; i < 10; i++) {
-                if (xQueueReceive(sentPacketQueue, &receivedPacket, 0) == pdPASS) {
-                    if (receivedPacket.packetId == receivedPacketId && !receivedPacket.acknowledged) {
-                        receivedPacket.acknowledged = true;  // Mark as acknowledged
-                        Serial.println("Packet acknowledged and removed from retry list.");
-                        found = true;
-                        break;
-                    } else {
-                        xQueueSend(sentPacketQueue, &receivedPacket, 0);  // Re-add to queue if not matched
-                    }
+        // Find and remove the acknowledged packet in the sentPacketQueue
+        SentPacket packet;
+        bool found = false;
+
+        for (int i = 0; i < 10; i++) { // Iterate queue up to its size
+            if (xQueueReceive(sentPacketQueue, &packet, 0) == pdPASS) {
+                if (packet.packetId == receivedPacketId) {
+                    found = true;
+                   if (DEBUG) { Serial.println("Packet acknowledged and removed from sentPacketQueue.");}
+                } else {
+                    xQueueSend(sentPacketQueue, &packet, 0);  // Re-add to queue if not matched
                 }
-            }
-
-            if (!found) {
-                Serial.println("ACK received but packet ID not found in the queue.");
-            }
-
-        } else if (String((char*)data).startsWith("NACK")) {
-            // It's a NACK, reattempt sending the packet
-            Serial.print("NACK received for packet ID: ");
-            Serial.println(receivedPacketId);
-
-            // Retry the NACKed packet
-            SentPacket retryPacket;
-            bool found = false;
-            for (int i = 0; i < 10; i++) {
-                if (xQueueReceive(sentPacketQueue, &retryPacket, 0) == pdPASS) {
-                    if (retryPacket.packetId == receivedPacketId && !retryPacket.acknowledged) {
-                        Serial.println("Retrying NACKed packet...");
-                        // Reattempt sending the packet
-                        sendData(retryPacket.packet.dataType, retryPacket.packet.payload,
-                                 retryPacket.packet.payloadLength, retryPacket.packet.totalPackets,
-                                 retryPacket.packet.sequence, receivedPacketId);
-                        retryPacket.retryCount++;  // Increment retry count
-                        found = true;
-                        break;
-                    } else {
-                        xQueueSend(sentPacketQueue, &retryPacket, 0);  // Re-add to queue if not matched
-                    }
-                }
-            }
-
-            if (!found) {
-                Serial.println("NACK received but packet ID not found in the queue.");
             }
         }
+
+        if (!found) {
+           if (DEBUG) { Serial.println("ACK received but no matching packet found in the queue.");}
+        }
     } else {
-        Serial.println("Invalid packet length or data too short for packet ID extraction.");
+       if (DEBUG) { Serial.println("Invalid ACK packet or length.");}
     }
-    Serial.println();
+    if (DEBUG) {Serial.println();}
+}
+
+void retryTask(void *param) {
+    while (true) {
+        vTaskDelay(APPLICATION_LAYER_ACK_TIMEOUT / portTICK_PERIOD_MS);
+
+        // Temporary buffer for queue packets
+        SentPacket tempBuffer[MAX_SENTPACKETS_QUEUE_SIZE];
+        int packetCount = 0;
+
+        // Drain the queue
+        SentPacket packet;
+        while (xQueueReceive(sentPacketQueue, &packet, 0) == pdPASS) {
+            tempBuffer[packetCount++] = packet;
+        }
+
+        // Resend all packets in the buffer
+        for (int i = 0; i < packetCount; i++) {
+            if (tempBuffer[i].retryCount < MAX_RETRIES && !tempBuffer[i].acknowledged) {
+                if (sendData(tempBuffer[i].packet.dataType, tempBuffer[i].packet.payload,
+                             tempBuffer[i].packet.payloadLength, tempBuffer[i].packet.totalPackets,
+                             tempBuffer[i].packet.sequence, tempBuffer[i].packetId)) {
+                   if (DEBUG) {Serial.print("Resent packet ID: ");
+                    Serial.println(tempBuffer[i].packetId);}
+                    tempBuffer[i].retryCount++;
+                } else {
+                   if (DEBUG)  {Serial.print("Failed to resend packet ID: ");
+                    Serial.println(tempBuffer[i].packetId);}
+                    tempBuffer[i].retryCount++;
+                }
+            } else if (tempBuffer[i].retryCount >= MAX_RETRIES) {
+               if (DEBUG) {Serial.print("Packet ID exceeded max retries and will be dropped: ");
+                Serial.println(tempBuffer[i].packetId);}
+            }
+        }
+
+        // Re-add unacknowledged packets to the queue
+        for (int i = 0; i < packetCount; i++) {
+            if (!tempBuffer[i].acknowledged && tempBuffer[i].retryCount < MAX_RETRIES) {
+                xQueueSend(sentPacketQueue, &tempBuffer[i], portMAX_DELAY);
+            }
+        }
+    }
 }
 
 void processReceivedDataTask(void *param) {
@@ -364,12 +355,12 @@ void processReceivedDataTask(void *param) {
         if (xQueueReceive(recvQueue, &packet, portMAX_DELAY) == pdPASS) {
             // Extract command
             String command = String((char*)packet.data).substring(0, packet.length);
-            Serial.print("Processing command: ");
-            Serial.println(command);
+          if (DEBUG) { Serial.print("Processing command: ");
+            Serial.println(command);}
 
             if (command == "sendstatus") {
                 // Prepare status response
-                Serial.println("Status = ready");
+               if (DEBUG) {Serial.println("Status = ready");}
                 
             } else if (command == "reset") {
                 ESP.restart();
@@ -381,7 +372,7 @@ void processReceivedDataTask(void *param) {
                 // Directly handle the ACK or NACK command
                 handleApplicationLayerAck(packet.data, packet.length);
             } else {
-                Serial.println("Unknown command received.");
+                if (DEBUG) {Serial.println("Unknown command received.");}
             }
         }
     }
@@ -394,72 +385,22 @@ void packetTransmitTask(void *param) {
 
     while (true) {
         if (xQueueReceive(packetQueue, &currentPacket, portMAX_DELAY) == pdPASS) {
-            currentPacket.retryCount = 0;
             uint16_t packetId = random(0, 65536);  // Generate a random packet ID
 
-            // Add packet to sentPacketQueue with an initial state
-            SentPacket sentPacket;
-            sentPacket.packetId = packetId;
-            sentPacket.packet = currentPacket;
-            sentPacket.retryCount = 0;
-            sentPacket.acknowledged = false;
-            xQueueSend(sentPacketQueue, &sentPacket, portMAX_DELAY);
+            // Send the packet once
+            if (sendData(currentPacket.dataType, currentPacket.payload, currentPacket.payloadLength,
+                         currentPacket.totalPackets, currentPacket.sequence, packetId)) {
+                if (DEBUG) {Serial.println("Packet sent successfully. Adding to sentPacketQueue.");}
 
-            bool packetSent = false;
-
-            // Retry logic
-            while (!packetSent && currentPacket.retryCount < MAX_RETRIES) {
-                if (sendData(currentPacket.dataType, currentPacket.payload, currentPacket.payloadLength,
-                             currentPacket.totalPackets, currentPacket.sequence, packetId)) {
-                    Serial.println("Packet sent. Waiting for acknowledgment...");
-
-                    // Reset ACK flag before waiting
-                    applicationLayerAckReceived = false;
-
-                    // Wait for ACK with timeout
-                    int timeout = APPLICATION_LAYER_ACK_TIMEOUT;  
-                    while (timeout > 0 && !applicationLayerAckReceived) {
-                        vTaskDelay(10 / portTICK_PERIOD_MS);
-                        timeout -= 10;
-                    }
-
-                    if (applicationLayerAckReceived) {
-                        Serial.println("Packet acknowledged.");
-                        packetSent = true;  // Successfully acknowledged
-                        // Mark the packet as acknowledged
-                        SentPacket acknowledgedPacket;
-                        bool found = false;
-
-                        // Search for the acknowledged packet in the sentPacketQueue
-                        for (int i = 0; i < 10; i++) {
-                            if (xQueueReceive(sentPacketQueue, &acknowledgedPacket, 0) == pdPASS) {
-                                if (acknowledgedPacket.packetId == packetId) {
-                                    acknowledgedPacket.acknowledged = true;
-                                    found = true;
-                                    Serial.println("Packet acknowledged and removed from retry list.");
-                                    break;
-                                } else {
-                                    // Re-add to queue if not matched
-                                    xQueueSend(sentPacketQueue, &acknowledgedPacket, 0);
-                                }
-                            }
-                        }
-
-                        if (!found) {
-                            Serial.println("Acknowledgment received but packet ID not found in the queue.");
-                        }
-                    } else {
-                        Serial.println("Acknowledgment not received. Retrying...");
-                        currentPacket.retryCount++;
-                    }
-                } else {
-                    Serial.println("Failed to send packet.");
-                    currentPacket.retryCount++;
-                }
-            }
-
-            if (!packetSent) {
-                Serial.println("Packet not acknowledged after retries. Moving to next packet.");
+                // Add packet to sentPacketQueue
+                SentPacket sentPacket;
+                sentPacket.packetId = packetId;
+                sentPacket.packet = currentPacket;
+                sentPacket.retryCount = 0;
+                sentPacket.acknowledged = false;
+                xQueueSend(sentPacketQueue, &sentPacket, portMAX_DELAY);
+            } else {
+               if (DEBUG) { Serial.println("Failed to send packet.");}
             }
         }
     }
@@ -469,7 +410,7 @@ void packetTransmitTask(void *param) {
 
 
 void setup() {
-    Serial.begin(115200);
+    if (DEBUG) {Serial.begin(115200);}
     WiFi.mode(WIFI_STA);
     prepareESPNOW();
 
@@ -484,7 +425,7 @@ void setup() {
 
     //Task to sample ADC
     xTaskCreate(sampleADC, "SampleADC", 2048, NULL, 1, NULL);
-    Serial.println("System ready.");
+    if (DEBUG) {Serial.println("System ready. DEBUG ON");}
 
     // Create packet send queue
     packetQueue = xQueueCreate(MAX_SEND_QUEUE_SIZE, sizeof(Packet));
@@ -493,10 +434,12 @@ void setup() {
     xTaskCreate(packetTransmitTask, "PacketTransmitTask", 4096, NULL, 1, NULL);
 
   // Initialize the queue with a size of 10 SentPacket items
-    sentPacketQueue = xQueueCreate(10, sizeof(SentPacket));
+    sentPacketQueue = xQueueCreate(MAX_SENTPACKETS_QUEUE_SIZE, sizeof(SentPacket));
+
+   // Create task for retrying packet transmission
+    xTaskCreate(retryTask, "retryTask", 12288, NULL, 1, NULL);
     
-    //clean up sent packets every 20 seconds to free up memory
-    cleanupTicker.attach(20, cleanupSentPackets);
+
 }
 
 
