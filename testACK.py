@@ -1,4 +1,3 @@
-
 import serial
 import time
 import struct
@@ -53,6 +52,7 @@ def validate_data(data):
 													"payload_length": payload_length,
 														"payload": payload,
 														}
+
 def process_data_esp32(packets):
 	"""
 		Process the data for ESP32 (specific format).
@@ -80,6 +80,8 @@ def print_packet_hex(data):
 	print("Received Packet (Hex):", " ".join(f"{byte:02X}" for byte in data))
 
 
+
+
 def main():
 	try:
 	with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
@@ -87,72 +89,99 @@ def main():
 		
 		incomplete_packets = {}
 			
-			while True:
-				# Read incoming data
-				if ser.in_waiting > 0:
-					received_data = ser.read(ser.in_waiting)
-					print(f"Received: {received_data}")
-					
-					# Validate the received data
-					is_valid, result = validate_data(received_data)
-					if not is_valid:
-						print(f"Invalid data: {result}")
-						continue
+			# Buffer to accumulate incoming data
+			buffer = b""
+				
+				while True:
+					# Read incoming data
+					if ser.in_waiting > 0:
+						received_data = ser.read(ser.in_waiting)
+						print(f"Received: {received_data}")
+						
+						# Add received data to buffer
+						buffer += received_data
 							
-							# Extract details
-							mac_addr = result["mac_addr"]
-							packet_id = result["packet_id"]
-							total_packets = result["total_packets"]
-							sequence = result["sequence"]
-							payload_length = result["payload_length"]
-							payload = result["payload"]
-							
-							# Check for duplicate packets
-							if packet_id in processed_packet_ids:
-								print(f"Duplicate packet ID {packet_id} ignored.")
-								continue
+							# Process data in buffer if complete packet is received
+							while len(buffer) >= HEADER_LENGTH:  # At least the header is available
+								# Check for full packet length based on the header and payload length
+								mac_addr = buffer[:MAC_ADDRESS_LENGTH]
+								packet_id = struct.unpack('<H', buffer[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
+								total_packets, sequence, payload_length = buffer[MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH:HEADER_LENGTH]
+								expected_packet_length = HEADER_LENGTH + payload_length + FOOTER_LENGTH
 									
-									# Add packet to processed list
-									processed_packet_ids.add(packet_id)
-									
-									# Send ACK for the packet
-									send_ack(ser, mac_addr, packet_id)
-									
-									# Handle multi-packet data
-									if total_packets > 1:
-										if packet_id not in incomplete_packets:
-											incomplete_packets[packet_id] = {}
+									if len(buffer) >= expected_packet_length:
+										# Full packet received, process it
+										packet = buffer[:expected_packet_length]
+										
+										# Validate the received data
+										is_valid, result = validate_data(packet)
+										if not is_valid:
+											print(f"Invalid data: {result}")
+											buffer = buffer[expected_packet_length:]  # Discard invalid data
+											continue
 												
-												# Store the packet by its sequence number
-												incomplete_packets[packet_id][sequence] = result
+												# Extract details
+												mac_addr = result["mac_addr"]
+												packet_id = result["packet_id"]
+												total_packets = result["total_packets"]
+												sequence = result["sequence"]
+												payload_length = result["payload_length"]
+												payload = result["payload"]
 												
-												# If all packets are received
-												if len(incomplete_packets[packet_id]) == total_packets:
-													# Sort packets by sequence to ensure correct order
-													sorted_packets = [incomplete_packets[packet_id][seq] for seq in range(total_packets)]
-													# Process the data for ESP32 or another node
-													if mac_addr == ESP32_MAC_ADDR:
-														process_data_esp32(sorted_packets)
-															else:
-																for packet in sorted_packets:
-																	process_data_other_node(packet["payload"])
-																		
-																		# Remove the packet group from incomplete_packets
-																		del incomplete_packets[packet_id]
-																			else:
-																				# Process single-packet data immediately
-																				if mac_addr == ESP32_MAC_ADDR:
-																					process_data_esp32([result])
-																						else:
-																							process_data_other_node(payload)
-																								
-																								# Small delay to prevent busy-waiting
-																								time.sleep(0.1)
-																									
-																									except serial.SerialException as e:
-																										print(f"Serial error: {e}")
-																											except KeyboardInterrupt:
-																												print("\nExiting program.")
+												# Check for duplicate packets
+												if packet_id in processed_packet_ids:
+													print(f"Duplicate packet ID {packet_id} ignored.")
+													buffer = buffer[expected_packet_length:]  # Discard duplicate packet
+													continue
+														
+														# Add packet to processed list
+														processed_packet_ids.add(packet_id)
+														
+														# Send ACK for the packet
+														send_ack(ser, mac_addr, packet_id)
+														
+														# Handle multi-packet data
+														if total_packets > 1:
+															if packet_id not in incomplete_packets:
+																incomplete_packets[packet_id] = {}
+																	
+																	# Store the packet by its sequence number
+																	incomplete_packets[packet_id][sequence] = result
+																	
+																	# If all packets are received
+																	if len(incomplete_packets[packet_id]) == total_packets:
+																		# Sort packets by sequence to ensure correct order
+																		sorted_packets = [incomplete_packets[packet_id][seq] for seq in range(total_packets)]
+																		# Process the data for ESP32 or another node
+																		if mac_addr == ESP32_MAC_ADDR:
+																			process_data_esp32(sorted_packets)
+																				else:
+																					for packet in sorted_packets:
+																						process_data_other_node(packet["payload"])
+																							
+																							# Remove the packet group from incomplete_packets
+																							del incomplete_packets[packet_id]
+																								else:
+																									# Process single-packet data immediately
+																									if mac_addr == ESP32_MAC_ADDR:
+																										process_data_esp32([result])
+																											else:
+																												process_data_other_node(payload)
+																													
+																													# Remove processed data from buffer
+																													buffer = buffer[expected_packet_length:]
+																														
+																														else:
+																															# If the full packet is not received, break the loop and wait for more data
+																															break
+																																
+																																# Small delay to prevent busy-waiting
+																																time.sleep(0.1)
+																																	
+																																	except serial.SerialException as e:
+																																		print(f"Serial error: {e}")
+																																			except KeyboardInterrupt:
+																																				print("\nExiting program.")
 
 if __name__ == "__main__":
 	main()
