@@ -4,7 +4,7 @@
 
 
 #define ONBOARD_LED 5
-#define MAX_PACKET_SIZE 250
+#define MAX_PACKET_SIZE 237 //250 - 13  {header (6 MAC Address + 2 Packet ID + 1 Total Packets + 1 sequence + 1 payload length =11) + footer = Checksum 2 bytes)}
 #define MAC_ADDR_SIZE 6
 #define ADC_CHANNELS 2
 #define SAMPLES_PER_SECOND 500
@@ -13,7 +13,7 @@
 #define MAX_SEND_QUEUE_SIZE 20
 #define MAX_RECV_QUEUE_SIZE 20
 #define MAX_SENTPACKETS_QUEUE_SIZE 24
-#define APPLICATION_LAYER_ACK_TIMEOUT 1500
+#define APPLICATION_LAYER_ACK_TIMEOUT 2000
 
 bool DEBUG = true;
 
@@ -21,8 +21,9 @@ uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with rece
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
 volatile size_t bufferIndex = 0; // Circular buffer index
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 2000;
+const unsigned long sendInterval = 10000;
 bool macLayerAckReceived = false;
+bool onDataSentReturned = false;
 uint8_t packetBuffer[MAX_PACKET_SIZE];
 
 // Define a packet queue handle
@@ -117,10 +118,8 @@ void sendHeartbeat() {
     memcpy(&payload[1], rmsValues, sizeof(rmsValues));
     memset(&payload[1 + sizeof(rmsValues)], 0xAA, 24); // Padding
 
-    // Enqueue the packet
-    queuePacket(0xFF, payload, sizeof(payload), 1, 1);
-    
-    
+    uint16_t packetId = random(0, 65536); // Generate a random Packet ID for Heartbeat
+    queuePacket(0xFF, payload, sizeof(payload), 1, 1, packetId);
 }
 
 // Function to send data for a specific ADC channel (on demand)
@@ -129,23 +128,22 @@ void requestSendADCData(uint8_t channel) {
     sendADCData(channel);
 }
 
-// Function to send the entire buffer from either ADC channel 0 or 1
 void sendADCData(uint8_t channel) {
-    const size_t MAX_PAYLOAD_SIZE = MAX_PACKET_SIZE - 12; // Header + Footer size
+    const size_t headerSize = MAC_ADDR_SIZE + 5;  // Header size with packet ID
+    const size_t footerSize = 2;  // Footer size for checksum
+    const size_t MAX_PAYLOAD_SIZE = MAX_PACKET_SIZE - (headerSize+footerSize); // Header + Footer size
     size_t totalPackets = (BUFFER_SIZE * sizeof(int16_t)) / MAX_PAYLOAD_SIZE;
     if ((BUFFER_SIZE * sizeof(int16_t)) % MAX_PAYLOAD_SIZE != 0) {
         totalPackets++; // Round up if not evenly divisible
     }
 
-    // Buffer to hold data for each packet
-    uint8_t payload[MAX_PAYLOAD_SIZE];
+    uint16_t initialPacketId = random(0, 65536); // Generate a random Packet ID for this data set
+    uint8_t payload[MAX_PAYLOAD_SIZE]; // Buffer to hold data for each packet
 
-    // Determine which channel to send (channel 0 or channel 1)
     for (uint8_t seq = 0; seq < totalPackets; seq++) {
         size_t startIdx = seq * MAX_PAYLOAD_SIZE / sizeof(int16_t);
         size_t endIdx = min<size_t>((seq + 1) * MAX_PAYLOAD_SIZE / sizeof(int16_t), (size_t)BUFFER_SIZE);
-        
-        // Prepare the payload for this packet
+
         size_t payloadLength = 0;
         for (size_t i = startIdx; i < endIdx; i++) {
             int16_t value = circularBuffer[channel][i];
@@ -153,31 +151,53 @@ void sendADCData(uint8_t channel) {
             payloadLength += sizeof(value);
         }
 
-        // Queue the packet with appropriate data type for the channel
         uint8_t dataType = (channel == 0) ? 10 : 11; // Channel 0 -> 10, Channel 1 -> 11
-        queuePacket(dataType, payload, payloadLength, totalPackets, seq + 1);
+        uint16_t packetId = initialPacketId + seq;  // Sequential Packet ID for each segment
+        queuePacket(dataType, payload, payloadLength, totalPackets, seq + 1, packetId);
     }
 }
 
-void queuePacket(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence) {
+void queuePacket(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence, uint16_t packetId) {
     Packet packet;
     packet.dataType = dataType;
     memcpy(packet.payload, payload, payloadLength);
     packet.payloadLength = payloadLength;
     packet.totalPackets = totalPackets;
     packet.sequence = sequence;
+    packet.packetId = packetId; // Assign the provided Packet ID
     packet.retryCount = 0;
-
     if (xQueueSend(packetQueue, &packet, 0) != pdPASS) {
-      if (DEBUG) { Serial.println("Packet queue full! Dropping packet.");}
+        if (DEBUG) { Serial.println("Packet queue full! Dropping packet."); }
     }
+    else {
+      if (DEBUG) {Serial.println("Packet added to the queue");}
+      }
 }
+
+//void queuePacket(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence, uint16_t packetId) {
+//    Packet packet;
+//    packet.dataType = dataType;
+//    memcpy(packet.payload, payload, payloadLength);
+//    packet.payloadLength = payloadLength;
+//    packet.totalPackets = totalPackets;
+//    packet.sequence = sequence;
+//    packet.packetId = packetId; // Assign the provided Packet ID
+//    packet.retryCount = 0;
+//
+//    // Print packet hex before sending to the queue for troubleshooting
+//    printPacketHex(payload, payloadLength);
+//
+//    if (xQueueSend(packetQueue, &packet, 0) != pdPASS) {
+//        if (DEBUG) { Serial.println("Packet queue full! Dropping packet."); }
+//    }
+//}
 
 bool sendData(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence, uint16_t packetId) {
     size_t headerSize = MAC_ADDR_SIZE + 5;  // Header size with packet ID
     size_t footerSize = 2;  // Footer size for checksum
     size_t packetLength = headerSize + payloadLength + footerSize;
 
+  if (DEBUG) { Serial.print("Packet length = "); Serial.println(packetLength); }
     // Check packet size validity
     if (packetLength > MAX_PACKET_SIZE) return false;
 
@@ -206,7 +226,7 @@ bool sendData(uint8_t dataType, uint8_t *payload, size_t payloadLength, uint8_t 
     // Reset ACK flags
     macLayerAckReceived = false;
 
-    printPacketHex(packetBuffer, packetLength);
+    //printPacketHex(packetBuffer, packetLength);
 
     // Send the packet via ESP-NOW
     esp_err_t result = esp_now_send(piMacAddr, packetBuffer, packetLength);
@@ -255,6 +275,7 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
        if (DEBUG) { Serial.println("no MAC Layer ACK");}
         macLayerAckReceived=false;
     }
+    onDataSentReturned=true;
 }
 
 void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
@@ -385,27 +406,41 @@ void packetTransmitTask(void *param) {
 
     while (true) {
         if (xQueueReceive(packetQueue, &currentPacket, portMAX_DELAY) == pdPASS) {
-            uint16_t packetId = random(0, 65536);  // Generate a random packet ID
+            uint16_t packetId = currentPacket.packetId;  // Use Packet ID from the Packet structure
 
-            // Send the packet once
+            // Reset the call back function flag before sending
+            onDataSentReturned = false;
+
+            // Send the packet
             if (sendData(currentPacket.dataType, currentPacket.payload, currentPacket.payloadLength,
                          currentPacket.totalPackets, currentPacket.sequence, packetId)) {
-                if (DEBUG) {Serial.println("Packet sent successfully. Adding to sentPacketQueue.");}
+                if (DEBUG) { Serial.println("Packet sent successfully. Waiting for esp_send_now_callback function to return..."); }
 
-                // Add packet to sentPacketQueue
+                // Wait for the MAC Layer ACK callback
+                unsigned long startTime = millis();
+                while (!onDataSentReturned) {
+                    // Timeout mechanism to avoid infinite waiting
+                    if (millis() - startTime > 500) { // Adjust the timeout as needed (e.g., 500ms)
+                        if (DEBUG) { Serial.println("Timeout waiting for esp_send_now_callback function."); }
+                        break;
+                    }
+                    vTaskDelay(10 / portTICK_PERIOD_MS); // Short delay to yield the CPU
+                }
+
+                // Add packet to sentPacketQueue if it was sent
                 SentPacket sentPacket;
-                sentPacket.packetId = packetId;
+                sentPacket.packetId = packetId; // Retain the Packet ID
                 sentPacket.packet = currentPacket;
                 sentPacket.retryCount = 0;
                 sentPacket.acknowledged = false;
                 xQueueSend(sentPacketQueue, &sentPacket, portMAX_DELAY);
+
             } else {
-               if (DEBUG) { Serial.println("Failed to send packet.");}
+                if (DEBUG) { Serial.println("Failed to send packet."); }
             }
         }
     }
 }
-
 
 
 
@@ -445,7 +480,8 @@ void setup() {
 
   void loop() {
     if (millis() - lastSendTime >= sendInterval) {
-        sendHeartbeat();
+        //sendHeartbeat();
+        sendADCData(0);
         lastSendTime = millis();
     }
 }

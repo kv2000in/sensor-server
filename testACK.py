@@ -1,6 +1,7 @@
 import serial
 import time
 import struct
+from collections import deque
 
 # Configuration
 SERIAL_PORT = '/dev/serial0'  # Replace with your serial port
@@ -14,10 +15,27 @@ PACKET_DELIMITER = b'\x0D\x0A'  # Delimiter: 0D 0A
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = b'\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 
+# Set to track received Packet IDs
+PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
+
+# Dictionary to store segmented packets
+pending_segments = {}
+
 
 def calculate_checksum(data):
     """Calculate the checksum for the given data."""
     return sum(data) & 0xFFFF
+
+
+def is_duplicate_packet(packet_id):
+    """
+    Check if a packet ID is a duplicate.
+    If not a duplicate, add it to the tracker.
+    """
+    if packet_id in PACKET_ID_TRACKER:
+        return True
+    PACKET_ID_TRACKER.append(packet_id)
+    return False
 
 
 def validate_data(data):
@@ -25,7 +43,7 @@ def validate_data(data):
     Validate the received data based on checksum and other criteria.
     """
     # Print raw packet in hex
-    print_packet_hex(data)
+	#print_packet_hex(data)
     if len(data) < HEADER_LENGTH + FOOTER_LENGTH:
         return False, "Invalid data length."
 
@@ -56,13 +74,83 @@ def validate_data(data):
 
 def process_data_esp32(packets):
     """
-    Process the data for ESP32 (specific format).
-    Reconstructs the data from packets.
+    Process ESP32 data packets, handling segmented and non-segmented data.
     """
-    payload = b''.join(packet["payload"] for packet in packets)
-    print(f"Processed data from ESP32: {payload}")
+    for packet in packets:
+        packet_id = packet["packet_id"]
+        total_packets = packet["total_packets"]
+        sequence = packet["sequence"]
+        payload = packet["payload"]
+        
+        # Calculate the range of expected packet IDs
+        expected_packet_ids = set(packet_id + i for i in range(-sequence + 1, total_packets - sequence + 1))
+        
+        # Unique key for grouping packets
+        key = tuple(sorted(expected_packet_ids))
 
+        if total_packets == 1:
+            # Non-segmented data
+            data_type = payload[0]  # First byte is the data type
+            call_handler(data_type, payload)
+        else:
+            # Segmented data
+            if key not in pending_segments:
+                pending_segments[key] = {
+                    "total_packets": total_packets,
+                    "received": {},
+                    "start_time": time.time(),
+                }
 
+            # Add packet to the received dictionary
+            pending_segments[key]["received"][sequence] = payload
+
+            # Check if all packets are received
+            if len(pending_segments[key]["received"]) == total_packets:
+                # Reassemble packets in sequence order
+                reassembled_payload = b''.join(
+                    pending_segments[key]["received"][i] for i in range(1, total_packets + 1)
+                )
+
+                # Determine data type from the first byte of the first packet
+                data_type = reassembled_payload[0]
+                call_handler(data_type, reassembled_payload)
+
+                # Remove entry from pending_segments
+                del pending_segments[key]
+            else:
+                # Handle timeout for incomplete segments
+                current_time = time.time()
+                if current_time - pending_segments[key]["start_time"] > 5.0:  # 5-second timeout
+                    # Concatenate received packets
+                    partial_payload = b''.join(
+                        pending_segments[key]["received"].get(i, b'') for i in range(1, total_packets + 1)
+                    )
+                    print(f"Timeout for segmented data: Missing packets for key {key}. Proceeding with partial data.")
+
+                    # Determine data type from partial data
+                    data_type = partial_payload[0] if partial_payload else None
+                    if data_type:
+                        call_handler(data_type, partial_payload)
+
+                    # Remove entry from pending_segments
+                    del pending_segments[key]
+
+def call_handler(data_type, payload):
+    """
+    Calls the appropriate handler based on the data type.
+    """
+    if data_type == 0xFF:
+        process_esp32_heartbeat(payload)
+    elif data_type in [0x10, 0x11]:
+        process_esp32_adc_data(payload)
+    else:
+        process_esp32_unknown_data_type(payload)
+def process_esp32_heartbeat(payload):
+	print("heartBeat from ESP32")
+def process_esp32_adc_data(payload):
+	print("ADC data")
+def process_esp32_unknown_data_type(payload):
+	print("unknown data type")
 def process_data_other_node(payload):
     """
     Process data for other sensor nodes (different format).
@@ -111,7 +199,16 @@ def main():
                         if mac_addr == ESP32_MAC_ADDR:
                             print(f"ESP32 packet detected. MAC: {mac_addr.hex().upper()}")
 
+                            # Extract Packet ID
                             try:
+                                packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
+
+                                # Check for duplicate Packet ID
+                                if is_duplicate_packet(packet_id):
+                                    print(f"Duplicate packet detected. Packet ID: {packet_id}")
+                                    continue
+
+                                # Validate the data
                                 is_valid, result = validate_data(packet)
 
                                 if not is_valid:
