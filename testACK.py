@@ -9,16 +9,16 @@ MAC_ADDRESS_LENGTH = 6
 PACKET_ID_LENGTH = 2
 HEADER_LENGTH = MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH + 3  # MAC + Packet ID + Total Packets, Sequence, Payload Length
 FOOTER_LENGTH = 2  # Checksum length
-
-# In-memory store for processed packet IDs to avoid duplicates
-processed_packet_ids = set()
+PACKET_DELIMITER = b'\x0D\x0A'  # Delimiter: 0D 0A
 
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = b'\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 
+
 def calculate_checksum(data):
     """Calculate the checksum for the given data."""
     return sum(data) & 0xFFFF
+
 
 def validate_data(data):
     """
@@ -52,6 +52,8 @@ def validate_data(data):
         "payload_length": payload_length,
         "payload": payload,
     }
+
+
 def process_data_esp32(packets):
     """
     Process the data for ESP32 (specific format).
@@ -60,11 +62,13 @@ def process_data_esp32(packets):
     payload = b''.join(packet["payload"] for packet in packets)
     print(f"Processed data from ESP32: {payload}")
 
+
 def process_data_other_node(payload):
     """
     Process data for other sensor nodes (different format).
     """
     print(f"Processed data from other node: {payload}")
+
 
 def send_ack(ser, mac_addr, packet_id):
     """
@@ -78,7 +82,10 @@ def send_ack(ser, mac_addr, packet_id):
 def print_packet_hex(data):
     print("Received Packet (Hex):", " ".join(f"{byte:02X}" for byte in data))
 
+
 def main():
+    buffer = b''  # Temporary buffer to store incoming data
+
     try:
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
             print(f"Listening on {SERIAL_PORT} at {BAUD_RATE} baud rate.")
@@ -86,38 +93,42 @@ def main():
             while True:
                 # Read incoming data
                 if ser.in_waiting > 0:
-                    received_data = ser.read(ser.in_waiting)
+                    buffer += ser.read(ser.in_waiting)
 
-                    # Ensure the chunk has at least 6 bytes for MAC address check
-                    if len(received_data) < 6:
-                        print("Incomplete data received (less than 6 bytes). Skipping.")
-                        continue
+                    # Split buffer into packets based on delimiter
+                    while PACKET_DELIMITER in buffer:
+                        # Split the buffer into one packet and the rest
+                        packet, buffer = buffer.split(PACKET_DELIMITER, 1)
 
-                    # Extract the first six bytes as MAC address
-                    mac_addr = received_data[:6]
+                        # Ensure the packet has at least 6 bytes for MAC address check
+                        if len(packet) < 6:
+                            print("Incomplete packet received. Skipping.")
+                            continue
 
-                    if mac_addr == ESP32_MAC_ADDR:
-                        print(f"ESP32 packet detected. MAC: {mac_addr.hex().upper()}")
+                        # Extract the MAC address
+                        mac_addr = packet[:MAC_ADDRESS_LENGTH]
 
-                        try:
-                            is_valid, result = validate_data(received_data)
+                        if mac_addr == ESP32_MAC_ADDR:
+                            print(f"ESP32 packet detected. MAC: {mac_addr.hex().upper()}")
 
-                            if not is_valid:
-                                print(f"Invalid ESP32 data: {result}")
-                                continue
-                            # Extract packet ID from result
-                            packet_id = result["packet_id"]
-                            # Process valid ESP32 packet
-                            send_ack(ser, mac_addr, packet_id)
-                            process_data_esp32([result])
+                            try:
+                                is_valid, result = validate_data(packet)
 
-                        except struct.error as e:
-                            print(f"Error processing ESP32 data: {e}")
+                                if not is_valid:
+                                    print(f"Invalid ESP32 data: {result}")
+                                    continue
 
-                    else:
-                        # Hand over non-ESP32 data
-                        print(f"Non-ESP32 MAC detected: {mac_addr.hex().upper()}")
-                        process_data_other_node(received_data)
+                                # Process valid ESP32 packet
+                                send_ack(ser, mac_addr, result["packet_id"])
+                                process_data_esp32([result])
+
+                            except struct.error as e:
+                                print(f"Error processing ESP32 data: {e}")
+
+                        else:
+                            # Hand over non-ESP32 data
+                            print(f"Non-ESP32 MAC detected: {mac_addr.hex().upper()}")
+                            process_data_other_node(packet)
 
                 # Small delay to prevent busy-waiting
                 time.sleep(0.1)
@@ -126,5 +137,7 @@ def main():
         print(f"Serial error: {e}")
     except KeyboardInterrupt:
         print("\nExiting program.")
+
+
 if __name__ == "__main__":
     main()
