@@ -290,16 +290,23 @@ void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
     }
 }
 
-void handleApplicationLayerAck(const uint8_t *data, int len) {
-   if (DEBUG) { Serial.println("DATA in ACK Packet");
-    printPacketHex(data, len);}
 
-    // Ensure we have enough data for "ACK" + 2 bytes for packet ID
-    if (len > 4 && String((char *)data).startsWith("ACK")) {
+
+
+void handleApplicationLayerAck(const uint8_t *data, int len) {
+    if (DEBUG) {
+        Serial.println("DATA in ACK Packet:");
+        printPacketHex(data, len);
+    }
+
+    // Ensure we have 3 bytes: 0x41 + 2 bytes for packet ID
+    if (len == 3 && data[0] == 0x41) {
         // Extract packet ID from the last two bytes
-        uint16_t receivedPacketId = (data[4] << 8) | data[3];
-        if (DEBUG) {Serial.print("Received ACK for packet ID: ");
-        Serial.println(receivedPacketId);}
+        uint16_t receivedPacketId = (data[2] << 8) | data[1];
+        if (DEBUG) {
+            Serial.print("Received ACK for packet ID: ");
+            Serial.println(receivedPacketId);
+        }
 
         // Find and remove the acknowledged packet in the sentPacketQueue
         SentPacket packet;
@@ -309,7 +316,7 @@ void handleApplicationLayerAck(const uint8_t *data, int len) {
             if (xQueueReceive(sentPacketQueue, &packet, 0) == pdPASS) {
                 if (packet.packetId == receivedPacketId) {
                     found = true;
-                   if (DEBUG) { Serial.println("Packet acknowledged and removed from sentPacketQueue.");}
+                    if (DEBUG) { Serial.println("Packet acknowledged and removed from sentPacketQueue."); }
                 } else {
                     xQueueSend(sentPacketQueue, &packet, 0);  // Re-add to queue if not matched
                 }
@@ -317,12 +324,12 @@ void handleApplicationLayerAck(const uint8_t *data, int len) {
         }
 
         if (!found) {
-           if (DEBUG) { Serial.println("ACK received but no matching packet found in the queue.");}
+            if (DEBUG) { Serial.println("ACK received but no matching packet found in the queue."); }
         }
     } else {
-       if (DEBUG) { Serial.println("Invalid ACK packet or length.");}
+        if (DEBUG) { Serial.println("Invalid ACK packet or length."); }
     }
-    if (DEBUG) {Serial.println();}
+    if (DEBUG) { Serial.println(); }
 }
 
 void retryTask(void *param) {
@@ -374,32 +381,49 @@ void processReceivedDataTask(void *param) {
     while (true) {
         // Wait for data in the queue
         if (xQueueReceive(recvQueue, &packet, portMAX_DELAY) == pdPASS) {
-            // Extract command
-            String command = String((char*)packet.data).substring(0, packet.length);
-          if (DEBUG) { Serial.print("Processing command: ");
-            Serial.println(command);}
+            if (packet.length < 1) {
+                if (DEBUG) { Serial.println("Invalid packet length."); }
+                continue;
+            }
 
-            if (command == "sendstatus") {
-                // Prepare status response
-               if (DEBUG) {Serial.println("Status = ready");}
-                
-            } else if (command == "reset") {
-                ESP.restart();
-            } else if (command == "LED_ON") {
-                digitalWrite(ONBOARD_LED, HIGH);
-            } else if (command == "LED_OFF") {
-                digitalWrite(ONBOARD_LED, LOW);
-            } else if (command.startsWith("ACK") || command.startsWith("NACK")) {
-                // Directly handle the ACK or NACK command
-                handleApplicationLayerAck(packet.data, packet.length);
-            } else {
-                if (DEBUG) {Serial.println("Unknown command received.");}
+            uint8_t command = packet.data[0];
+            if (DEBUG) {
+                Serial.print("Processing command: 0x");
+                Serial.println(command, HEX);
+            }
+
+            // Process based on command type
+            switch (command) {
+                case 0x40: // Reset
+                    if (DEBUG) { Serial.println("Command: Reset"); }
+                    ESP.restart();
+                    break;
+
+                case 0x42: // LED_ON
+                    if (DEBUG) { Serial.println("Command: LED_ON"); }
+                    digitalWrite(ONBOARD_LED, HIGH);
+                    break;
+
+                case 0x43: // LED_OFF
+                    if (DEBUG) { Serial.println("Command: LED_OFF"); }
+                    digitalWrite(ONBOARD_LED, LOW);
+                    break;
+
+                case 0x41: // ACK
+                    if (packet.length == 3) {
+                        handleApplicationLayerAck(packet.data, packet.length);
+                    } else {
+                        if (DEBUG) { Serial.println("Invalid ACK packet length."); }
+                    }
+                    break;
+
+                default:
+                    if (DEBUG) { Serial.println("Unknown command received."); }
+                    break;
             }
         }
     }
-
 }
-
 
 void packetTransmitTask(void *param) {
     Packet currentPacket;

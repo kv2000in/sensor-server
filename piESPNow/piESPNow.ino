@@ -1,8 +1,10 @@
 #include <espnow.h>
 #include <ESP8266WiFi.h>
 
-// Maximum ESP-NOW payload size (250 bytes for ESP8266)
-#define ESPNOW_MAX_PAYLOAD 250
+// Maximum ESP-NOW payload size only 9 bytes (6 MAC address plus 1 command plus 2 padding) will sent by python per serial write.
+#define ESPNOW_MAX_PAYLOAD 9
+
+volatile bool sendInProgress = false; // Flag for ESP-NOW send status
 
 // Callback for receiving ESP-NOW data
 void onDataRecv(uint8_t *macAddr, uint8_t *data, uint8_t len) {
@@ -38,8 +40,10 @@ void addPeerIfNeeded(uint8_t *macAddr) {
 void sendDataToMAC(uint8_t *macAddr, uint8_t *data, size_t len) {
   addPeerIfNeeded(macAddr); // Ensure the MAC address is added as a peer
   if (esp_now_send(macAddr, data, len) == 0) {
+    sendInProgress = true;
     os_printf("Data sent successfully!\n");
   } else {
+    sendInProgress = false;
     os_printf("Failed to send data!\n");
   }
 }
@@ -47,6 +51,7 @@ void sendDataToMAC(uint8_t *macAddr, uint8_t *data, size_t len) {
 // Callback for ESP-NOW send completion
 void onDataSent(uint8_t *macAddr, uint8_t sendStatus) {
   os_printf("Send status for MAC: %s\n", sendStatus == 0 ? "Success" : "Failed");
+  sendInProgress=false;
 }
 
 void prepareESPNOW() {
@@ -68,7 +73,7 @@ void setup() {
 
 void loop() {
   // Check for data from Raspberry Pi
-  if (Serial.available() > 0) {
+  if (!sendInProgress && Serial.available() > 0) {
     uint8_t buffer[ESPNOW_MAX_PAYLOAD];
     size_t len = Serial.readBytes(buffer, ESPNOW_MAX_PAYLOAD);
 
@@ -77,6 +82,7 @@ void loop() {
       uint8_t macAddr[6];
       memcpy(macAddr, buffer, 6);
       sendDataToMAC(macAddr, buffer + 6, len - 6); // Forward data to the specified MAC
+    
     }
   }
 }

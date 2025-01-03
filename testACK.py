@@ -162,7 +162,7 @@ def send_ack(ser, mac_addr, packet_id):
     """
     Send acknowledgment for a packet.
     """
-    ack_message = mac_addr + b'ACK' + struct.pack('<H', packet_id)
+    ack_message = mac_addr + b'\x41' + struct.pack('<H', packet_id)
     ser.write(ack_message)
     print(f"Sent ACK for packet ID {packet_id}: {ack_message}")
 
