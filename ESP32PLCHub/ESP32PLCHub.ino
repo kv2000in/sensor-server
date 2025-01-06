@@ -28,6 +28,10 @@ bool macLayerAckReceived = false;
 bool onDataSentReturned = false;
 uint8_t packetBuffer[MAX_PACKET_SIZE];
 
+
+
+
+
 // Define a packet queue handle
 QueueHandle_t packetQueue;
 //Structure of packet to be sent.
@@ -75,11 +79,13 @@ uint16_t calculateChecksum(uint8_t *data, size_t length) {
 
 
 
+// Task to sample ADC channels at 1000 Hz for 100 ms
 void sampleADC(void *param) {
-    const uint32_t samplingInterval = 2000; // 500 Hz = 2000 microseconds
+    const uint32_t samplingInterval = 1000; // 1000 Hz = 1 ms sampling interval
     uint32_t lastSampleTime = micros();
+    uint32_t endTime = micros() + 100000; // Sample for 100 ms
 
-    while (true) {
+    while (micros() < endTime) {
         uint32_t currentTime = micros();
 
         // Check if it's time to sample
@@ -87,16 +93,19 @@ void sampleADC(void *param) {
             lastSampleTime += samplingInterval; // Update the last sample time
 
             // Read ADC channels and store in circular buffer
-            circularBuffer[0][bufferIndex] = analogRead(34);
-            circularBuffer[1][bufferIndex] = analogRead(35);
+            circularBuffer[0][bufferIndex] = analogRead(34); // Channel 0 (ADC)
+            circularBuffer[1][bufferIndex] = analogRead(35); // Channel 1 (ADC)
 
             // Update circular buffer index
             bufferIndex = (bufferIndex + 1) % BUFFER_SIZE;
         }
 
         // Yield to allow other tasks to run
-        vTaskDelay(1 / portTICK_PERIOD_MS); // Yield 1 ms to the FreeRTOS scheduler
+        vTaskDelay(1 / portTICK_PERIOD_MS); // Yield 1 ms to FreeRTOS scheduler
     }
+
+ // Delete the task if it's no longer needed (or loop if you need it to repeat)
+    vTaskDelete(NULL);  // Deletes this task and prevents it from returning
 }
 
 // Calculate RMS
@@ -110,18 +119,46 @@ void calculateRMS(uint16_t *rmsValues) {
     }
 }
 
+//void sendHeartbeat() {
+//    uint16_t rmsValues[ADC_CHANNELS];
+//    calculateRMS(rmsValues);
+//
+//    uint8_t payload[33]; // Allocate enough space for dataType and RMS values
+//    payload[0] = 0xFF;   // Set the dataType as the first byte
+//    memcpy(&payload[1], rmsValues, sizeof(rmsValues)); // Copy RMS values after the dataType
+//    memset(&payload[1 + sizeof(rmsValues)], 0xAA, 24); // Add padding after RMS values
+//
+//    uint16_t packetId = random(0, 65536); // Generate a random Packet ID
+//    queuePacket(payload, sizeof(payload), 1, 1, packetId); // Only pass the payload, as dataType is part of it
+//}
+
+
+
+// Function to send heartbeat with ADC data (without RMS calculation)
 void sendHeartbeat() {
-    uint16_t rmsValues[ADC_CHANNELS];
-    calculateRMS(rmsValues);
-
-    uint8_t payload[33]; // Allocate enough space for dataType and RMS values
+  // Start ADC sampling task on core 1 with high priority
+   xTaskCreatePinnedToCore(sampleADC, "SampleADC", 2048, NULL, 1, NULL, 1); // High-priority task on core 1
+   
+    uint8_t payload[MAX_PAYLOAD_SIZE]; // Allocate enough space for dataType and ADC channel data
     payload[0] = 0xFF;   // Set the dataType as the first byte
-    memcpy(&payload[1], rmsValues, sizeof(rmsValues)); // Copy RMS values after the dataType
-    memset(&payload[1 + sizeof(rmsValues)], 0xAA, 24); // Add padding after RMS values
 
+    // Copy ADC channel data (5 wavelengths) into the payload
+    for (int ch = 0; ch < ADC_CHANNELS; ch++) {
+        memcpy(&payload[1 + ch * 5 * sizeof(uint16_t)], &circularBuffer[ch], 5 * sizeof(uint16_t)); // 5 wavelengths for each channel
+    }
+
+    // Add padding after ADC data (using 0xAA for padding)
+    memset(&payload[1 + ADC_CHANNELS * 5 * sizeof(uint16_t)], 0xAA, 24); // Padding
+
+    // Create packet ID and other header values
     uint16_t packetId = random(0, 65536); // Generate a random Packet ID
-    queuePacket(payload, sizeof(payload), 1, 1, packetId); // Only pass the payload, as dataType is part of it
+
+
+    // Queue the packet (sending mechanism)
+    queuePacket(payload, sizeof(payload), 1, 1, packetId); // Send the payload with the header and data
 }
+
+
 
 // Function to send data for a specific ADC channel (on demand)
 void requestSendADCData(uint8_t channel) {
@@ -148,6 +185,7 @@ void sendADCData(uint8_t channel) {
 
         for (size_t i = startIdx; i < endIdx; i++) {
             int16_t value = circularBuffer[channel][i];
+            //int16_t value = testBuffer[1][i];
             memcpy(&payload[payloadLength], &value, sizeof(value));
             payloadLength += sizeof(value);
         }
@@ -465,8 +503,9 @@ void setup() {
     // Create a task to process the queue
     xTaskCreate(processReceivedDataTask, "ProcessReceivedData", 4096, NULL, 1, NULL);
 
-    //Task to sample ADC
-    xTaskCreate(sampleADC, "SampleADC", 2048, NULL, 1, NULL);
+// Start ADC sampling task on core 1 with high priority
+   // xTaskCreatePinnedToCore(sampleADC, "SampleADC", 2048, NULL, 1, NULL, 1); // High-priority task on core 1
+
     if (DEBUG) {Serial.println("System ready. DEBUG ON");}
 
     // Create packet send queue
@@ -487,8 +526,8 @@ void setup() {
 
   void loop() {
     if (millis() - lastSendTime >= sendInterval) {
-        //sendHeartbeat();
-        sendADCData(1);
+        sendHeartbeat();
+        //sendADCData(1);
         lastSendTime = millis();
     }
 }
