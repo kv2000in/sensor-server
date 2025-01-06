@@ -11,7 +11,7 @@
 #define ADC_CHANNELS 2
 #define SAMPLES_PER_SECOND 500
 #define BUFFER_SIZE 50 // Circular buffer size per channel 50 samples of 2 bytes each = 100 bytes per channel = 200 bytes for 2 channels
-#define MAX_RETRIES 2
+#define MAX_RETRIES 1
 #define MAX_SEND_QUEUE_SIZE 20
 #define MAX_RECV_QUEUE_SIZE 20
 #define MAX_SENTPACKETS_QUEUE_SIZE 24
@@ -133,18 +133,7 @@ void calculateRMS(uint16_t *rmsValues) {
     }
 }
 
-//void sendHeartbeat() {
-//    uint16_t rmsValues[ADC_CHANNELS];
-//    calculateRMS(rmsValues);
-//
-//    uint8_t payload[33]; // Allocate enough space for dataType and RMS values
-//    payload[0] = 0xFF;   // Set the dataType as the first byte
-//    memcpy(&payload[1], rmsValues, sizeof(rmsValues)); // Copy RMS values after the dataType
-//    memset(&payload[1 + sizeof(rmsValues)], 0xAA, 24); // Add padding after RMS values
-//
-//    uint16_t packetId = random(0, 65536); // Generate a random Packet ID
-//    queuePacket(payload, sizeof(payload), 1, 1, packetId); // Only pass the payload, as dataType is part of it
-//}
+
 
 
 

@@ -17,12 +17,19 @@ PACKET_DELIMITER = b'\x0D\x0A'  # Delimiter: 0D 0A
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = b'\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 
+RESET = b'\x40'
+ACK = b'\x41'
+LED_ON = b'\x42'
+LED_OFF = b'\x43'
+
 # Set to track received Packet IDs
 PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
 
 # Dictionary to store segmented packets
 pending_segments = {}
 
+# Initialize a global variable to track LED state
+led_state = False  # False means OFF, True means ON
 
 
 # Circular buffer implementation
@@ -97,7 +104,7 @@ def validate_data(data):
     }
 
 
-def process_data_esp32(packets):
+def process_data_esp32(packets,ser):
     """
     Process ESP32 data packets, handling segmented and non-segmented data.
     """
@@ -116,7 +123,7 @@ def process_data_esp32(packets):
         if total_packets == 1:
             # Non-segmented data
             data_type = payload[0]  # First byte is the data type
-            call_handler(data_type, payload)
+            call_handler(data_type, payload,ser)
         else:
             # Segmented data
             if key not in pending_segments:
@@ -138,7 +145,7 @@ def process_data_esp32(packets):
 
                 # Determine data type from the first byte of the first packet
                 data_type = reassembled_payload[0]
-                call_handler(data_type, reassembled_payload)
+                call_handler(data_type, reassembled_payload,ser)
 
                 # Remove entry from pending_segments
                 del pending_segments[key]
@@ -155,12 +162,12 @@ def process_data_esp32(packets):
                     # Determine data type from partial data
                     data_type = partial_payload[0] if partial_payload else None
                     if data_type:
-                        call_handler(data_type, partial_payload)
+                        call_handler(data_type, partial_payload,ser)
 
                     # Remove entry from pending_segments
                     del pending_segments[key]
 
-def call_handler(data_type, payload):
+def call_handler(data_type, payload,ser):
     """
     Calls the appropriate handler based on the data type.
     """
@@ -168,12 +175,12 @@ def call_handler(data_type, payload):
     print(data_type)
     print_packet_hex(payload)
     if data_type == 0xFF:
-        process_esp32_heartbeat(payload)
+        process_esp32_heartbeat(payload,ser)
     elif data_type in [0x10, 0x11]:
         process_esp32_adc_data(payload)
     else:
         process_esp32_unknown_data_type(payload)
-def process_esp32_heartbeat(payload):
+def process_esp32_heartbeat(payload,ser):
     global rms_channel_0, rms_channel_1
 
     print("Heartbeat from ESP32")
@@ -201,7 +208,7 @@ def process_esp32_heartbeat(payload):
     rms_channel_1 = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
 
     # Pass padding to the status bits handler
-    handlestatusbits(padding)
+    handlestatusbits(padding,ser)
 
     # Print or log the results
     print(f"Channel 0 RMS: {rms_channel_0:.2f}")
@@ -209,9 +216,19 @@ def process_esp32_heartbeat(payload):
     print(f"Channel 0 Data: {adc_channel_0.get_data()}")
     print(f"Channel 1 Data: {adc_channel_1.get_data()}")
 
-def handlestatusbits(padding):
+def handlestatusbits(padding,ser):
+    global led_state  # Use the global state variable
     # Process padding bytes
     print(f"Handling status bits: {padding}")
+
+    # Toggle LED state
+    if led_state:
+        ser.write(ESP32_MAC_ADDR+LED_OFF)
+    else:
+        ser.write(ESP32_MAC_ADDR+LED_ON)
+    # Update the LED state
+    led_state = not led_state
+
 def process_esp32_adc_data(payload):
 	print("ADC data")
 def process_esp32_unknown_data_type(payload):
@@ -242,7 +259,7 @@ def main():
     try:
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
             print(f"Listening on {SERIAL_PORT} at {BAUD_RATE} baud rate.")
-
+            ser.write(ESP32_MAC_ADDR+RESET)
             while True:
                 # Read incoming data
                 if ser.in_waiting > 0:
@@ -282,7 +299,7 @@ def main():
 
                                 # Process valid ESP32 packet
                                 send_ack(ser, mac_addr, result["packet_id"])
-                                process_data_esp32([result])
+                                process_data_esp32([result],ser)
 
                             except struct.error as e:
                                 print(f"Error processing ESP32 data: {e}")
