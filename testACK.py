@@ -139,6 +139,9 @@ def call_handler(data_type, payload):
     """
     Calls the appropriate handler based on the data type.
     """
+    print("data_type=")
+    print(data_type)
+    print_packet_hex(payload)
     if data_type == 0xFF:
         process_esp32_heartbeat(payload)
     elif data_type in [0x10, 0x11]:
