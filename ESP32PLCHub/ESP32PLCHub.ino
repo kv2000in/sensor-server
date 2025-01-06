@@ -17,14 +17,14 @@
 #define MAX_SENTPACKETS_QUEUE_SIZE 24
 #define APPLICATION_LAYER_ACK_TIMEOUT 2000
 
-bool DEBUG = false;
+bool DEBUG = true;
 
 uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
 
 volatile size_t bufferIndex = 0; // Circular buffer index
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 1000;
+const unsigned long sendInterval = 10000;
 bool macLayerAckReceived = false;
 bool onDataSentReturned = false;
 uint8_t packetBuffer[MAX_PACKET_SIZE];
@@ -401,7 +401,7 @@ void retryTask(void *param) {
 
 void processReceivedDataTask(void *param) {
     ReceivedPacket packet;
-
+    Serial.println("Packet recvd");
     while (true) {
         // Wait for data in the queue
         if (xQueueReceive(recvQueue, &packet, portMAX_DELAY) == pdPASS) {
@@ -462,8 +462,8 @@ void packetTransmitTask(void *param) {
             // Send the packet
             if (sendData(currentPacket.payload, currentPacket.payloadLength,
                          currentPacket.totalPackets, currentPacket.sequence, packetId)) {
-                if (DEBUG) { Serial.println("Packet sent successfully. Waiting for esp_send_now_callback function to return..."); }
-
+                //if (DEBUG) { Serial.println("Packet sent successfully. Waiting for esp_send_now_callback function to return..."); }
+                    Serial.println("Packet sent");
                 // Wait for the MAC Layer ACK callback
                 unsigned long startTime = millis();
                 while (!onDataSentReturned) {
@@ -493,7 +493,8 @@ void packetTransmitTask(void *param) {
 
 
 void setup() {
-    if (DEBUG) {Serial.begin(115200);}
+    //if (DEBUG) {Serial.begin(115200);}
+    Serial.begin(115200);
     WiFi.mode(WIFI_STA);
     prepareESPNOW();
 
