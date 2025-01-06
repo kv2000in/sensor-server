@@ -1,7 +1,7 @@
 
 #include <esp_now.h>
 #include <WiFi.h>
-#include <Ticker.h>
+
 
 
 #define ONBOARD_LED 5
@@ -10,25 +10,39 @@
 #define MAC_ADDR_SIZE 6
 #define ADC_CHANNELS 2
 #define SAMPLES_PER_SECOND 500
-#define BUFFER_SIZE 1000 // Circular buffer size per channel
+#define BUFFER_SIZE 50 // Circular buffer size per channel 50 samples of 2 bytes each = 100 bytes per channel = 200 bytes for 2 channels
 #define MAX_RETRIES 2
 #define MAX_SEND_QUEUE_SIZE 20
 #define MAX_RECV_QUEUE_SIZE 20
 #define MAX_SENTPACKETS_QUEUE_SIZE 24
 #define APPLICATION_LAYER_ACK_TIMEOUT 2000
 
-bool DEBUG = true;
+bool DEBUG = false;
 
 uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
+
 volatile size_t bufferIndex = 0; // Circular buffer index
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 10000;
+const unsigned long sendInterval = 1000;
 bool macLayerAckReceived = false;
 bool onDataSentReturned = false;
 uint8_t packetBuffer[MAX_PACKET_SIZE];
 
-
+int16_t testBuffer[ADC_CHANNELS][BUFFER_SIZE] = {
+    { // Buffer 0
+        2047, 2670, 3250, 3754, 4157, 4435, 4571, 4559, 4398, 4099, 3674, 3137, 2507, 1807, 1057, 286,
+        0, 267, 1040, 1812, 2502, 3132, 3668, 4094, 4395, 4558, 4570, 4433, 4155, 3751, 3246, 2666,
+        2043, 1419, 837, 327, 0, 261, 1035, 1807, 2497, 3128, 3664, 4090, 4391, 4555, 4567, 4430,
+        4153, 3749
+    },
+    { // Buffer 1
+        2893, 3423, 3876, 4230, 4452, 4526, 4442, 4212, 3845, 3359, 2775, 2118, 1414, 688, 69, 0,
+        264, 1039, 1806, 2491, 3126, 3660, 4089, 4390, 4553, 4567, 4431, 4153, 3751, 3249, 2668,
+        2046, 1423, 839, 328, 0, 260, 1035, 1807, 2497, 3128, 3664, 4090, 4391, 4555, 4567, 4430,
+        4153, 3749
+    }
+};
 
 
 
@@ -83,7 +97,7 @@ uint16_t calculateChecksum(uint8_t *data, size_t length) {
 void sampleADC(void *param) {
     const uint32_t samplingInterval = 1000; // 1000 Hz = 1 ms sampling interval
     uint32_t lastSampleTime = micros();
-    uint32_t endTime = micros() + 100000; // Sample for 100 ms
+    uint32_t endTime = micros() + 50000; // Sample for 50 ms
 
     while (micros() < endTime) {
         uint32_t currentTime = micros();
@@ -142,13 +156,13 @@ void sendHeartbeat() {
     uint8_t payload[MAX_PAYLOAD_SIZE]; // Allocate enough space for dataType and ADC channel data
     payload[0] = 0xFF;   // Set the dataType as the first byte
 
-    // Copy ADC channel data (5 wavelengths) into the payload
+    //50 samples of 2 bytes each per channel
     for (int ch = 0; ch < ADC_CHANNELS; ch++) {
-        memcpy(&payload[1 + ch * 5 * sizeof(uint16_t)], &circularBuffer[ch], 5 * sizeof(uint16_t)); // 5 wavelengths for each channel
+    memcpy(&payload[1 + ch * BUFFER_SIZE * sizeof(uint16_t)], &testBuffer[ch], BUFFER_SIZE * sizeof(uint16_t)); // Copy full 100 bytes
     }
 
     // Add padding after ADC data (using 0xAA for padding)
-    memset(&payload[1 + ADC_CHANNELS * 5 * sizeof(uint16_t)], 0xAA, 24); // Padding
+memset(&payload[1 + ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t)], 0xAA, MAX_PAYLOAD_SIZE - (1 + ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t)));
 
     // Create packet ID and other header values
     uint16_t packetId = random(0, 65536); // Generate a random Packet ID
