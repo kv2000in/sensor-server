@@ -2,6 +2,8 @@ import serial
 import time
 import struct
 from collections import deque
+from math import sqrt
+
 
 # Configuration
 SERIAL_PORT = '/dev/serial0'  # Replace with your serial port
@@ -20,6 +22,29 @@ PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
 
 # Dictionary to store segmented packets
 pending_segments = {}
+
+
+
+# Circular buffer implementation
+class CircularBuffer:
+    def __init__(self, size):
+        self.size = size
+        self.buffer = [0] * size
+        self.index = 0
+
+    def add(self, value):
+        self.buffer[self.index] = value
+        self.index = (self.index + 1) % self.size
+
+    def get_data(self):
+        return self.buffer
+
+# Initialize buffers and RMS variables for each channel
+BUFFER_SIZE = 50
+adc_channel_0 = CircularBuffer(BUFFER_SIZE)
+adc_channel_1 = CircularBuffer(BUFFER_SIZE)
+rms_channel_0 = 0
+rms_channel_1 = 0
 
 
 def calculate_checksum(data):
@@ -149,7 +174,44 @@ def call_handler(data_type, payload):
     else:
         process_esp32_unknown_data_type(payload)
 def process_esp32_heartbeat(payload):
-	print("heartBeat from ESP32")
+    global rms_channel_0, rms_channel_1
+
+    print("Heartbeat from ESP32")
+    
+    # Remove the first byte (data type)
+    payload = payload[1:]
+
+    # Extract ADC channel 0 and channel 1 data
+    adc_data_0 = payload[:100]  # First 100 bytes
+    adc_data_1 = payload[100:200]  # Next 100 bytes
+    padding = payload[200:]  # Remaining bytes (padding)
+
+    # Convert raw ADC data into 16-bit integers
+    adc_samples_0 = [int.from_bytes(adc_data_0[i:i + 2], byteorder='little', signed=False) for i in range(0, len(adc_data_0), 2)]
+    adc_samples_1 = [int.from_bytes(adc_data_1[i:i + 2], byteorder='little', signed=False) for i in range(0, len(adc_data_1), 2)]
+
+    # Update circular buffers
+    for sample in adc_samples_0:
+        adc_channel_0.add(sample)
+    for sample in adc_samples_1:
+        adc_channel_1.add(sample)
+
+    # Calculate RMS for each channel
+    rms_channel_0 = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
+    rms_channel_1 = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
+
+    # Pass padding to the status bits handler
+    handlestatusbits(padding)
+
+    # Print or log the results
+    print(f"Channel 0 RMS: {rms_channel_0:.2f}")
+    print(f"Channel 1 RMS: {rms_channel_1:.2f}")
+    print(f"Channel 0 Data: {adc_channel_0.get_data()}")
+    print(f"Channel 1 Data: {adc_channel_1.get_data()}")
+
+def handlestatusbits(padding):
+    # Process padding bytes
+    print(f"Handling status bits: {padding}")
 def process_esp32_adc_data(payload):
 	print("ADC data")
 def process_esp32_unknown_data_type(payload):
