@@ -172,8 +172,8 @@ def call_handler(data_type, payload,ser):
     Calls the appropriate handler based on the data type.
     """
     print("data_type=")
-    #print(data_type)
-    #print_packet_hex(payload)
+    print(data_type)
+    print_packet_hex(payload)
     if data_type == 0xFF:
         process_esp32_heartbeat(payload,ser)
     elif data_type in [0x10, 0x11]:
@@ -259,7 +259,7 @@ def main():
     try:
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
             print(f"Listening on {SERIAL_PORT} at {BAUD_RATE} baud rate.")
-            ser.write(ESP32_MAC_ADDR+RESET)
+			#ser.write(ESP32_MAC_ADDR+RESET)
             while True:
                 # Read incoming data
                 if ser.in_waiting > 0:
@@ -298,7 +298,7 @@ def main():
                                     continue
 
                                 # Process valid ESP32 packet
-                                send_ack(ser, mac_addr, result["packet_id"])
+                                #send_ack(ser, mac_addr, result["packet_id"])
                                 process_data_esp32([result],ser)
 
                             except struct.error as e:

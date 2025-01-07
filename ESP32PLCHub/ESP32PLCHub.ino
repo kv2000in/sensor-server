@@ -1,6 +1,7 @@
 
 #include <esp_now.h>
 #include <WiFi.h>
+#include "esp_log.h"
 
 
 
@@ -17,14 +18,16 @@
 #define MAX_SENTPACKETS_QUEUE_SIZE 24
 #define APPLICATION_LAYER_ACK_TIMEOUT 2000
 
-bool DEBUG = true;
+
+static const char *TAG = "APP";
+
 
 uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
 
 volatile size_t bufferIndex = 0; // Circular buffer index
 unsigned long lastSendTime = 0;
-const unsigned long sendInterval = 10000;
+const unsigned long sendInterval = 2000;
 bool macLayerAckReceived = false;
 bool onDataSentReturned = false;
 uint8_t packetBuffer[MAX_PACKET_SIZE];
@@ -46,27 +49,9 @@ int16_t testBuffer[ADC_CHANNELS][BUFFER_SIZE] = {
 
 
 
-// Define a packet queue handle
-QueueHandle_t packetQueue;
-//Structure of packet to be sent.
-struct Packet {
-    uint8_t payload[MAX_PACKET_SIZE];
-    size_t payloadLength;
-    uint8_t totalPackets;
-    uint8_t sequence;
-    uint16_t packetId;
-    uint8_t retryCount;
-};
 
-struct SentPacket {
-    uint16_t packetId;    // Unique packet ID
-    Packet packet;         // The packet data
-    int retryCount;        // Retry count
-    bool acknowledged;     // Whether the packet has been acknowledged
-};
 
-// Create a queue for storing sent packets
-QueueHandle_t sentPacketQueue;
+
 
 // Define a receive queue handle
 QueueHandle_t recvQueue;
@@ -122,17 +107,6 @@ void sampleADC(void *param) {
     vTaskDelete(NULL);  // Deletes this task and prevents it from returning
 }
 
-// Calculate RMS
-void calculateRMS(uint16_t *rmsValues) {
-    for (size_t ch = 0; ch < ADC_CHANNELS; ch++) {
-        uint32_t sumOfSquares = 0;
-        for (size_t i = 0; i < BUFFER_SIZE; i++) {
-            sumOfSquares += circularBuffer[ch][i] * circularBuffer[ch][i];
-        }
-        rmsValues[ch] = sqrt(sumOfSquares / BUFFER_SIZE);
-    }
-}
-
 
 
 
@@ -140,14 +114,16 @@ void calculateRMS(uint16_t *rmsValues) {
 // Function to send heartbeat with ADC data (without RMS calculation)
 void sendHeartbeat() {
   // Start ADC sampling task on core 1 with high priority
-   xTaskCreatePinnedToCore(sampleADC, "SampleADC", 2048, NULL, 1, NULL, 1); // High-priority task on core 1
+   //xTaskCreatePinnedToCore(sampleADC, "SampleADC", 2048, NULL, 1, NULL, 1); // High-priority task on core 1
+
+  xTaskCreate(sampleADC, "SampleADC", 2048, NULL, 1, NULL); // High-priority task on core 1
    
     uint8_t payload[MAX_PAYLOAD_SIZE]; // Allocate enough space for dataType and ADC channel data
     payload[0] = 0xFF;   // Set the dataType as the first byte
 
     //50 samples of 2 bytes each per channel
     for (int ch = 0; ch < ADC_CHANNELS; ch++) {
-    memcpy(&payload[1 + ch * BUFFER_SIZE * sizeof(uint16_t)], &testBuffer[ch], BUFFER_SIZE * sizeof(uint16_t)); // Copy full 100 bytes
+    memcpy(&payload[1 + ch * BUFFER_SIZE * sizeof(uint16_t)], &circularBuffer[ch], BUFFER_SIZE * sizeof(uint16_t)); // Copy full 100 bytes
     }
 
     // Add padding after ADC data (using 0xAA for padding)
@@ -158,61 +134,25 @@ memset(&payload[1 + ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t)], 0xAA, MAX_PA
 
 
     // Queue the packet (sending mechanism)
-    queuePacket(payload, sizeof(payload), 1, 1, packetId); // Send the payload with the header and data
+   // queuePacket(payload, sizeof(payload), 1, 1, packetId); // Send the payload with the header and data
+
+        if (sendData(payload, sizeof(payload),
+                         1, 1, packetId)) {
+                ESP_LOGD(TAG"Packet sent successfully. Waiting for esp_send_now_callback function to return..."); }
+//    ESP_LOGE(TAG, "This is an error message!");
+//ESP_LOGW(TAG, "This is a warning message.");
+//ESP_LOGI(TAG, "This is an informational message.");
+//ESP_LOGD(TAG, "This is a debug message.");
+//ESP_LOGV(TAG, "This is a verbose message.");
 }
 
 
 
-// Function to send data for a specific ADC channel (on demand)
-void requestSendADCData(uint8_t channel) {
-    // Send the data for the selected ADC channel (0 or 1)
-    sendADCData(channel);
-}
 
-void sendADCData(uint8_t channel) {
 
-    size_t totalPackets = (BUFFER_SIZE * sizeof(int16_t)) / (MAX_PAYLOAD_SIZE - 1); // -1 for dataType
-    if ((BUFFER_SIZE * sizeof(int16_t)) % (MAX_PAYLOAD_SIZE - 1) != 0) {
-        totalPackets++; // Round up if not evenly divisible
-    }
 
-    uint16_t initialPacketId = random(0, 65536);
-    uint8_t payload[MAX_PAYLOAD_SIZE];
 
-    for (uint8_t seq = 0; seq < totalPackets; seq++) {
-        size_t startIdx = seq * (MAX_PAYLOAD_SIZE - 1) / sizeof(int16_t);
-        size_t endIdx = min<size_t>((seq + 1) * (MAX_PAYLOAD_SIZE - 1) / sizeof(int16_t), BUFFER_SIZE);
 
-        size_t payloadLength = 1; // Start with 1 for dataType
-        payload[0] = (channel == 0) ? 0x10 : 0x11; // Set dataType as the first byte
-
-        for (size_t i = startIdx; i < endIdx; i++) {
-            int16_t value = circularBuffer[channel][i];
-            //int16_t value = testBuffer[1][i];
-            memcpy(&payload[payloadLength], &value, sizeof(value));
-            payloadLength += sizeof(value);
-        }
-
-        uint16_t packetId = initialPacketId + seq;
-        queuePacket(payload, payloadLength, totalPackets, seq + 1, packetId); // Pass payload with dataType
-    }
-}
-
-void queuePacket(uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uint8_t sequence, uint16_t packetId) {
-    Packet packet;
-    memcpy(packet.payload, payload, payloadLength); // Copy the entire payload, including dataType
-    packet.payloadLength = payloadLength;
-    packet.totalPackets = totalPackets;
-    packet.sequence = sequence;
-    packet.packetId = packetId;
-    packet.retryCount = 0;
-
-    if (xQueueSend(packetQueue, &packet, 0) != pdPASS) {
-        if (DEBUG) { Serial.println("Packet queue full! Dropping packet."); }
-    } else {
-        if (DEBUG) { Serial.println("Packet added to the queue"); }
-    }
-}
 
 
 
@@ -221,7 +161,7 @@ bool sendData( uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uin
     size_t footerSize = 2;  // Footer size for checksum
     size_t packetLength = headerSize + payloadLength + footerSize;
 
-  if (DEBUG) { Serial.print("Packet length = "); Serial.println(packetLength); }
+   
     // Check packet size validity
     if (packetLength > MAX_PACKET_SIZE) return false;
 
@@ -257,12 +197,12 @@ bool sendData( uint8_t *payload, size_t payloadLength, uint8_t totalPackets, uin
     return result == ESP_OK;
 }
 void printPacketHex(const uint8_t *packet, size_t length) {
-   if (DEBUG) { Serial.print("Packet (Hex): ");
+   ESP_LOGD(TAG,"Packet (Hex): ");
     for (size_t i = 0; i < length; i++) {
-        if (i > 0) Serial.print(" ");
-     Serial.printf("%02X", packet[i]);
+        if (i > 0) ESP_LOGD(TAG," ");
+      ESP_LOGD(TAG,"%02X", packet[i]);
     }
-    Serial.println();}
+    
 }
 
 // Prepare ESP-NOW communication
@@ -270,7 +210,7 @@ void prepareESPNOW() {
 
 
     if (esp_now_init() != ESP_OK) {
-        if (DEBUG) {Serial.println("ESP-NOW Initialization Failed!");}
+         ESP_LOGD(TAG,"ESP-NOW Initialization Failed!");
         return;
     }
 
@@ -283,7 +223,7 @@ void prepareESPNOW() {
     peerInfo.encrypt = false;
 
     if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-        if (DEBUG) {Serial.println("Failed to add peer!");}
+         ESP_LOGD(TAG,"Failed to add peer!");
         return;
     }
 
@@ -294,12 +234,12 @@ void prepareESPNOW() {
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
     if (status == ESP_NOW_SEND_SUCCESS) {
       macLayerAckReceived=true;
-        if (DEBUG) {Serial.println("MAC Layer ACK recieved");}
+         ESP_LOGI(TAG,"MAC Layer ACK recieved");
     } else {
-       if (DEBUG) { Serial.println("no MAC Layer ACK");}
+        ESP_LOGI(TAG,"no MAC Layer ACK");
         macLayerAckReceived=false;
     }
-    onDataSentReturned=true;
+    
 }
 
 void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
@@ -310,191 +250,100 @@ void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
 
     // Post the packet to the queue
     if (xQueueSend(recvQueue, &packet, 0) != pdPASS) {
-      if (DEBUG)  { Serial.println("Queue full! Dropping packet.");}
+       ESP_LOGE(TAG,"Queue full! Dropping packet.");
     }
 }
 
+//void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
+//    
+//uint8_t command = incomingData[0];
+//            // Process based on command type
+//            switch (command) {
+//                case 0x40: // Reset
+//                   ESP_LOGD(TAG,"Command: Reset");
+//                    ESP.restart();
+//                    break;
+//
+//                case 0x42: // LED_ON
+//                    ESP_LOGD(TAG,"Command: LED_ON");
+//                    digitalWrite(ONBOARD_LED, HIGH);
+//                    break;
+//
+//                case 0x43: // LED_OFF
+//                    ESP_LOGD(TAG,"Command: LED_OFF"); 
+//                    digitalWrite(ONBOARD_LED, LOW);
+//                    break;
+//
+//                case 0x41: // ACK
+//                    
+//                       ESP_LOGD(TAG,"ACK Application Layer Recvd."); 
+//                  
+//                    
+//                    break;
+//
+//                default:
+//                    ESP_LOGD(TAG,"Unknown command received.");
+//                    break;
+//            }
+//    
+//}
 
 
-
-void handleApplicationLayerAck(const uint8_t *data, int len) {
-    if (DEBUG) {
-        Serial.println("DATA in ACK Packet:");
-        printPacketHex(data, len);
-    }
-
-    // Ensure we have 3 bytes: 0x41 + 2 bytes for packet ID
-    if (len == 3 && data[0] == 0x41) {
-        // Extract packet ID from the last two bytes
-        uint16_t receivedPacketId = (data[2] << 8) | data[1];
-        if (DEBUG) {
-            Serial.print("Received ACK for packet ID: ");
-            Serial.println(receivedPacketId);
-        }
-
-        // Find and remove the acknowledged packet in the sentPacketQueue
-        SentPacket packet;
-        bool found = false;
-
-        for (int i = 0; i < 10; i++) { // Iterate queue up to its size
-            if (xQueueReceive(sentPacketQueue, &packet, 0) == pdPASS) {
-                if (packet.packetId == receivedPacketId) {
-                    found = true;
-                    if (DEBUG) { Serial.println("Packet acknowledged and removed from sentPacketQueue."); }
-                } else {
-                    xQueueSend(sentPacketQueue, &packet, 0);  // Re-add to queue if not matched
-                }
-            }
-        }
-
-        if (!found) {
-            if (DEBUG) { Serial.println("ACK received but no matching packet found in the queue."); }
-        }
-    } else {
-        if (DEBUG) { Serial.println("Invalid ACK packet or length."); }
-    }
-    if (DEBUG) { Serial.println(); }
-}
-
-void retryTask(void *param) {
-    while (true) {
-        vTaskDelay(APPLICATION_LAYER_ACK_TIMEOUT / portTICK_PERIOD_MS);
-
-        // Temporary buffer for queue packets
-        SentPacket tempBuffer[MAX_SENTPACKETS_QUEUE_SIZE];
-        int packetCount = 0;
-
-        // Drain the queue
-        SentPacket packet;
-        while (xQueueReceive(sentPacketQueue, &packet, 0) == pdPASS) {
-            tempBuffer[packetCount++] = packet;
-        }
-
-        // Resend all packets in the buffer
-        for (int i = 0; i < packetCount; i++) {
-            if (tempBuffer[i].retryCount < MAX_RETRIES && !tempBuffer[i].acknowledged) {
-                if (sendData(tempBuffer[i].packet.payload,
-                             tempBuffer[i].packet.payloadLength, tempBuffer[i].packet.totalPackets,
-                             tempBuffer[i].packet.sequence, tempBuffer[i].packetId)) {
-                   if (DEBUG) {Serial.print("Resent packet ID: ");
-                    Serial.println(tempBuffer[i].packetId);}
-                    tempBuffer[i].retryCount++;
-                } else {
-                   if (DEBUG)  {Serial.print("Failed to resend packet ID: ");
-                    Serial.println(tempBuffer[i].packetId);}
-                    tempBuffer[i].retryCount++;
-                }
-            } else if (tempBuffer[i].retryCount >= MAX_RETRIES) {
-               if (DEBUG) {Serial.print("Packet ID exceeded max retries and will be dropped: ");
-                Serial.println(tempBuffer[i].packetId);}
-            }
-        }
-
-        // Re-add unacknowledged packets to the queue
-        for (int i = 0; i < packetCount; i++) {
-            if (!tempBuffer[i].acknowledged && tempBuffer[i].retryCount < MAX_RETRIES) {
-                xQueueSend(sentPacketQueue, &tempBuffer[i], portMAX_DELAY);
-            }
-        }
-    }
-}
 
 void processReceivedDataTask(void *param) {
     ReceivedPacket packet;
-    Serial.println("Packet recvd");
+    
     while (true) {
         // Wait for data in the queue
         if (xQueueReceive(recvQueue, &packet, portMAX_DELAY) == pdPASS) {
             if (packet.length < 1) {
-                if (DEBUG) { Serial.println("Invalid packet length."); }
+                ESP_LOGD(TAG,"Invalid packet length.");
                 continue;
             }
 
             uint8_t command = packet.data[0];
-            if (DEBUG) {
-                Serial.print("Processing command: 0x");
-                Serial.println(command, HEX);
-            }
+            
+                ESP_LOGD(TAG,"Processing command: 0x");
+               
+           
 
             // Process based on command type
             switch (command) {
                 case 0x40: // Reset
-                    if (DEBUG) { Serial.println("Command: Reset"); }
+                   ESP_LOGD(TAG,"Command: Reset");
                     ESP.restart();
                     break;
 
                 case 0x42: // LED_ON
-                    if (DEBUG) { Serial.println("Command: LED_ON"); }
+                    ESP_LOGD(TAG,"Command: LED_ON");
                     digitalWrite(ONBOARD_LED, HIGH);
                     break;
 
                 case 0x43: // LED_OFF
-                    if (DEBUG) { Serial.println("Command: LED_OFF"); }
+                    ESP_LOGD(TAG,"Command: LED_OFF"); 
                     digitalWrite(ONBOARD_LED, LOW);
                     break;
 
                 case 0x41: // ACK
-                    if (packet.length == 3) {
-                        handleApplicationLayerAck(packet.data, packet.length);
-                    } else {
-                        if (DEBUG) { Serial.println("Invalid ACK packet length."); }
-                    }
+                    
+                       ESP_LOGD(TAG,"ACK Application Layer Recvd."); 
+                  
+                    
                     break;
 
                 default:
-                    if (DEBUG) { Serial.println("Unknown command received."); }
+                    ESP_LOGD(TAG,"Unknown command received.");
                     break;
             }
         }
     }
 }
 
-void packetTransmitTask(void *param) {
-    Packet currentPacket;
-
-    while (true) {
-        if (xQueueReceive(packetQueue, &currentPacket, portMAX_DELAY) == pdPASS) {
-            uint16_t packetId = currentPacket.packetId;  // Use Packet ID from the Packet structure
-
-            // Reset the call back function flag before sending
-            onDataSentReturned = false;
-
-            // Send the packet
-            if (sendData(currentPacket.payload, currentPacket.payloadLength,
-                         currentPacket.totalPackets, currentPacket.sequence, packetId)) {
-                //if (DEBUG) { Serial.println("Packet sent successfully. Waiting for esp_send_now_callback function to return..."); }
-                    Serial.println("Packet sent");
-                // Wait for the MAC Layer ACK callback
-                unsigned long startTime = millis();
-                while (!onDataSentReturned) {
-                    // Timeout mechanism to avoid infinite waiting
-                    if (millis() - startTime > 500) { // Adjust the timeout as needed (e.g., 500ms)
-                        if (DEBUG) { Serial.println("Timeout waiting for esp_send_now_callback function."); }
-                        break;
-                    }
-                    vTaskDelay(10 / portTICK_PERIOD_MS); // Short delay to yield the CPU
-                }
-
-                // Add packet to sentPacketQueue if it was sent
-                SentPacket sentPacket;
-                sentPacket.packetId = packetId; // Retain the Packet ID
-                sentPacket.packet = currentPacket;
-                sentPacket.retryCount = 0;
-                sentPacket.acknowledged = false;
-                xQueueSend(sentPacketQueue, &sentPacket, portMAX_DELAY);
-
-            } else {
-                if (DEBUG) { Serial.println("Failed to send packet."); }
-            }
-        }
-    }
-}
 
 
 
 void setup() {
-    //if (DEBUG) {Serial.begin(115200);}
-    Serial.begin(115200);
+
     WiFi.mode(WIFI_STA);
     prepareESPNOW();
 
@@ -502,27 +351,11 @@ void setup() {
     digitalWrite(ONBOARD_LED, LOW);
 
     // Create packet recv queue 
-    recvQueue = xQueueCreate(MAX_RECV_QUEUE_SIZE, sizeof(ReceivedPacket));
+ recvQueue = xQueueCreate(MAX_RECV_QUEUE_SIZE, sizeof(ReceivedPacket));
 
     // Create a task to process the queue
-    xTaskCreate(processReceivedDataTask, "ProcessReceivedData", 4096, NULL, 1, NULL);
+  xTaskCreate(processReceivedDataTask, "ProcessReceivedData", 4096, NULL, 1, NULL);
 
-// Start ADC sampling task on core 1 with high priority
-   // xTaskCreatePinnedToCore(sampleADC, "SampleADC", 2048, NULL, 1, NULL, 1); // High-priority task on core 1
-
-    if (DEBUG) {Serial.println("System ready. DEBUG ON");}
-
-    // Create packet send queue
-    packetQueue = xQueueCreate(MAX_SEND_QUEUE_SIZE, sizeof(Packet));
-
-    // Create task for packet transmission
-    xTaskCreate(packetTransmitTask, "PacketTransmitTask", 4096, NULL, 1, NULL);
-
-  // Initialize the queue with a size of 10 SentPacket items
-    sentPacketQueue = xQueueCreate(MAX_SENTPACKETS_QUEUE_SIZE, sizeof(SentPacket));
-
-   // Create task for retrying packet transmission
-    xTaskCreate(retryTask, "retryTask", 12288, NULL, 1, NULL);
     
 
 }
