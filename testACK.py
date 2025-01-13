@@ -171,9 +171,9 @@ def call_handler(data_type, payload,ser):
     """
     Calls the appropriate handler based on the data type.
     """
-    print("data_type=")
-    print(data_type)
-    print_packet_hex(payload)
+    #print("data_type=")
+    #print(data_type)
+    #print_packet_hex(payload)
     if data_type == 0xFF:
         process_esp32_heartbeat(payload,ser)
     elif data_type in [0x10, 0x11]:
@@ -213,8 +213,8 @@ def process_esp32_heartbeat(payload,ser):
     # Print or log the results
     print(f"Channel 0 RMS: {rms_channel_0:.2f}")
     print(f"Channel 1 RMS: {rms_channel_1:.2f}")
-    #print(f"Channel 0 Data: {adc_channel_0.get_data()}")
-	#print(f"Channel 1 Data: {adc_channel_1.get_data()}")
+    print(f"Channel 0 Data: {adc_channel_0.get_data()}")
+    print(f"Channel 1 Data: {adc_channel_1.get_data()}")
 
 def handlestatusbits(padding,ser):
     global led_state  # Use the global state variable
