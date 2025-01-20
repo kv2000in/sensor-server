@@ -82,7 +82,7 @@ int create_raw_socket(char *dev, struct sock_fprog *bpf)
 	sll.sll_protocol = htons(ETH_P_ALL);
 	sll.sll_family = AF_PACKET;
 	sll.sll_ifindex = ifr.ifr_ifindex;
-	sll.sll_pkttype = PACKET_OTHERHOST;
+	sll.sll_pkttype = PACKET_HOST;
 	
 	rb = bind(fd, (struct sockaddr *)&sll, sizeof(sll));
 	assert(rb != -1);
