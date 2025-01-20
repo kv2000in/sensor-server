@@ -1,17 +1,12 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-#include <netpacket/packet.h>
-#include <errno.h>
-#include <stdint.h>
+#include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/if_arp.h>
+#include <arpa/inet.h>
 #include <assert.h>
 
 #define UDS_PATH "/tmp/raw_socket_uds"
