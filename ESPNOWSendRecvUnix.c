@@ -10,6 +10,9 @@
 #include <netpacket/packet.h>
 #include <errno.h>
 #include <stdint.h>
+#include <sys/ioctl.h>
+#include <linux/if_arp.h>
+#include <assert.h>
 
 #define UDS_PATH "/tmp/raw_socket_uds"
 
