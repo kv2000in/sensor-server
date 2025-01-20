@@ -21,6 +21,7 @@
 		2A43193D2D34C08F0033D160 /* linux-ESPNOW-recv.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "linux-ESPNOW-recv.c"; sourceTree = "<group>"; };
 		2A43193E2D3D77A40033D160 /* brcmfmac43430-sdio.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; path = "brcmfmac43430-sdio.bin"; sourceTree = "<group>"; };
 		2A43193F2D3D77A40033D160 /* brcmfmac.ko */ = {isa = PBXFileReference; lastKnownFileType = file; path = brcmfmac.ko; sourceTree = "<group>"; };
+		2A4319402D3DCC030033D160 /* linux-ESPNOW-sendACK.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "linux-ESPNOW-sendACK.c"; sourceTree = "<group>"; };
 		2A578569279BEE73003E13EF /* checkandsend.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = checkandsend.sh; sourceTree = "<group>"; };
 		2A5A58C521EC10C0001653D3 /* sensorsettings */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettings; sourceTree = "<group>"; };
 		2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = ADCcalibrationbakup; sourceTree = "<group>"; };
@@ -71,6 +72,7 @@
 				2A62713621E9367100930500 /* ESP8266-HCSR04 */,
 				2A62712A21E1990B00930500 /* sensor-server.py */,
 				2A43193C2D34BDA10033D160 /* linux-ESPNOW-send.c */,
+				2A4319402D3DCC030033D160 /* linux-ESPNOW-sendACK.c */,
 			);
 			sourceTree = "<group>";
 		};
