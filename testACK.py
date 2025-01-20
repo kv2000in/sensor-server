@@ -4,7 +4,6 @@ import struct
 from collections import deque
 from math import sqrt
 
-
 # Configuration
 SERIAL_PORT = '/dev/serial0'  # Replace with your serial port
 BAUD_RATE = 115200
@@ -12,15 +11,15 @@ MAC_ADDRESS_LENGTH = 6
 PACKET_ID_LENGTH = 2
 HEADER_LENGTH = MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH + 3  # MAC + Packet ID + Total Packets, Sequence, Payload Length
 FOOTER_LENGTH = 2  # Checksum length
-PACKET_DELIMITER = b'\x0D\x0A'  # Delimiter: 0D 0A
+PACKET_DELIMITER = '\x0D\x0A'  # Delimiter: 0D 0A
 
 # ESP32 MAC address for identification
-ESP32_MAC_ADDR = b'\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
+ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 
-RESET = b'\x40'
-ACK = b'\x41'
-LED_ON = b'\x42'
-LED_OFF = b'\x43'
+RESET = '\x40'
+ACK = '\x41'
+LED_ON = '\x42'
+LED_OFF = '\x43'
 
 # Set to track received Packet IDs
 PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
@@ -30,7 +29,6 @@ pending_segments = {}
 
 # Initialize a global variable to track LED state
 led_state = False  # False means OFF, True means ON
-
 
 # Circular buffer implementation
 class CircularBuffer:
@@ -254,8 +252,7 @@ def print_packet_hex(data):
 
 
 def main():
-    buffer = b''  # Temporary buffer to store incoming data
-
+    """Main function to handle serial communication."""
     try:
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
             print(f"Listening on {SERIAL_PORT} at {BAUD_RATE} baud rate.")
@@ -313,10 +310,16 @@ def main():
                 time.sleep(0.1)
 
     except serial.SerialException as e:
-        print(f"Serial error: {e}")
+        print("Serial error:", str(e))
+
     except KeyboardInterrupt:
-        print("\nExiting program.")
+        print("Exiting program.")
+
+    finally:
+        if ser:
+            ser.close()
 
 
 if __name__ == "__main__":
     main()
+
