@@ -3,6 +3,7 @@ import time
 import struct
 from collections import deque
 from math import sqrt
+import socket
 
 # Configuration
 SERIAL_PORT = '/dev/serial0'  # Replace with your serial port
@@ -12,6 +13,8 @@ PACKET_ID_LENGTH = 2
 HEADER_LENGTH = MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH + 3  # MAC + Packet ID + Total Packets, Sequence, Payload Length
 FOOTER_LENGTH = 2  # Checksum length
 PACKET_DELIMITER = '\x0D\x0A'  # Delimiter: 0D 0A
+# Path for the Unix Domain Socket
+UDS_PATH = "/tmp/raw_socket_uds"
 
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
@@ -256,7 +259,40 @@ def print_packet_hex(data):
 
 
 
-def main():
+def send_data_to_c_program(sender_mac, destination_mac, additional_bytes):
+    # Connect to the C program via Unix domain socket
+    uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    uds_socket.connect(UDS_PATH)
+
+    # Format the message
+    message = "%s %s %d" % (sender_mac, destination_mac, additional_bytes)
+    
+    # In Python 2, strings are by default byte strings, so encoding is not necessary unless explicitly using unicode
+    uds_socket.send(message)
+
+    uds_socket.close()
+
+def receive_data_from_c_program():
+    try:
+        # Create a Unix domain socket to receive data from the C program
+        uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        uds_socket.connect(UDS_PATH)
+
+        while True:
+            data = uds_socket.recv(2048)
+            if data:
+                print "Received data:", data
+                # Process the received data here
+            time.sleep(1)  # Adjust if needed, based on how often data is expected
+    except Exception as e:
+        print("An error occurred: {}".format(e))
+    except KeyboardInterrupt:
+        print("Exiting program.")
+    finally:
+        try:
+        except NameError:
+            pass
+def receive_data_from_serial():
     """Main function to handle serial communication."""
     try:
         buffer = b'' 
@@ -330,5 +366,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    receive_data_from_c_program()
 
