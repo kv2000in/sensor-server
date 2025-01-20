@@ -80,14 +80,14 @@ int create_raw_socket(char *dev, struct sock_fprog *bpf)
 	assert(ifi != -1);
 	
 	sll.sll_protocol = htons(ETH_P_ALL);
-	sll.sll_family = PF_PACKET;
+	sll.sll_family = AF_PACKET;
 	sll.sll_ifindex = ifr.ifr_ifindex;
 	sll.sll_pkttype = PACKET_OTHERHOST;
 	
 	rb = bind(fd, (struct sockaddr *)&sll, sizeof(sll));
 	assert(rb != -1);
 	
-	attach_filter = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, bpf, sizeof(*bpf));
+	attach_filter = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, bpf, sizeof(*bpf),);
 	assert(attach_filter != -1);
 	
 	return fd;
@@ -97,7 +97,7 @@ int create_raw_socket(char *dev, struct sock_fprog *bpf)
 	uint8_t data[48] = {
 		0x00, 0x00, 0x26, 0x00, 0x2f, 0x40, 0x00, 0xa0, 0x20, 0x08, 0x00, 0xa0, 0x20, 0x08, 0x00, 0x00,
 		0xdf, 0x32, 0xfe, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x10, 0x0c, 0x6c, 0x09, 0xc0, 0x00, 0xd3, 0x00,
-		0x00, 0x00, 0xd3, 0x00, 0xc7, 0x01, 0xd4, 0x00, 0x00, 0x00, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8
+		0x00, 0x00, 0xd3, 0x00, 0xc7, 0x01, 0xd4, 0x00, 0x33, 0x33, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8
 	};
 	
 
@@ -127,8 +127,9 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			printf("len:%d\n", len);
+			
 			sendto(sock_fd, data, sizeof(data), 0, NULL, 0);
+			printf("len:%d\n", len);
 			print_packet(buff, len);
 		}
 	}
