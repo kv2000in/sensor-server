@@ -93,6 +93,30 @@ int create_raw_socket(char *dev, struct sock_fprog *bpf)
 	return fd;
 }
 
+void send_ack_frame(int sock) {
+	uint8_t data[48] = {
+		0x00, 0x00, 0x26, 0x00, 0x2f, 0x40, 0x00, 0xa0, 0x20, 0x08, 0x00, 0xa0, 0x20, 0x08, 0x00, 0x00,
+		0xdf, 0x32, 0xfe, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x10, 0x0c, 0x6c, 0x09, 0xc0, 0x00, 0xd3, 0x00,
+		0x00, 0x00, 0xd3, 0x00, 0xc7, 0x01, 0xd4, 0x00, 0x00, 0x00, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8
+	};
+	
+	struct sockaddr_ll dest_addr;
+	memset(&dest_addr, 0, sizeof(dest_addr));
+	dest_addr.sll_family = AF_PACKET;
+	dest_addr.sll_halen = ETH_ALEN;
+	
+		// Broadcast MAC address
+	memset(dest_addr.sll_addr, 0xFF, ETH_ALEN);
+	
+	ssize_t res = sendto(sock, data, sizeof(data), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+	if (res < 0) {
+		perror("Failed to send ACK frame");
+	} else {
+		printf("ACKsent\n");
+	}
+}
+
+
 int main(int argc, char **argv)
 {
 	assert(argc == 2);
@@ -118,6 +142,7 @@ int main(int argc, char **argv)
 		else
 		{
 			printf("len:%d\n", len);
+			send_ack_frame(sock_fd);
 			print_packet(buff, len);
 		}
 	}
