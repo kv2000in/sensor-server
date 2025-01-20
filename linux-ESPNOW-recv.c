@@ -87,7 +87,7 @@ int create_raw_socket(char *dev, struct sock_fprog *bpf)
 	rb = bind(fd, (struct sockaddr *)&sll, sizeof(sll));
 	assert(rb != -1);
 	
-	attach_filter = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, bpf, sizeof(*bpf),);
+	attach_filter = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, bpf, sizeof(*bpf));
 	assert(attach_filter != -1);
 	
 	return fd;
