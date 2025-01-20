@@ -155,7 +155,7 @@ def process_data_esp32(packets,ser):
                     partial_payload = b''.join(
                         pending_segments[key]["received"].get(i, b'') for i in range(1, total_packets + 1)
                     )
-                    print(f"Timeout for segmented data: Missing packets for key {key}. Proceeding with partial data.")
+                    print("Timeout for segmented data: Missing packets for key {}. Proceeding with partial data.".format(key))
 
                     # Determine data type from partial data
                     data_type = partial_payload[0] if partial_payload else None
@@ -209,10 +209,10 @@ def process_esp32_heartbeat(payload,ser):
     handlestatusbits(padding,ser)
 
     # Print or log the results
-    print(f"Channel 0 RMS: {rms_channel_0:.2f}")
-    print(f"Channel 1 RMS: {rms_channel_1:.2f}")
-    print(f"Channel 0 Data: {adc_channel_0.get_data()}")
-    print(f"Channel 1 Data: {adc_channel_1.get_data()}")
+    print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
+    print("Channel 1 RMS: {:.2f}".format(rms_channel_1))
+    print("Channel 0 Data: {}".format(adc_channel_0.get_data()))
+    print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
 
 def handlestatusbits(padding,ser):
     global led_state  # Use the global state variable
@@ -235,28 +235,34 @@ def process_data_other_node(payload):
     """
     Process data for other sensor nodes (different format).
     """
-    print(f"Processed data from other node: {payload}")
+    print("Processed data from other node: {}".format(payload))
 
 
 def send_ack(ser, mac_addr, packet_id):
     """
     Send acknowledgment for a packet.
     """
+    import struct
     ack_message = mac_addr + b'\x41' + struct.pack('<H', packet_id)
     ser.write(ack_message)
-    print(f"Sent ACK for packet ID {packet_id}: {ack_message}")
+    print("Sent ACK for packet ID {}: {}".format(packet_id, ack_message))
 
 
 def print_packet_hex(data):
-    print("Received Packet (Hex):", " ".join(f"{byte:02X}" for byte in data))
+    """
+    Print received packet data in hexadecimal format.
+    """
+    print("Received Packet (Hex):", " ".join("{:02X}".format(ord(byte) if isinstance(byte, str) else byte) for byte in data))
+
 
 
 def main():
     """Main function to handle serial communication."""
     try:
+        buffer = b'' 
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
-            print(f"Listening on {SERIAL_PORT} at {BAUD_RATE} baud rate.")
-			#ser.write(ESP32_MAC_ADDR+RESET)
+            print("Listening on {} at {} baud rate.".format(SERIAL_PORT, BAUD_RATE))
+            # ser.write(ESP32_MAC_ADDR + RESET)
             while True:
                 # Read incoming data
                 if ser.in_waiting > 0:
@@ -276,7 +282,7 @@ def main():
                         mac_addr = packet[:MAC_ADDRESS_LENGTH]
 
                         if mac_addr == ESP32_MAC_ADDR:
-                            print(f"ESP32 packet detected. MAC: {mac_addr.hex().upper()}")
+                            print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
 
                             # Extract Packet ID
                             try:
@@ -284,40 +290,43 @@ def main():
 
                                 # Check for duplicate Packet ID
                                 if is_duplicate_packet(packet_id):
-                                    print(f"Duplicate packet detected. Packet ID: {packet_id}")
+                                    print("Duplicate packet detected. Packet ID: {}".format(packet_id))
                                     continue
 
                                 # Validate the data
                                 is_valid, result = validate_data(packet)
 
                                 if not is_valid:
-                                    print(f"Invalid ESP32 data: {result}")
+                                    print("Invalid ESP32 data: {}".format(result))
                                     continue
 
                                 # Process valid ESP32 packet
-                                #send_ack(ser, mac_addr, result["packet_id"])
-                                process_data_esp32([result],ser)
+                                # send_ack(ser, mac_addr, result["packet_id"])
+                                process_data_esp32([result], ser)
 
                             except struct.error as e:
-                                print(f"Error processing ESP32 data: {e}")
+                                print("Error processing ESP32 data: {}".format(e))
 
                         else:
                             # Hand over non-ESP32 data
-                            print(f"Non-ESP32 MAC detected: {mac_addr.hex().upper()}")
+                            print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
                             process_data_other_node(packet)
 
                 # Small delay to prevent busy-waiting
                 time.sleep(0.1)
 
     except serial.SerialException as e:
-        print("Serial error:", str(e))
+        print("Serial error: {}".format(str(e)))
 
     except KeyboardInterrupt:
         print("Exiting program.")
 
     finally:
-        if ser:
+        try:
             ser.close()
+        except NameError:
+            pass
+
 
 
 if __name__ == "__main__":
