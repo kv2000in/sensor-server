@@ -265,7 +265,7 @@ def send_data_to_c_program(sender_mac, destination_mac, additional_bytes):
     uds_socket.connect(UDS_PATH)
 
     # Format the message
-    message = "%s %s %d" % (sender_mac, destination_mac, additional_bytes)
+    message = "%s %s %s" % (sender_mac, destination_mac, additional_bytes)
     
     # In Python 2, strings are by default byte strings, so encoding is not necessary unless explicitly using unicode
     uds_socket.send(message)
