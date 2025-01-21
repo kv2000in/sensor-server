@@ -283,7 +283,7 @@ def receive_data_from_c_program():
         while True:
             data = uds_socket.recv(2048)
             if data:
-                handlepacket(data[48:]) # Raw socket packets have 48 bytes of header compared with packets from Serial
+                handlepacket(data[64:]) # Raw socket packets have 64 bytes of header compared with packets from Serial
                 print_packet_hex(data)
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
