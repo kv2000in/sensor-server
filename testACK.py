@@ -260,7 +260,7 @@ def print_packet_hex(data):
 
 
 
-def send_data_to_c_program(uds_socket,sender_mac, destination_mac, additional_bytes):
+def send_data_to_c_program(uds_socket,sender_mac, destination_mac, additional_byte):
     """
     Sends raw binary data to a C program via a UNIX socket.
 
