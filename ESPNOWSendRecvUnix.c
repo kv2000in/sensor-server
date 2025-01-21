@@ -212,7 +212,6 @@ int main(int argc, char **argv)
 				}
 			} else if (bytes_read == 0) {
 				printf("UNIX socket closed by client\n");
-				break;
 			} else {
 				perror("read");
 			}

@@ -373,13 +373,13 @@ def receive_data_from_serial():
 
 
 if __name__ == "__main__":
-    try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-        ESP01 = True
-        receive_data_from_serial()
-    except serial.SerialException as e:
-        print("Serial error: {}".format(str(e)))
-        ESP01 = False
+    if ESP01:
+        try:
+            ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+            receive_data_from_serial()
+        except serial.SerialException as e:
+            print("Serial error: {}".format(str(e)))
+    else:
         try:
             uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             uds_socket.connect(UDS_PATH)
