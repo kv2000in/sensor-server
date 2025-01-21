@@ -86,6 +86,7 @@ def validate_data(data):
     """
     # Print raw packet in hex
 	#print_packet_hex(data)
+    print("validate_data has been called")
     if len(data) < HEADER_LENGTH + FOOTER_LENGTH:
         return False, "Invalid data length."
 
