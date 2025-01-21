@@ -194,9 +194,10 @@ int main(int argc, char **argv)
 			int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
 			if (bytes_read > 0) {
 				printf("Received data on UNIX socket: %d bytes\n", bytes_read);
+				if (bytes_read==13){
 					// Forward to raw socket
-				memcpy(sender_mac, buffer, 6);
-				memcpy(destination_mac, buffer + 6, 6);
+				memcpy(senderMAC, buffer, 6);
+				memcpy(destinationMAC, buffer + 6, 6);
 				additional_byte = buffer[12];
 					// Replace data array values dynamically
 				for (int i = 0; i < 6; i++) {
@@ -206,6 +207,9 @@ int main(int argc, char **argv)
 				}
 				printf("Sending to ESP32\n");
 				sendto(sock_fd, data, sizeof(data), 0,NULL, 0);
+				} else {
+					printf("Who knows what I have received");
+				}
 			} else if (bytes_read == 0) {
 				printf("UNIX socket closed by client\n");
 				break;
