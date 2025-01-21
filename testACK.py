@@ -92,7 +92,7 @@ def validate_data(data):
     # Extract header components
     mac_addr = data[:MAC_ADDRESS_LENGTH]
     packet_id = struct.unpack('<H', data[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
-	total_packets, sequence, payload_length = struct.unpack('BBB', data[MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH:HEADER_LENGTH])
+    total_packets, sequence, payload_length = struct.unpack('BBB', data[MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH:HEADER_LENGTH])
     # Define the position where the checksum starts (header + payload length byte)
     checksum_position = HEADER_LENGTH + payload_length
 
