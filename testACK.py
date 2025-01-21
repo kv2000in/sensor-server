@@ -283,7 +283,7 @@ def receive_data_from_c_program():
         while True:
             data = uds_socket.recv(2048)
             if data:
-                handlestatusbits(data)
+				handlepacket(data[48:]) # Raw socket packets have 48 bytes of header compared with packets from Serial
                 print_packet_hex(data)
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
@@ -295,6 +295,48 @@ def receive_data_from_c_program():
             uds_socket.close()
         except NameError:
             pass
+def handlepacket(packet):
+    """
+    Handles the processing of a received packet.
+    Processes ESP32 packets and hands over non-ESP32 packets for further handling.
+    """
+    # Ensure the packet has at least 6 bytes for MAC address check
+    if len(packet) < MAC_ADDRESS_LENGTH:
+        print("Incomplete packet received. Skipping.")
+        return  # Exit function for incomplete packet
+
+    # Extract the MAC address
+    mac_addr = packet[:MAC_ADDRESS_LENGTH]
+
+    if mac_addr == ESP32_MAC_ADDR:
+        print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
+
+        # Extract Packet ID
+        try:
+            packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
+
+            # Check for duplicate Packet ID
+            if is_duplicate_packet(packet_id):
+                print("Duplicate packet detected. Packet ID: {}".format(packet_id))
+                return  # Exit function for duplicate packet
+
+            # Validate the data
+            is_valid, result = validate_data(packet)
+
+            if not is_valid:
+                print("Invalid ESP32 data: {}".format(result))
+                return  # Exit function for invalid data
+
+            # Process valid ESP32 packet
+            process_data_esp32([result])
+
+        except struct.error as e:
+            print("Error processing ESP32 data: {}".format(e))
+
+    else:
+        # Hand over non-ESP32 data
+        print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
+        process_data_other_node(packet)
 def receive_data_from_serial():
     """Main function to handle serial communication."""
     global ser
@@ -312,46 +354,7 @@ def receive_data_from_serial():
                     while PACKET_DELIMITER in buffer:
                         # Split the buffer into one packet and the rest
                         packet, buffer = buffer.split(PACKET_DELIMITER, 1)
-
-                        # Ensure the packet has at least 6 bytes for MAC address check
-                        if len(packet) < 6:
-                            print("Incomplete packet received. Skipping.")
-                            continue
-
-                        # Extract the MAC address
-                        mac_addr = packet[:MAC_ADDRESS_LENGTH]
-
-                        if mac_addr == ESP32_MAC_ADDR:
-                            print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
-
-                            # Extract Packet ID
-                            try:
-                                packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
-
-                                # Check for duplicate Packet ID
-                                if is_duplicate_packet(packet_id):
-                                    print("Duplicate packet detected. Packet ID: {}".format(packet_id))
-                                    continue
-
-                                # Validate the data
-                                is_valid, result = validate_data(packet)
-
-                                if not is_valid:
-                                    print("Invalid ESP32 data: {}".format(result))
-                                    continue
-
-                                # Process valid ESP32 packet
-                                # send_ack(ser, mac_addr, result["packet_id"])
-                                process_data_esp32([result], ser)
-
-                            except struct.error as e:
-                                print("Error processing ESP32 data: {}".format(e))
-
-                        else:
-                            # Hand over non-ESP32 data
-                            print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
-                            process_data_other_node(packet)
-
+                        handlepacket(packet)
                 # Small delay to prevent busy-waiting
                 time.sleep(0.1)
 
