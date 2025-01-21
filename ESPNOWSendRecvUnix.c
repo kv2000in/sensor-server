@@ -203,7 +203,8 @@ int main(int argc, char **argv)
 					data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
 					data[48 + i] = senderMAC[i];      // Replace senderMAC in data[48] to data[53]
 				}
-				send(sock_fd, data, sizeof(data), 0);
+				printf("Sending to ESP32\n");
+				sendto(sock_fd, data, sizeof(data), 0,NULL, 0);
 			} else if (bytes_read == 0) {
 				printf("UNIX socket closed by client\n");
 				break;
