@@ -190,7 +190,7 @@ int main(int argc, char **argv)
 				if (bytes_read==7){
 					// Forward to raw socket
 				memcpy(destinationMAC, buffer, 6);
-				additional_byte = buffer[7];
+				additional_byte = buffer[6];
 					// Replace data array values dynamically
 					uint8_t data[78] = {
 						0x00, 0x00, 0x26, 0x00, 0x2f, 0x40, 0x00, 0xa0, 0x20, 0x08, 0x00, 0xa0, 0x20, 0x08, 0x00, 0x00,
