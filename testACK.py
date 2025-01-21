@@ -18,7 +18,6 @@ UDS_PATH = "/tmp/raw_socket_uds"
 
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
-SPOOFED_SENDER_MAC_ADDR = '\xaa\xbb\xcc\xdd\xee\xff'
 
 RESET = '\x40'
 ACK = '\x41'
@@ -33,6 +32,15 @@ pending_segments = {}
 
 # Initialize a global variable to track LED state
 led_state = False  # False means OFF, True means ON
+
+#global Switch for using ESP01 via serial vs Direct Pi Zero Wifi Packet injection to connect with ESP nodes
+ESP01 = False # True means using Serial, False means using raw socket packet injection
+
+# Create a Unix domain socket to receive data from the C program
+uds_socket = None
+
+#Create a global Serial device
+ser = None
 
 # Circular buffer implementation
 class CircularBuffer:
@@ -106,7 +114,7 @@ def validate_data(data):
     }
 
 
-def process_data_esp32(packets,ser):
+def process_data_esp32(packets):
     """
     Process ESP32 data packets, handling segmented and non-segmented data.
     """
@@ -125,7 +133,7 @@ def process_data_esp32(packets,ser):
         if total_packets == 1:
             # Non-segmented data
             data_type = payload[0]  # First byte is the data type
-            call_handler(data_type, payload,ser)
+            call_handler(data_type, payload)
         else:
             # Segmented data
             if key not in pending_segments:
@@ -147,7 +155,7 @@ def process_data_esp32(packets,ser):
 
                 # Determine data type from the first byte of the first packet
                 data_type = reassembled_payload[0]
-                call_handler(data_type, reassembled_payload,ser)
+                call_handler(data_type, reassembled_payload)
 
                 # Remove entry from pending_segments
                 del pending_segments[key]
@@ -164,12 +172,12 @@ def process_data_esp32(packets,ser):
                     # Determine data type from partial data
                     data_type = partial_payload[0] if partial_payload else None
                     if data_type:
-                        call_handler(data_type, partial_payload,ser)
+                        call_handler(data_type, partial_payload)
 
                     # Remove entry from pending_segments
                     del pending_segments[key]
 
-def call_handler(data_type, payload,ser):
+def call_handler(data_type, payload):
     """
     Calls the appropriate handler based on the data type.
     """
@@ -182,7 +190,7 @@ def call_handler(data_type, payload,ser):
         process_esp32_adc_data(payload)
     else:
         process_esp32_unknown_data_type(payload)
-def process_esp32_heartbeat(payload,ser):
+def process_esp32_heartbeat(payload):
     global rms_channel_0, rms_channel_1
 
     print("Heartbeat from ESP32")
@@ -210,7 +218,7 @@ def process_esp32_heartbeat(payload,ser):
     rms_channel_1 = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
 
     # Pass padding to the status bits handler
-    handlestatusbits(padding,ser)
+    handlestatusbits(padding)
 
     # Print or log the results
     print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
@@ -218,16 +226,16 @@ def process_esp32_heartbeat(payload,ser):
     print("Channel 0 Data: {}".format(adc_channel_0.get_data()))
     print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
 
-def handlestatusbits(padding,ser):
+def handlestatusbits(padding):
     global led_state  # Use the global state variable
     # Process padding bytes
     #print(f"Handling status bits: {padding}")
 
     # Toggle LED state
     if led_state:
-        ser.write(ESP32_MAC_ADDR+LED_OFF)
+        send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
     else:
-        ser.write(ESP32_MAC_ADDR+LED_ON)
+        send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
     # Update the LED state
     led_state = not led_state
 
@@ -248,7 +256,7 @@ def send_ack(ser, mac_addr, packet_id):
     """
     import struct
     ack_message = mac_addr + b'\x41' + struct.pack('<H', packet_id)
-    ser.write(ack_message)
+    send_msg_to_ESP32(ack_message)
     print("Sent ACK for packet ID {}: {}".format(packet_id, ack_message))
 
 
@@ -258,44 +266,25 @@ def print_packet_hex(data):
     """
     print("Received Packet (Hex):", " ".join("{:02X}".format(ord(byte) if isinstance(byte, str) else byte) for byte in data))
 
-
-
-def send_data_to_c_program(uds_socket,sender_mac, destination_mac, additional_byte):
-    """
-    Sends raw binary data to a C program via a UNIX socket.
-
-    :param uds_socket: UNIX socket object
-    :param sender_mac: Sender MAC address in binary format (e.g., '\xaa\xbb\xcc\xdd\xee\xff')
-    :param destination_mac: Destination MAC address in binary format (e.g., '\x58\xBF\x25\x82\x8E\xD8')
-    :param additional_byte: A single additional byte in binary format (e.g., '\x43')
-    """
-    # Ensure the inputs are already in binary format
-    assert len(sender_mac) == 6, "Sender MAC must be 6 bytes."
-    assert len(destination_mac) == 6, "Destination MAC must be 6 bytes."
-    assert len(additional_byte) == 1, "Additional byte must be 1 byte."
-
-    # Concatenate the binary data into a 13-byte message
-    message = sender_mac + destination_mac + additional_byte
-
-    # Send the binary data over the UNIX socket
-    uds_socket.send(message)
-
+def send_msg_to_ESP32(msg):
+    if ESP01:
+        try:
+            ser.write(msg)
+        except serial.SerialException as e:
+            print("Serial error: {}".format(str(e)))
+    else:
+        try:
+            uds_socket.send(msg)
+        except socket.error as e:
+            print("UNIX socket connection error: {}".format(str(e)))
 def receive_data_from_c_program():
+    global uds_socket
     try:
-        # Create a Unix domain socket to receive data from the C program
-        uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        uds_socket.connect(UDS_PATH)
-
         while True:
             data = uds_socket.recv(2048)
             if data:
-                print "Received data:", data
-                global led_state
-                if led_state:
-                    send_data_to_c_program(uds_socket,SPOOFED_SENDER_MAC_ADDR,ESP32_MAC_ADDR,LED_OFF)
-                else:
-                    send_data_to_c_program(uds_socket,SPOOFED_SENDER_MAC_ADDR,ESP32_MAC_ADDR,LED_ON)
-                led_state=not led_state 
+                handlestatusbits(data)
+                print_packet_hex(data)
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
         print("An error occurred: {}".format(e))
@@ -308,6 +297,7 @@ def receive_data_from_c_program():
             pass
 def receive_data_from_serial():
     """Main function to handle serial communication."""
+    global ser
     try:
         buffer = b'' 
         with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
@@ -380,5 +370,16 @@ def receive_data_from_serial():
 
 
 if __name__ == "__main__":
-    receive_data_from_c_program()
-
+    try:
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        ESP01 = True
+        receive_data_from_serial()
+    except serial.SerialException as e:
+        print("Serial error: {}".format(str(e)))
+        ESP01 = False
+		try:
+            uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            uds_socket.connect(UDS_PATH)
+            receive_data_from_c_program()
+        except socket.error as e:
+            print("UNIX socket connection error: {}".format(str(e)))
