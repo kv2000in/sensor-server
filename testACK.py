@@ -259,17 +259,13 @@ def print_packet_hex(data):
 
 
 
-def send_data_to_c_program(sender_mac, destination_mac, additional_bytes):
-    # Connect to the C program via Unix domain socket
-    uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    uds_socket.connect(UDS_PATH)
-
+def send_data_to_c_program(uds_socket,sender_mac, destination_mac, additional_bytes):
     # Format the message
     message = "%s %s %s" % (sender_mac, destination_mac, additional_bytes)
     
     # In Python 2, strings are by default byte strings, so encoding is not necessary unless explicitly using unicode
     uds_socket.send(message)
-
+	print message
     uds_socket.close()
 
 def receive_data_from_c_program():
@@ -282,9 +278,9 @@ def receive_data_from_c_program():
             data = uds_socket.recv(2048)
             if data:
                 print "Received data:", data
-                send_data_to_c_program("\\xaa\\xbb\\xcc\\xdd\\xee\\xff", "\\x58\\xBF\\x25\\x82\\x8E\\xD8", "\\x43")
+                send_data_to_c_program(uds_socket,"\\xaa\\xbb\\xcc\\xdd\\xee\\xff", "\\x58\\xBF\\x25\\x82\\x8E\\xD8", "\\x43")
                 # Process the received data here
-            time.sleep(1)  # Adjust if needed, based on how often data is expected
+            time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
         print("An error occurred: {}".format(e))
     except KeyboardInterrupt:
