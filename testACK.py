@@ -280,6 +280,7 @@ def send_msg_to_ESP32(msg):
             print("UNIX socket connection error: {}".format(str(e)))
 def receive_data_from_c_program():
     global uds_socket
+    data = b''
     try:
         while True:
             data = uds_socket.recv(2048)
