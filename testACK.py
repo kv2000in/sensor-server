@@ -290,6 +290,7 @@ def receive_data_from_c_program():
         print("Exiting program.")
     finally:
         try:
+            uds_socket.close()
         except NameError:
             pass
 def receive_data_from_serial():

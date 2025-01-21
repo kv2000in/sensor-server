@@ -8,85 +8,142 @@
 #include <linux/if_arp.h>
 #include <arpa/inet.h>
 #include <assert.h>
+#include <linux/filter.h>
+#include <sys/un.h>
 
 #define UDS_PATH "/tmp/raw_socket_uds"
+#define BUFFER_SIZE 2048
+#define PACKET_LENGTH 400 //Approximate
+#define MYDATA 18         //0x12
+#define MAX_PACKET_LEN 1000
 
-void setup_raw_socket(char *interface) {
+static uint8_t gu8a_dest_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+/*our MAC address*/
+	//{0xF8, 0x1A, 0x67, 0xB7, 0xeB, 0x0B};
+
+/*ESP8266 host MAC address*/
+	//{0x84,0xF3,0xEB,0x73,0x55,0x0D};
+
+
+	//filter action frame packets
+	//Equivalent for tcp dump :
+	//type 0 subtype 0xd0 and wlan[24:4]=0x7f18fe34 and wlan[32]=221 and wlan[33:4]&0xffffff = 0x18fe34 and wlan[37]=0x4
+	//NB : There is no filter on source or destination addresses, so this code will 'receive' the action frames sent by this computer...
+#define FILTER_LENGTH 20
+static struct sock_filter bpfcode[FILTER_LENGTH] = {
+	{ 0x30, 0, 0, 0x00000003 },	// ldb [3]	// radiotap header length : MS byte
+	{ 0x64, 0, 0, 0x00000008 },	// lsh #8	// left shift it
+	{ 0x7, 0, 0, 0x00000000 },	// tax		// 'store' it in X register
+	{ 0x30, 0, 0, 0x00000002 },	// ldb [2]	// radiotap header length : LS byte
+	{ 0x4c, 0, 0, 0x00000000 },	// or  x	// combine A & X to get radiotap header length in A
+	{ 0x7, 0, 0, 0x00000000 },	// tax		// 'store' it in X
+	{ 0x50, 0, 0, 0x00000000 },	// ldb [x + 0]		// right after radiotap header is the type and subtype
+	{ 0x54, 0, 0, 0x000000fc },	// and #0xfc		// mask the interesting bits, a.k.a 0b1111 1100
+	{ 0x15, 0, 10, 0x000000d0 },	// jeq #0xd0 jt 9 jf 19	// compare the types (0) and subtypes (0xd)
+	{ 0x40, 0, 0, 0x00000018 },	// Ld  [x + 24]			// 24 bytes after radiotap header is the end of MAC header, so it is category and OUI (for action frame layer)
+	{ 0x15, 0, 8, 0x7f18fe34 },	// jeq #0x7f18fe34 jt 11 jf 19	// Compare with category = 127 (Vendor specific) and OUI 18:fe:34
+	{ 0x50, 0, 0, 0x00000020 },	// ldb [x + 32]				// Begining of Vendor specific content + 4 ?random? bytes : element id
+	{ 0x15, 0, 6, 0x000000dd },	// jeq #0xdd jt 13 jf 19		// element id should be 221 (according to the doc)
+	{ 0x40, 0, 0, 0x00000021 },	// Ld  [x + 33]				// OUI (again!) on 3 LS bytes
+	{ 0x54, 0, 0, 0x00ffffff },	// and #0xffffff			// Mask the 3 LS bytes
+	{ 0x15, 0, 3, 0x0018fe34 },	// jeq #0x18fe34 jt 16 jf 19		// Compare with OUI 18:fe:34
+	{ 0x50, 0, 0, 0x00000025 },	// ldb [x + 37]				// Type
+	{ 0x15, 0, 1, 0x00000004 },	// jeq #0x4 jt 18 jf 19			// Compare type with type 0x4 (corresponding to ESP_NOW)
+	{ 0x6, 0, 0, 0x00040000 },	// ret #262144	// return 'True'
+	{ 0x6, 0, 0, 0x00000000 },	// ret #0	// return 'False'
+};
+
+void print_packet(uint8_t *data, int len)
+{
+	printf("----------------------------new packet-----------------------------------\n");
+	int i;
+	for (i = 0; i < len; i++)
+	{
+		if (i % 16 == 0)
+		printf("\n");
+		printf("0x%02x, ", data[i]);
+	}
+	printf("\n\n");
+}
+
+int create_raw_socket(char *dev, struct sock_fprog *bpf)
+{
+	struct sockaddr_ll sll;
 	struct ifreq ifr;
-	int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+	int fd, ifi, rb, attach_filter;
 	
-	if (sock < 0) {
-		perror("Socket creation failed");
-		exit(1);
-	}
+	bzero(&sll, sizeof(sll));
+	bzero(&ifr, sizeof(ifr));
 	
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_name, interface, IFNAMSIZ - 1);
+	(void)memset(&sll, 0, sizeof(sll));
 	
-	if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
-		perror("ioctl failed");
-		close(sock);
-		exit(1);
-	}
+	fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+	assert(fd != -1);
 	
-	struct sockaddr_ll sa;
-	memset(&sa, 0, sizeof(struct sockaddr_ll));
-	sa.sll_ifindex = ifr.ifr_ifindex;
+	strncpy((char *)ifr.ifr_name, dev, IFNAMSIZ);
+	ifi = ioctl(fd, SIOCGIFINDEX, &ifr);
+	assert(ifi != -1);
 	
-		// Receive data
-	uint8_t buffer[2048];
-	while (1) {
-		int len = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr *)&sa, sizeof(sa));
-		if (len < 0) {
-			perror("Receive failed");
-		} else {
-				// Send received data to Python via Unix Domain Socket
-			int uds_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-			if (uds_sock < 0) {
-				perror("Unix socket creation failed");
-				continue;
-			}
-			
-			struct sockaddr_un addr;
-			memset(&addr, 0, sizeof(addr));
-			addr.sun_family = AF_UNIX;
-			strncpy(addr.sun_path, UDS_PATH, sizeof(addr.sun_path) - 1);
-			
-			if (connect(uds_sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-				perror("Unix socket connection failed");
-				close(uds_sock);
-				continue;
-			}
-			
-			if (send(uds_sock, buffer, len, 0) == -1) {
-				perror("Send to Unix socket failed");
-			}
-			close(uds_sock);
-		}
-	}
+	sll.sll_protocol = htons(ETH_P_ALL);
+	sll.sll_family = PF_PACKET;
+	sll.sll_ifindex = ifr.ifr_ifindex;
+	sll.sll_pkttype = PACKET_HOST;
+	sll.sll_hatype = ARPHRD_ETHER;
+	sll.sll_halen = ETH_ALEN;
+	sll.sll_addr[0] = gu8a_dest_mac[0];
+	sll.sll_addr[1] = gu8a_dest_mac[1];
+	sll.sll_addr[2] = gu8a_dest_mac[2];
+	sll.sll_addr[3] = gu8a_dest_mac[3];
+	sll.sll_addr[4] = gu8a_dest_mac[4];
+	sll.sll_addr[5] = gu8a_dest_mac[5];
+	sll.sll_addr[6] = 0x00; // not used
+	sll.sll_addr[7] = 0x00; // not used
 	
-	close(sock);
+	rb = bind(fd, (struct sockaddr *)&sll, sizeof(sll));
+	assert(rb != -1);
+	
+	attach_filter = setsockopt(fd, SOL_SOCKET, SO_ATTACH_FILTER, bpf, sizeof(*bpf));
+	assert(attach_filter != -1);
+	
+	return fd;		
 }
 
-void send_raw_packet(char *sender_mac, char *destination_mac, int additional_bytes) {
-		// Construct the raw packet and send data
-	printf("Sending data: Sender MAC: %s, Destination MAC: %s, Additional Bytes: %d\n", sender_mac, destination_mac, additional_bytes);
-		// Implement the raw socket sending logic based on the provided data
-}
+uint8_t senderMAC[6];
+uint8_t destinationMAC[6];
+uint8_t additional_byte;
 
-int main(int argc, char *argv[]) {
-	if (argc < 2) {
+
+
+
+int main(int argc, char **argv)
+{
+	char buffer[BUFFER_SIZE];
+	fd_set readfds;
+	int max_fd;
+	
+	assert(argc == 2);
+	if (argc < 2)
+	{
 		fprintf(stderr, "Usage: %s <interface>\n", argv[0]);
-		exit(1);
+		return EXIT_FAILURE;
 	}
 	
-		// Setup Unix domain socket server
+	uint8_t data[82] = {
+		0x00, 0x00, 0x26, 0x00, 0x2f, 0x40, 0x00, 0xa0, 0x20, 0x08, 0x00, 0xa0, 0x20, 0x08, 0x00, 0x00,
+		0xdf, 0x32, 0xfe, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x10, 0x0c, 0x6c, 0x09, 0xc0, 0x00, 0xd3, 0x00,
+		0x00, 0x00, 0xd3, 0x00, 0xc7, 0x01, 0xd0, 0x00, 0x3a, 0x01, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8,
+		0x84, 0xcc, 0xa8, 0xa9, 0xe1, 0xe8, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8, 0x70, 0x51, 0x7f, 0x18,
+		0xfe, 0x34, 0xa2, 0x03, 0x92, 0xb0, 0xdd, 0x06, 0x18, 0xfe, 0x34, 0x04, 0x01,
+		additional_byte, 0x1c, 0xd5, 0x35, 0xd3 
+	};
+	
+
+	
 	int uds_sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (uds_sock < 0) {
 		perror("Unix socket creation failed");
 		exit(1);
 	}
-	
 	struct sockaddr_un addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
@@ -106,39 +163,67 @@ int main(int argc, char *argv[]) {
 	printf("Waiting for Python client...\n");
 	
 		// Accept incoming connection from Python client
-	int client_sock = accept(uds_sock, NULL, NULL);
-	if (client_sock == -1) {
-		perror("Accept failed");
-		exit(1);
-	}
+	// Accept a connection on the UNIX socket
+	int uds_conn = accept(uds_sock, NULL, NULL);
+	assert(uds_conn != -1);
 	
-	char buffer[2048];
+	
+	int sock_fd;
+	char *dev = argv[1];
+	struct sock_fprog bpf = {FILTER_LENGTH, bpfcode};
+	
+	sock_fd = create_raw_socket(dev, &bpf); /* Creating the raw socket */
+	
+	printf("\n Waiting to receive ESPNOW packets........ \n");
+	
 	while (1) {
-		int bytes_received = recv(client_sock, buffer, sizeof(buffer), 0);
-		if (bytes_received < 0) {
-			perror("Unix socket receive failed");
-			continue;
+		FD_ZERO(&readfds);
+		FD_SET(uds_conn, &readfds);
+		FD_SET(sock_fd, &readfds);
+		
+		max_fd = (uds_conn > sock_fd) ? uds_conn : sock_fd;
+		
+		int activity = select(max_fd + 1, &readfds, NULL, NULL, NULL);
+		if (activity < 0) {
+			perror("select");
+			break;
 		}
 		
-		if (bytes_received == 0) {
-			break; // Client disconnected
+			// Handle data from UNIX socket
+		if (FD_ISSET(uds_conn, &readfds)) {
+			int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
+			if (bytes_read > 0) {
+				printf("Received data on UNIX socket: %d bytes\n", bytes_read);
+					// Forward to raw socket
+				send(sock_fd, buffer, bytes_read, 0);
+			} else if (bytes_read == 0) {
+				printf("UNIX socket closed by client\n");
+				break;
+			} else {
+				perror("read");
+			}
 		}
 		
-			// Process the received data (sender_mac, destination_mac, additional_bytes)
-		char sender_mac[18], destination_mac[18];
-		int additional_bytes;
-		sscanf(buffer, "%17s %17s %d", sender_mac, destination_mac, &additional_bytes);
-		
-			// Send raw packet based on received data
-		send_raw_packet(sender_mac, destination_mac, additional_bytes);
+			// Handle data from raw Ethernet socket
+		if (FD_ISSET(sock_fd, &readfds)) {
+			int bytes_read = recv(sock_fd, buffer, BUFFER_SIZE, 0);
+			if (bytes_read > 0) {
+				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
+					// Forward to UNIX socket
+				send(uds_conn, buffer, bytes_read, 0);
+			} else {
+				perror("recv");
+			}
+		}
 	}
 	
-	close(client_sock);
+		// Cleanup
+	close(uds_conn);
 	close(uds_sock);
-	
-		// Set up raw socket to receive packets
-	setup_raw_socket(argv[1]);
-	
+	close(sock_fd);
+	unlink(UDS_PATH);
 	return 0;
 }
+
+
 
