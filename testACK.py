@@ -377,7 +377,7 @@ if __name__ == "__main__":
     except serial.SerialException as e:
         print("Serial error: {}".format(str(e)))
         ESP01 = False
-		try:
+        try:
             uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             uds_socket.connect(UDS_PATH)
             receive_data_from_c_program()
