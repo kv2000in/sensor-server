@@ -290,12 +290,12 @@ def receive_data_from_c_program():
             data = uds_socket.recv(2048)
             if data:
                 print "Received data:", data
-                if (led_state):
+                global led_state
+                if led_state:
                     send_data_to_c_program(uds_socket,SPOOFED_SENDER_MAC_ADDR,ESP32_MAC_ADDR,LED_OFF)
-                    led_state=False
                 else:
                     send_data_to_c_program(uds_socket,SPOOFED_SENDER_MAC_ADDR,ESP32_MAC_ADDR,LED_ON)
-                    led_state=True
+                led_state=not led_state 
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
         print("An error occurred: {}".format(e))
