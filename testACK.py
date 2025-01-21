@@ -118,6 +118,7 @@ def process_data_esp32(packets):
     """
     Process ESP32 data packets, handling segmented and non-segmented data.
     """
+    print ("process_data_esp32 has been called")
     for packet in packets:
         packet_id = packet["packet_id"]
         total_packets = packet["total_packets"]
@@ -181,8 +182,8 @@ def call_handler(data_type, payload):
     """
     Calls the appropriate handler based on the data type.
     """
-    #print("data_type=")
-    #print(data_type)
+    print("data_type=")
+    print(data_type)
     #print_packet_hex(payload)
     if data_type == 0xFF:
         process_esp32_heartbeat(payload,ser)
@@ -283,7 +284,7 @@ def receive_data_from_c_program():
         while True:
             data = uds_socket.recv(2048)
             if data:
-                handlepacket(data[63:]) # Raw socket packets have 64 bytes of header compared with packets from Serial
+                handlepacket(data[63:]) # Raw socket packets have 63 bytes of header compared with packets from Serial
                 print_packet_hex(data)
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
