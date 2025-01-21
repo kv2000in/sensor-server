@@ -18,6 +18,7 @@ UDS_PATH = "/tmp/raw_socket_uds"
 
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
+SPOOFED_SENDER_MAC_ADDR = '\xaa\xbb\xcc\xdd\xee\xff'
 
 RESET = '\x40'
 ACK = '\x41'
@@ -260,13 +261,24 @@ def print_packet_hex(data):
 
 
 def send_data_to_c_program(uds_socket,sender_mac, destination_mac, additional_bytes):
-    # Format the message
-    message = "%s %s %s" % (sender_mac, destination_mac, additional_bytes)
-    
-    # In Python 2, strings are by default byte strings, so encoding is not necessary unless explicitly using unicode
+    """
+    Sends raw binary data to a C program via a UNIX socket.
+
+    :param uds_socket: UNIX socket object
+    :param sender_mac: Sender MAC address in binary format (e.g., '\xaa\xbb\xcc\xdd\xee\xff')
+    :param destination_mac: Destination MAC address in binary format (e.g., '\x58\xBF\x25\x82\x8E\xD8')
+    :param additional_byte: A single additional byte in binary format (e.g., '\x43')
+    """
+    # Ensure the inputs are already in binary format
+    assert len(sender_mac) == 6, "Sender MAC must be 6 bytes."
+    assert len(destination_mac) == 6, "Destination MAC must be 6 bytes."
+    assert len(additional_byte) == 1, "Additional byte must be 1 byte."
+
+    # Concatenate the binary data into a 13-byte message
+    message = sender_mac + destination_mac + additional_byte
+
+    # Send the binary data over the UNIX socket
     uds_socket.send(message)
-    print message
-    uds_socket.close()
 
 def receive_data_from_c_program():
     try:
@@ -278,7 +290,7 @@ def receive_data_from_c_program():
             data = uds_socket.recv(2048)
             if data:
                 print "Received data:", data
-                send_data_to_c_program(uds_socket,"\\xaa\\xbb\\xcc\\xdd\\xee\\xff", "\\x58\\xBF\\x25\\x82\\x8E\\xD8", "\\x43")
+                send_data_to_c_program(uds_socket,SPOOFED_SENDER_MAC_ADDR,ESP32_MAC_ADDR,LED_OFF)
                 # Process the received data here
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
