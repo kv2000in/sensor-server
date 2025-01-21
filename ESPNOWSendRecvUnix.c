@@ -196,7 +196,7 @@ int main(int argc, char **argv)
 				printf("Received data on UNIX socket: %d bytes\n", bytes_read);
 					// Forward to raw socket
 				sscanf(buffer, "\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx", 
-					   &senderMAC[0], &senderMAC[1], &senderMAC[2], &senderMAC[3], &senderMAC[4], &senderMAC[5], &destinationMAC[0], &destinationMAC[1], &destinationMAC[2], &destinationMAC[3], &destinationMAC[4], &destinationMAC[5], &additional_byte[0]);
+					   &senderMAC[0], &senderMAC[1], &senderMAC[2], &senderMAC[3], &senderMAC[4], &senderMAC[5], &destinationMAC[0], &destinationMAC[1], &destinationMAC[2], &destinationMAC[3], &destinationMAC[4], &destinationMAC[5], &additional_byte);
 					// Replace data array values dynamically
 				for (int i = 0; i < 6; i++) {
 					data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
