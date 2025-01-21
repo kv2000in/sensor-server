@@ -265,7 +265,7 @@ def send_data_to_c_program(uds_socket,sender_mac, destination_mac, additional_by
     
     # In Python 2, strings are by default byte strings, so encoding is not necessary unless explicitly using unicode
     uds_socket.send(message)
-	print message
+    print message
     uds_socket.close()
 
 def receive_data_from_c_program():
