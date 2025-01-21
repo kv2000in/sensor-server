@@ -282,6 +282,7 @@ def receive_data_from_c_program():
             data = uds_socket.recv(2048)
             if data:
                 print "Received data:", data
+                send_data_to_c_program("\\xaa\\xbb\\xcc\\xdd\\xee\\xff", "\\x58\\xBF\\x25\\x82\\x8E\\xD8", "\\x43")
                 # Process the received data here
             time.sleep(1)  # Adjust if needed, based on how often data is expected
     except Exception as e:

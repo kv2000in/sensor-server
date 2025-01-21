@@ -195,7 +195,15 @@ int main(int argc, char **argv)
 			if (bytes_read > 0) {
 				printf("Received data on UNIX socket: %d bytes\n", bytes_read);
 					// Forward to raw socket
-				send(sock_fd, buffer, bytes_read, 0);
+				sscanf(buffer, "\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx\\x%02hhx", 
+					   &senderMAC[0], &senderMAC[1], &senderMAC[2], &senderMAC[3], &senderMAC[4], &senderMAC[5], &destinationMAC[0], &destinationMAC[1], &destinationMAC[2], &destinationMAC[3], &destinationMAC[4], &destinationMAC[5], &additional_byte[0]);
+					// Replace data array values dynamically
+				for (int i = 0; i < 6; i++) {
+					data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
+					data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
+					data[48 + i] = senderMAC[i];      // Replace senderMAC in data[48] to data[53]
+				}
+				send(sock_fd, data, sizeof(data), 0);
 			} else if (bytes_read == 0) {
 				printf("UNIX socket closed by client\n");
 				break;
