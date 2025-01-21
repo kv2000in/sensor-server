@@ -13,6 +13,9 @@ PACKET_ID_LENGTH = 2
 HEADER_LENGTH = MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH + 3  # MAC + Packet ID + Total Packets, Sequence, Payload Length
 FOOTER_LENGTH = 2  # Checksum length
 PACKET_DELIMITER = '\x0D\x0A'  # Delimiter: 0D 0A
+DATA_TYPE_HEARTBEAT = '\xFF'
+DATA_TYPE_ADC0 = '\x10'
+DATA_TYPE_ADC1 = '\x11'
 # Path for the Unix Domain Socket
 UDS_PATH = "/tmp/raw_socket_uds"
 
@@ -66,7 +69,7 @@ rms_channel_1 = 0
 
 def calculate_checksum(data):
     """Calculate the checksum for the given data."""
-    return sum(data) & 0xFFFF
+    return sum(map(ord, data)) & 0xFFFF
 
 
 def is_duplicate_packet(packet_id):
@@ -93,6 +96,7 @@ def validate_data(data):
     mac_addr = data[:MAC_ADDRESS_LENGTH]
     packet_id = struct.unpack('<H', data[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
     total_packets, sequence, payload_length = struct.unpack('BBB', data[MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH:HEADER_LENGTH])
+    payload_length = int(payload_length)
     # Define the position where the checksum starts (header + payload length byte)
     checksum_position = HEADER_LENGTH + payload_length
 
@@ -117,7 +121,6 @@ def process_data_esp32(packets):
     """
     Process ESP32 data packets, handling segmented and non-segmented data.
     """
-    print ("process_data_esp32 has been called")
     for packet in packets:
         packet_id = packet["packet_id"]
         total_packets = packet["total_packets"]
@@ -181,12 +184,9 @@ def call_handler(data_type, payload):
     """
     Calls the appropriate handler based on the data type.
     """
-    print("data_type=")
-    print(data_type)
-    #print_packet_hex(payload)
-    if data_type == 0xFF:
-        process_esp32_heartbeat(payload,ser)
-    elif data_type in [0x10, 0x11]:
+    if data_type == DATA_TYPE_HEARTBEAT:
+        process_esp32_heartbeat(payload)
+    elif data_type in [DATA_TYPE_ADC0, DATA_TYPE_ADC1]:
         process_esp32_adc_data(payload)
     else:
         process_esp32_unknown_data_type(payload)
@@ -204,9 +204,8 @@ def process_esp32_heartbeat(payload):
     padding = payload[200:]  # Remaining bytes (padding)
 
     # Convert raw ADC data into 16-bit integers
-    adc_samples_0 = [int.from_bytes(adc_data_0[i:i + 2], byteorder='little', signed=False) for i in range(0, len(adc_data_0), 2)]
-    adc_samples_1 = [int.from_bytes(adc_data_1[i:i + 2], byteorder='little', signed=False) for i in range(0, len(adc_data_1), 2)]
-
+    adc_samples_0 = [struct.unpack('<H', adc_data_0[i:i + 2])[0] for i in range(0, len(adc_data_0), 2)]
+    adc_samples_1 = [struct.unpack('<H', adc_data_1[i:i + 2])[0] for i in range(0, len(adc_data_1), 2)]
     # Update circular buffers
     for sample in adc_samples_0:
         adc_channel_0.add(sample)
@@ -285,7 +284,7 @@ def receive_data_from_c_program():
             data = uds_socket.recv(2048)
             if data:
                 handlepacket(data[63:]) # Raw socket packets have 63 bytes of header compared with packets from Serial
-                print_packet_hex(data)
+                #print_packet_hex(data)
             time.sleep(0.1)  # Adjust if needed, based on how often data is expected
     except Exception as e:
         print("An error occurred: {}".format(e))
