@@ -4,6 +4,7 @@ import struct
 from collections import deque
 from math import sqrt
 import socket
+import subprocess
 
 # Configuration
 SERIAL_PORT = '/dev/serial0'  # Replace with your serial port
@@ -381,6 +382,8 @@ if __name__ == "__main__":
             print("Serial error: {}".format(str(e)))
     else:
         try:
+            subprocess.Popen(["./mysendrecv.o", "mon0"])
+            time.sleep(5)
             uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             uds_socket.connect(UDS_PATH)
             receive_data_from_c_program()

@@ -42,7 +42,7 @@ static struct sock_filter bpfcode[FILTER_LENGTH] = {
 	{ 0x15, 0, 10, 0x000000d0 },	// jeq #0xd0 jt 9 jf 19	// compare the types (0) and subtypes (0xd)
 	{ 0x40, 0, 0, 0x00000018 },	// Ld  [x + 24]			// 24 bytes after radiotap header is the end of MAC header, so it is category and OUI (for action frame layer)
 	{ 0x15, 0, 8, 0x7f18fe34 },	// jeq #0x7f18fe34 jt 11 jf 19	// Compare with category = 127 (Vendor specific) and OUI 18:fe:34
-	{ 0x50, 0, 0, 0x00000020 },	// ldb [x + 32]				// Begining of Vendor specific content + 4 ?random? bytes : element id
+	{ 0x50, 0, 0, 0x00000020 },	// ldb [x + 32]				// Begining of Vendor specific content + 4 ?random? bytes : element id
 	{ 0x15, 0, 6, 0x000000dd },	// jeq #0xdd jt 13 jf 19		// element id should be 221 (according to the doc)
 	{ 0x40, 0, 0, 0x00000021 },	// Ld  [x + 33]				// OUI (again!) on 3 LS bytes
 	{ 0x54, 0, 0, 0x00ffffff },	// and #0xffffff			// Mask the 3 LS bytes
@@ -114,6 +114,7 @@ uint8_t additional_byte;
 
 
 
+
 int main(int argc, char **argv)
 {
 	char buffer[BUFFER_SIZE];
@@ -127,12 +128,15 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 	
+	
+	
+	
+	
 	int uds_sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (uds_sock < 0) {
 		perror("Unix socket creation failed");
 		exit(1);
 	}
-	
 	struct sockaddr_un addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
@@ -151,20 +155,26 @@ int main(int argc, char **argv)
 	
 	printf("Waiting for Python client...\n");
 	
+		// Accept incoming connection from Python client
+		// Accept a connection on the UNIX socket
+	int uds_conn = accept(uds_sock, NULL, NULL);
+	assert(uds_conn != -1);
+	
+	
 	int sock_fd;
 	char *dev = argv[1];
 	struct sock_fprog bpf = {FILTER_LENGTH, bpfcode};
 	
 	sock_fd = create_raw_socket(dev, &bpf); /* Creating the raw socket */
 	
-	printf("\nWaiting to receive ESPNOW packets........\n");
+	printf("\n Waiting to receive ESPNOW packets........ \n");
 	
 	while (1) {
 		FD_ZERO(&readfds);
-		FD_SET(uds_sock, &readfds); // Add server socket to monitor for new connections
-		FD_SET(sock_fd, &readfds);  // Monitor raw socket as well
+		FD_SET(uds_conn, &readfds);
+		FD_SET(sock_fd, &readfds);
 		
-		max_fd = (uds_sock > sock_fd) ? uds_sock : sock_fd;
+		max_fd = (uds_conn > sock_fd) ? uds_conn : sock_fd;
 		
 		int activity = select(max_fd + 1, &readfds, NULL, NULL, NULL);
 		if (activity < 0) {
@@ -172,86 +182,62 @@ int main(int argc, char **argv)
 			break;
 		}
 		
-			// Check for new client connection on the UNIX domain socket
-		if (FD_ISSET(uds_sock, &readfds)) {
-			int uds_conn = accept(uds_sock, NULL, NULL);
-			if (uds_conn == -1) {
-				perror("accept");
-				continue;
-			}
-			printf("New client connected\n");
-			
-				// Handle communication with the client in a separate loop
-			while (1) {
-				FD_ZERO(&readfds);
-				FD_SET(uds_conn, &readfds);
-				FD_SET(sock_fd, &readfds);
-				
-				max_fd = (uds_conn > sock_fd) ? uds_conn : sock_fd;
-				
-				activity = select(max_fd + 1, &readfds, NULL, NULL, NULL);
-				if (activity < 0) {
-					perror("select");
-					break;
-				}
-				
-					// Handle data from UNIX socket (client)
-				if (FD_ISSET(uds_conn, &readfds)) {
-					int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
-					if (bytes_read > 0) {
-						printf("Received data on UNIX socket: %d bytes\n", bytes_read);
-						if (bytes_read == 7) {
-								// Forward to raw socket
-							memcpy(destinationMAC, buffer, 6);
-							additional_byte = buffer[6];
-							
-							uint8_t data[78] = {
-								0x00, 0x00, 0x26, 0x00, 0x2f, 0x40, 0x00, 0xa0, 0x20, 0x08, 0x00, 0xa0, 0x20, 0x08, 0x00, 0x00,
-								0xdf, 0x32, 0xfe, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x10, 0x0c, 0x6c, 0x09, 0xc0, 0x00, 0xd3, 0x00,
-								0x00, 0x00, 0xd3, 0x00, 0xc7, 0x01, 0xd0, 0x00, 0x3a, 0x01, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8,
-								0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8, 0x70, 0x51, 0x7f, 0x18,
-								0xfe, 0x34, 0xa2, 0x03, 0x92, 0xb0, 0xdd, 0x06, 0x18, 0xfe, 0x34, 0x04, 0x01,
-								additional_byte 
-							};
-							for (int i = 0; i < 6; i++) {
-								data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
-								data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
-							}
-							
-							printf("Sending to ESP32\n");
-							sendto(sock_fd, data, sizeof(data), 0, NULL, 0);
-						} else {
-							printf("Unknown data received\n");
-						}
-					} else if (bytes_read == 0) {
-						printf("UNIX socket closed by client\n");
-						break; // Break to listen for new connections
-					} else {
-						perror("read");
+			// Handle data from UNIX socket
+		if (FD_ISSET(uds_conn, &readfds)) {
+			int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
+			if (bytes_read > 0) {
+				printf("Received data on UNIX socket: %d bytes\n", bytes_read);
+				if (bytes_read==7){
+						// Forward to raw socket
+					memcpy(destinationMAC, buffer, 6);
+					additional_byte = buffer[6];
+						// Replace data array values dynamically
+					uint8_t data[78] = {
+						0x00, 0x00, 0x26, 0x00, 0x2f, 0x40, 0x00, 0xa0, 0x20, 0x08, 0x00, 0xa0, 0x20, 0x08, 0x00, 0x00,
+						0xdf, 0x32, 0xfe, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x10, 0x0c, 0x6c, 0x09, 0xc0, 0x00, 0xd3, 0x00,
+						0x00, 0x00, 0xd3, 0x00, 0xc7, 0x01, 0xd0, 0x00, 0x3a, 0x01, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8,
+						0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x58, 0xbf, 0x25, 0x82, 0x8e, 0xd8, 0x70, 0x51, 0x7f, 0x18,
+						0xfe, 0x34, 0xa2, 0x03, 0x92, 0xb0, 0xdd, 0x06, 0x18, 0xfe, 0x34, 0x04, 0x01,
+						additional_byte 
+					};
+					for (int i = 0; i < 6; i++) {
+						data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
+						data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
 					}
+					
+					printf("Sending to ESP32\n");
+					sendto(sock_fd, data, sizeof(data), 0,NULL, 0);
+				} else {
+					printf("Who knows what I have received");
 				}
-				
-					// Handle data from raw Ethernet socket
-				if (FD_ISSET(sock_fd, &readfds)) {
-					int bytes_read = recv(sock_fd, buffer, BUFFER_SIZE, 0);
-					if (bytes_read > 0) {
-						printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
-							// Forward to UNIX socket
-						send(uds_conn, buffer, bytes_read, 0);
-					} else {
-						perror("recv");
-					}
-				}
+			} else if (bytes_read == 0) {
+				printf("UNIX socket closed by client\n");
+				break;
+			} else {
+				perror("read");
 			}
-				// Close the client connection after handling
-			close(uds_conn);
-			printf("Client disconnected\n");
+		}
+		
+			// Handle data from raw Ethernet socket
+		if (FD_ISSET(sock_fd, &readfds)) {
+			int bytes_read = recv(sock_fd, buffer, BUFFER_SIZE, 0);
+			if (bytes_read > 0) {
+				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
+					// Forward to UNIX socket
+				send(uds_conn, buffer, bytes_read, 0);
+			} else {
+				perror("recv");
+			}
 		}
 	}
 	
-		// Clean up and close the server socket
+		// Cleanup
+	close(uds_conn);
 	close(uds_sock);
+	close(sock_fd);
 	unlink(UDS_PATH);
 	return 0;
 }
+
+
 
