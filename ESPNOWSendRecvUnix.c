@@ -11,7 +11,7 @@
 #include <linux/filter.h>
 #include <sys/un.h>
 
-#define UDS_PATH "/tmp/raw_socket_uds"
+#define UDS_PATH "/tmp/raw_socket_uds_esp"
 #define BUFFER_SIZE 2048
 #define PACKET_LENGTH 400 //Approximate
 #define MYDATA 18         //0x12

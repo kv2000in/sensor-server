@@ -18,7 +18,8 @@ DATA_TYPE_HEARTBEAT = '\xFF'
 DATA_TYPE_ADC0 = '\x10'
 DATA_TYPE_ADC1 = '\x11'
 # Path for the Unix Domain Socket
-UDS_PATH = "/tmp/raw_socket_uds"
+ESP_UDS_PATH = "/tmp/raw_socket_uds_esp"
+LORA_UDS_PATH = "/tmp/raw_socket_uds_lora"
 
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
@@ -41,7 +42,8 @@ led_state = False  # False means OFF, True means ON
 ESP01 = False # True means using Serial, False means using raw socket packet injection
 
 # Create a Unix domain socket to receive data from the C program
-uds_socket = None
+esp_uds_socket = None
+lora_uds_socket = None
 
 #Create a global Serial device
 ser = None
@@ -274,15 +276,15 @@ def send_msg_to_ESP32(msg):
             print("Serial error: {}".format(str(e)))
     else:
         try:
-            uds_socket.send(msg)
+            esp_uds_socket.send(msg)
         except socket.error as e:
             print("UNIX socket connection error: {}".format(str(e)))
 def receive_data_from_c_program():
-    global uds_socket
+    global esp_uds_socket
     data = b''
     try:
         while True:
-            data = uds_socket.recv(2048)
+            data = esp_uds_socket.recv(2048)
             if data:
                 handlepacket(data[63:]) # Raw socket packets have 63 bytes of header compared with packets from Serial
                 #print_packet_hex(data)
@@ -293,9 +295,30 @@ def receive_data_from_c_program():
         print("Exiting program.")
     finally:
         try:
-            uds_socket.close()
+            esp_uds_socket.close()
         except NameError:
             pass
+
+def receive_data_from_c_plus_program():
+    global lora_uds_socket
+    data = b''
+    try:
+        while True:
+            data = lora_uds_socket.recv(2048)
+            if data:
+                handlepacket(data) # Raw socket packets have 63 bytes of header compared with packets from Serial
+                print_packet_hex(data)
+            time.sleep(0.1)  # Adjust if needed, based on how often data is expected
+    except Exception as e:
+        print("An error occurred: {}".format(e))
+    except KeyboardInterrupt:
+        print("Exiting program.")
+    finally:
+        try:
+            lora_uds_socket.close()
+        except NameError:
+            pass
+
 def handlepacket(packet):
     """
     Handles the processing of a received packet.
@@ -374,6 +397,14 @@ def receive_data_from_serial():
 
 
 if __name__ == "__main__":
+    try:
+        subprocess.Popen(["./mysendrecv.o", "mon0"])
+        time.sleep(5)
+        lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        lora_uds_socket.connect(LORA_UDS_PATH)
+        receive_data_from_c_plus_program()
+    except socket.error as e:
+        print("UNIX socket connection error: {}".format(str(e)))
     if ESP01:
         try:
             ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
@@ -384,8 +415,8 @@ if __name__ == "__main__":
         try:
             subprocess.Popen(["./mysendrecv.o", "mon0"])
             time.sleep(5)
-            uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            uds_socket.connect(UDS_PATH)
+            esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            esp_uds_socket.connect(ESP_UDS_PATH)
             receive_data_from_c_program()
         except socket.error as e:
             print("UNIX socket connection error: {}".format(str(e)))

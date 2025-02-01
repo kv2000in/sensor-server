@@ -23,6 +23,9 @@
 		2A43193F2D3D77A40033D160 /* brcmfmac.ko */ = {isa = PBXFileReference; lastKnownFileType = file; path = brcmfmac.ko; sourceTree = "<group>"; };
 		2A4319402D3DCC030033D160 /* linux-ESPNOW-sendACK.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "linux-ESPNOW-sendACK.c"; sourceTree = "<group>"; };
 		2A4319412D3EC9770033D160 /* ESPNOWSendRecvUnix.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ESPNOWSendRecvUnix.c; sourceTree = "<group>"; };
+		2A4319422D4768EF0033D160 /* Atmega328-US100-LoRa.ino */ = {isa = PBXFileReference; lastKnownFileType = text; name = "Atmega328-US100-LoRa.ino"; path = "Atmega328-US100-LoRa/Atmega328-US100-LoRa.ino"; sourceTree = "<group>"; };
+		2A4319442D476E010033D160 /* src */ = {isa = PBXFileReference; lastKnownFileType = folder; path = src; sourceTree = "<group>"; };
+		2A4319452D476E2E0033D160 /* examples */ = {isa = PBXFileReference; lastKnownFileType = folder; path = examples; sourceTree = "<group>"; };
 		2A578569279BEE73003E13EF /* checkandsend.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = checkandsend.sh; sourceTree = "<group>"; };
 		2A5A58C521EC10C0001653D3 /* sensorsettings */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettings; sourceTree = "<group>"; };
 		2A5A58C621EC10C0001653D3 /* ADCcalibrationbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = ADCcalibrationbakup; sourceTree = "<group>"; };
@@ -44,6 +47,9 @@
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
+				2A4319452D476E2E0033D160 /* examples */,
+				2A4319442D476E010033D160 /* src */,
+				2A4319422D4768EF0033D160 /* Atmega328-US100-LoRa.ino */,
 				2A43193F2D3D77A40033D160 /* brcmfmac.ko */,
 				2A43193E2D3D77A40033D160 /* brcmfmac43430-sdio.bin */,
 				2A43193D2D34C08F0033D160 /* linux-ESPNOW-recv.c */,
