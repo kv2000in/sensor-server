@@ -36,7 +36,7 @@ Jan 2025. Welcome LORA
 volatile int f_wdt=1;
 
 volatile int wakeCounter = 0; 
-int sleepCycles = 1; //in Seconds - Multiples of 8 . 8 x 3 = 24 seconds
+int sleepCycles = 4; //in Seconds - Multiples of 8 . 8 x 3 = 24 seconds
 
 // Mac addresses of peers
 //uint8_t peer0[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};// Each specific peer gets 6-7 packets per send. Broadcast peer only gets one packet.
@@ -78,10 +78,12 @@ digitalWrite(TRIGGER_PIN, LOW);
 }
 
 void printPacketHex(const uint8_t *packet, size_t length) {
-  swSer.printf("Packet (Hex): ");
+  #ifdef DEBUG
+  Serial.printf("Packet (Hex): ");
   for (size_t i = 0; i < length; i++) {
-    if (i > 0) swSer.printf(" ");
-    swSer.printf("%02X", packet[i]);
+    if (i > 0) Serial.printf(" ");
+    Serial.printf("%02X", packet[i]);
+  #endif
   }
   
 }
@@ -115,9 +117,10 @@ return (duration/2) / 29.1;
 
 void dummy_trigger_via_serial()
 {
-  
+#ifdef DEBUG
   Serial.flush();                               // clear tx buffer of serial port
-Serial.write(0X50); 
+Serial.write(0X50);
+#endif 
   }
 
 void dummy_trigger_via_swserial()
@@ -147,7 +150,9 @@ unsigned int get_distance_via_swserial()
         {
             if (millis() - startTime > timeout) 
             {
+              #ifdef DEBUG
               Serial.println("TimedOut");
+              #endif
                 return 0;  // Return 0 if timeout occurs (no valid data)
             }
         }
@@ -155,19 +160,23 @@ unsigned int get_distance_via_swserial()
         // Read two bytes as soon as they are available
         HighLen = swSer.read();  
         LowLen  = swSer.read();
+        #ifdef DEBUG
     Serial.print("High Byte:");
     Serial.print(HighLen,HEX);
     Serial.print("Low Byte:");
     Serial.println(LowLen,HEX);
+    #endif
         Len_mm  = (HighLen << 8) | LowLen;  // Combine bytes into distance value
 
         cyclecount++;
         delay(50);  // Small delay before retrying (if needed)
     }  
 
+#ifdef DEBUG
       Serial.print("Distance: ");
       Serial.print(Len_mm, DEC);          
       Serial.println("mm"); 
+#endif   
     return Len_mm;
 }
 
@@ -190,16 +199,19 @@ int get_temp_via_swserial()
         {
             if (millis() - startTime > timeout) 
             {
+              #ifdef DEBUG
               Serial.println("TimedOut");
+              #endif
                 return 0;  // Return 0 if timeout occurs (no valid data)
             }
         }
 
         // Read one byte as soon as they are available
        Temperature45 = swSer.read(); 
+    #ifdef DEBUG
     Serial.print("Temp Byte:");
     Serial.print(Temperature45,HEX);
-
+#endif
      if((Temperature45 > 1) && (Temperature45 < 130))   //the valid range of received data is (1, 130)
 {
 Temperature45 -= 45;                           //Real temperature = Received_Data - 45
@@ -209,10 +221,11 @@ Temperature45 -= 45;                           //Real temperature = Received_Dat
         cyclecount++;
         delay(50);  // Small delay before retrying (if needed)
     }  
-
+#ifdef DEBUG
       Serial.print("Temp: ");
       Serial.print(Temperature45, DEC);          
       Serial.println("deg C"); 
+    #endif
     return Temperature45;
 }
 
@@ -248,10 +261,6 @@ memcpy(str+10,&batteryVoltage,2);
 
 delay(10); 
 turnoffsensormodule();
-//#ifdef DEBUG
-//swSer.print(" prepareDataend: "); swSer.println(millis());
-//printPacketHex((uint8_t *)str, sizeof(str));
-//#endif
 
 
 }
@@ -263,31 +272,21 @@ void turnonsensormodule(){
   HighLen = 0;
   LowLen  = 0;
 Len_mm  = 0;
-
-  //pinMode(ECHO_PIN,INPUT_PULLUP); //GPIO 5- Rx PIN for swSer
-  //pinMode(ECHO_PIN,INPUT)
-//pinMode(TRIGGER_PIN,OUTPUT); //GPIO 4 - Tx PIN for swSer
-//swSer.begin(9600);
 digitalWrite(HCSR04SwitchPin,HIGH);
 delay(100);
 }
 
 void turnoffsensormodule(){
 digitalWrite(HCSR04SwitchPin,LOW);
-//swSer.end();
-//delay(10);
-//  pinMode(ECHO_PIN,OUTPUT); //GPIO 5- Rx PIN for swSer
-//pinMode(TRIGGER_PIN,OUTPUT); //GPIO 4 - Tx PIN for swSer
-//digitalWrite(ECHO_PIN,LOW);
-//digitalWrite(TRIGGER_PIN,LOW);
-//delay(20);
+
 }
 
 void setup() {
 
-
+#ifdef DEBUG
 
 Serial.begin(9600);
+#endif
 // connect RX (Pin 0 of Arduino digital IO) to Echo/Rx (US-100), TX (Pin 1 of Arduino digital IO) to Trig/Tx (US-100) 
 //Baudrate 9600 for comm with US-100
 
@@ -296,10 +295,8 @@ pinMode(ECHO_PIN,INPUT); //GPIO 5- Rx PIN for swSer
 pinMode(TRIGGER_PIN,OUTPUT); //GPIO 4 - Tx PIN for swSer
 //if (DEBUG) {swSer.begin(9600, SWSERIAL_8N1, ECHO_PIN, TRIGGER_PIN, false, 95, 11);}     //ESP software serial
      
+ swSer.begin(9600);
 
-#ifdef DEBUG
-swSer.begin(9600);
-#endif
 
 
 
@@ -330,9 +327,11 @@ preparedata();
 //Send Data
 if (!LoRa.begin(439E6)) {
 #ifdef DEBUG
-swSer.println("Starting LoRa failed!");while (1);
+Serial.println("Starting LoRa failed!");
 #endif
 }
+
+else {
 //stable radio
 delay(20);
 
@@ -343,6 +342,7 @@ LoRa.endPacket();              // Finish and send the packet
 
 //put LoRa radio to sleep
 LoRa.sleep();
+}
 }
 
 
@@ -366,7 +366,9 @@ ISR(WDT_vect)
   }
   else
   {
+#ifdef DEBUG    
     Serial.println("WDT Overrun!!!");
+#endif  
   }
 }
 
@@ -383,10 +385,7 @@ ISR(WDT_vect)
  ***************************************************/
 void enterSleep(void)
 {
-  //Serial.println("Sleep called");
-  //Serial.println("WDT value is");
-  //Serial.println(f_wdt);
-  //delay (50);
+  
   set_sleep_mode(SLEEP_MODE_PWR_DOWN);   /* EDIT: could also use SLEEP_MODE_PWR_DOWN for lowest power consumption. */
   sleep_enable();
   
