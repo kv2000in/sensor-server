@@ -398,8 +398,8 @@ def receive_data_from_serial():
 
 if __name__ == "__main__":
     try:
-        subprocess.Popen(["./mysendrecv.o", "mon0"])
-        time.sleep(5)
+        subprocess.Popen(["./LoRaReceiver"])
+        time.sleep(50)
         lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         lora_uds_socket.connect(LORA_UDS_PATH)
         receive_data_from_c_plus_program()
