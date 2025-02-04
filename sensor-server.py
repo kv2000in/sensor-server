@@ -1177,9 +1177,11 @@ def LoRaReceiverthread():
 		while running_flag:
 			try:
 				subprocess.Popen(["./LoRaReceiver"])
+				print("Python LoRaReceiverthread called")
 				time.sleep(2)
 				lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 				lora_uds_socket.connect(LORA_UDS_PATH)
+				print("Python LORA_UDS_PATH Unix socket opened successfully")
 				receive_data_from_c_plus_program()
 			except socket.error as e:
 				print("UNIX socket connection error: {}".format(str(e)))
@@ -1191,6 +1193,7 @@ def LoRaReceiverthread():
 #was HTTP Server
 def esp32handlerthread():
 	try:
+		print("Python esp32handlerthread called")
 		if ESP01:
 			try:
 				ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
@@ -1203,6 +1206,7 @@ def esp32handlerthread():
 				time.sleep(5)
 				esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 				esp_uds_socket.connect(ESP_UDS_PATH)
+				print("Python ESP_UDS_PATH unix socket opened successfully")
 				receive_data_from_c_program()
 			except socket.error as e:
 				print("UNIX socket connection error: {}".format(str(e)))
