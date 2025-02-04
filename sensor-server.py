@@ -1129,6 +1129,7 @@ def lcd_string(message,line):
 
 ##### This updates the LCD screen##############
 def lcdticker():
+	print("Python lcdticker  called")
 	lcd_string("MODE = "+MODE,LCD_LINE_1)
 	lcd_string("AC POWER = "+ACPOWER,LCD_LINE_2)
 	time.sleep(1.5)
@@ -1215,6 +1216,7 @@ def esp32handlerthread():
 		pass
 #Thread # 3
 def websocketservarthread(): 
+	print("Python websocket-server thread called")
 	try:
 		websocketservarthread.server = SimpleWebSocketServer('', WS_PORT, SimpleChat)
 		websocketservarthread.server.serveforever()
@@ -1224,6 +1226,7 @@ def websocketservarthread():
 		pass
 #Thread # 4
 def analogreadthread(): 
+	print("Python analogreadthread called")
 	try:
 		while running_flag:
 			#analogread(40,4000) # Range - V 106-123 I - 0.23 - 0.27
@@ -1243,6 +1246,7 @@ def analogreadthread():
 #Thread # 5
 def commandthread():
 	try:
+		print("Python commandthread called")
 		while running_flag:
 			#if there is a command in the Q - pop it and send it to commandhandler
 			if (len(commandQ)>0):
@@ -1253,6 +1257,7 @@ def commandthread():
 #Thread # 6
 def autothread():
 	try:
+		print("Python autothread called")
 		global TANK1FILLINGSTARTTIME
 		global TANK2FILLINGSTARTTIME
 		global TANK1TIMEDFULL
@@ -1598,6 +1603,7 @@ def autothread2023a():
 #Thread # 7
 def watchdogthread():
 	try:
+		print("Python watchdogthread called")
 		global IsSENSOR1UP
 		global IsSENSOR2UP
 		global watchdog_flag
