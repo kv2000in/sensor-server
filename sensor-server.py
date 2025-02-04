@@ -1185,7 +1185,7 @@ def LoRaReceiverthread():
 				print("UNIX socket connection error: {}".format(str(e)))
 			time.sleep(1)
 	except Exception as e:
-		error_handler(TCPserverthread.__name__,e)
+		error_handler(LoRaReceiverthread.__name__,e)
 		pass
 #Thread # 2
 #was HTTP Server
@@ -1223,7 +1223,7 @@ def analogreadthread():
 	try:
 		while running_flag:
 			#analogread(40,4000) # Range - V 106-123 I - 0.23 - 0.27
-			myanalogread(100) # 100 ms gives approximately 6 fullwaves for 60Hz powersupply
+			#myanalogread(100) # 100 ms gives approximately 6 fullwaves for 60Hz powersupply
 			try:
 				for ws in clients:
 					ws.sendMessage(u'POWERDATA#ACVOLTAGE='+str(ACVOLTAGE)+u',MOTORCURRENT='+str(MOTORCURRENT))
@@ -1717,8 +1717,6 @@ if __name__ == '__main__':
 				#Wipe the LCD screen
 				#lcd_byte(0x01, LCD_CMD)
 				#Join means wait for the threads to exit
-				TCPserverthread.srvr.shutdown(socket.SHUT_RDWR)
-				TCPserverthread.srvr.close()
 				t1.join() #TCPserverthread - has runningflag
 				print "TCP server closed"
 				t2.join()
