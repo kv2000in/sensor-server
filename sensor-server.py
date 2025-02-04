@@ -1663,141 +1663,6 @@ def watchdogthread():
 	except KeyboardInterrupt:
 		pass
 
-if __name__ == '__main__':
-	try:#Load the settings
-		print "Starting sensor-server script \n"
-		print "Date Time is :" 
-		print datetime.datetime.today()
-		settingshandler("null","load")
-		calibrationhandler("null","load")
-		#initialize the LCD screen
-		try:
-			lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
-		except Exception as e:
-			print(e)
-			pass
-		#Check initial GPIO statuses - added 2/19/18
-		init_status()
-		t1=Thread(target=LoRaReceiverthread) 
-		t2=Thread(target=esp32handlerthread)
-		t3=Thread(target=websocketservarthread)
-		t4=Thread(target=analogreadthread)
-		t5=Thread(target=commandthread)
-		t6=Thread(target=autothread2023)
-		t7=Thread(target=watchdogthread)
-		#Daemon - means threads will exit when the main thread exits
-		t1.daemon=True
-		t2.daemon=True
-		t3.daemon=True
-		t4.daemon=True
-		t5.daemon=True
-		t6.daemon=True
-		t7.daemon=True
-		#Start the threads 
-		t1.start()
-		t2.start()
-		t3.start()
-		t4.start()
-		t5.start()
-		t6.start()
-		t7.start()
-		#For killing gracefully
-		killer = GracefulKiller()
-		while True:
-			try:
-				lcdticker() #March 2022 -Getting I/O error - disable LCD
-			except Exception as e:
-				print(e)
-				pass
-			time.sleep(1) # Makes a huge difference in CPU usage - without >95%, with <10%
-			if killer.kill_now:
-				#save the settings
-				settingshandler("null","save")
-				calibrationhandler("null","save")
-				#Wipe the LCD screen
-				#lcd_byte(0x01, LCD_CMD)
-				#Join means wait for the threads to exit
-				t1.join() #TCPserverthread - has runningflag
-				print "TCP server closed"
-				t2.join()
-				websocketservarthread.server.close()
-				t3.join() #websocketservarthread
-				print "websocket closed"
-				t4.join() #analogreadthread - has runningflag
-				t5.join() #commandthread - has runningflag
-				t6.join()	#autothread - has runningflag
-				t7.join() # watchdogthread - has runningflag
-				print "exited gracefully"
-				break
-	except KeyboardInterrupt:
-		#Signal is caught by graceful killer class
-		pass
-
-
-
-'''
-#### These are not in use functions#####
-def sighandler(signum, frame):
-	print 'signal handler called with signal: %s ' % signum
-	global running_flag
-	running_flag = False
-	sys.exit() # make sure you add this so the main thread exits as well.
-
-if __name__ == '__main__':
-	main(sys.argv)
-	while 1:  # this will force your main thread to live until you terminate it.
-		time.sleep(1) 
-
-def main(argv=None):
-	signal.signal(signal.SIGTERM, sighandler) # so we can handle kill gracefully
-	signal.signal(signal.SIGINT, sighandler) # so we can handle ctrl-c
-	try:
-		Thread(target=main_loop, args=()).start()
-	except Exception, reason:
-		print reason
-'''
-'''
-### Main function from LCD screen example###
-def main():
-	# Main program block
-
-	# Initialise display
-	lcd_init()
-
-	while True:
-
-	# Send some test
-		lcd_string("         <",LCD_LINE_1)
-		lcd_string("        <",LCD_LINE_2)
-
-		time.sleep(3)
-  
-		# Send some more text
-		lcd_string(">",LCD_LINE_1)
-		lcd_string("> ",LCD_LINE_2)
-
-		time.sleep(3)
-
-if __name__ == '__main__':
-
-	try:
-		main()
-	except KeyboardInterrupt:
-		pass
-	finally:
-		lcd_byte(0x01, LCD_CMD)
-
-'''
-
-
-
-	#except KeyboardInterrupt:
-		# It never reaches the thread
-	#	pass
-		#print "websocket received Ctrl+C"
-		#websocketservarthread.server.close()
-		#print time.asctime(), "Server Stops - %s:%s" % (TCP_IP, WS_PORT)
-
 
 
 # Circular buffer implementation
@@ -2147,3 +2012,142 @@ def receive_data_from_serial():
 			ser.close()
 		except NameError:
 			pass
+
+
+if __name__ == '__main__':
+	try:#Load the settings
+		print "Starting sensor-server script \n"
+		print "Date Time is :" 
+		print datetime.datetime.today()
+		settingshandler("null","load")
+		calibrationhandler("null","load")
+		#initialize the LCD screen
+		try:
+			lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
+		except Exception as e:
+			print(e)
+			pass
+		#Check initial GPIO statuses - added 2/19/18
+		init_status()
+		t1=Thread(target=LoRaReceiverthread) 
+		t2=Thread(target=esp32handlerthread)
+		t3=Thread(target=websocketservarthread)
+		t4=Thread(target=analogreadthread)
+		t5=Thread(target=commandthread)
+		t6=Thread(target=autothread2023)
+		t7=Thread(target=watchdogthread)
+		#Daemon - means threads will exit when the main thread exits
+		t1.daemon=True
+		t2.daemon=True
+		t3.daemon=True
+		t4.daemon=True
+		t5.daemon=True
+		t6.daemon=True
+		t7.daemon=True
+		#Start the threads 
+		t1.start()
+		t2.start()
+		t3.start()
+		t4.start()
+		t5.start()
+		t6.start()
+		t7.start()
+		#For killing gracefully
+		killer = GracefulKiller()
+		while True:
+			try:
+				lcdticker() #March 2022 -Getting I/O error - disable LCD
+			except Exception as e:
+				print(e)
+				pass
+			time.sleep(1) # Makes a huge difference in CPU usage - without >95%, with <10%
+			if killer.kill_now:
+				#save the settings
+				settingshandler("null","save")
+				calibrationhandler("null","save")
+				#Wipe the LCD screen
+				#lcd_byte(0x01, LCD_CMD)
+				#Join means wait for the threads to exit
+				t1.join() #TCPserverthread - has runningflag
+				print "TCP server closed"
+				t2.join()
+				websocketservarthread.server.close()
+				t3.join() #websocketservarthread
+				print "websocket closed"
+				t4.join() #analogreadthread - has runningflag
+				t5.join() #commandthread - has runningflag
+				t6.join()	#autothread - has runningflag
+				t7.join() # watchdogthread - has runningflag
+				print "exited gracefully"
+				break
+	except KeyboardInterrupt:
+		#Signal is caught by graceful killer class
+		pass
+
+
+
+'''
+#### These are not in use functions#####
+def sighandler(signum, frame):
+	print 'signal handler called with signal: %s ' % signum
+	global running_flag
+	running_flag = False
+	sys.exit() # make sure you add this so the main thread exits as well.
+
+if __name__ == '__main__':
+	main(sys.argv)
+	while 1:  # this will force your main thread to live until you terminate it.
+		time.sleep(1) 
+
+def main(argv=None):
+	signal.signal(signal.SIGTERM, sighandler) # so we can handle kill gracefully
+	signal.signal(signal.SIGINT, sighandler) # so we can handle ctrl-c
+	try:
+		Thread(target=main_loop, args=()).start()
+	except Exception, reason:
+		print reason
+'''
+'''
+### Main function from LCD screen example###
+def main():
+	# Main program block
+
+	# Initialise display
+	lcd_init()
+
+	while True:
+
+	# Send some test
+		lcd_string("         <",LCD_LINE_1)
+		lcd_string("        <",LCD_LINE_2)
+
+		time.sleep(3)
+  
+		# Send some more text
+		lcd_string(">",LCD_LINE_1)
+		lcd_string("> ",LCD_LINE_2)
+
+		time.sleep(3)
+
+if __name__ == '__main__':
+
+	try:
+		main()
+	except KeyboardInterrupt:
+		pass
+	finally:
+		lcd_byte(0x01, LCD_CMD)
+
+'''
+
+
+
+	#except KeyboardInterrupt:
+		# It never reaches the thread
+	#	pass
+		#print "websocket received Ctrl+C"
+		#websocketservarthread.server.close()
+		#print time.asctime(), "Server Stops - %s:%s" % (TCP_IP, WS_PORT)
+
+
+
