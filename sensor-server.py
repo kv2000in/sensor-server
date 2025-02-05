@@ -2033,6 +2033,7 @@ if __name__ == '__main__':
 		calibrationhandler("null","load")
 		#initialize the LCD screen
 		try:
+			print("dummy call for lcd_init")
 			#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
 		except Exception as e:
 			print(e)
