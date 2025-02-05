@@ -138,7 +138,7 @@ uint8_t additional_byte;
 
 int main(int argc, char **argv)
 {
-	char buffer[BUFFER_SIZE];
+	uint8_t buffer[BUFFER_SIZE];
 	fd_set readfds;
 	int max_fd;
 	
@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
 				
 					// Locate the sequence number (2 bytes before {0x15, 0, 8, 0x7f18fe34})
-				char *ptr = buffer;
+				uint8_t *ptr = buffer;
 				int seq_offset = -1;
 				
 				for (int i = 0; i < bytes_read - 4; i++) {
