@@ -252,21 +252,21 @@ int main(int argc, char **argv)
 		
 			int bytes_read = recv(sock_fd, buffer, BUFFER_SIZE, 0);
 			if (bytes_read > 0) {
-				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
+				//printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
 				
 				if (bytes_read >= 50) {  // Ensure packet has at least 50 bytes
 					uint16_t seq_num = (buffer[46] << 8) | buffer[47]; // Convert to 16-bit (big-endian)
 					
-					printf("Extracted Sequence Number: 0x%04X\n", seq_num);
+					//printf("Extracted Sequence Number: 0x%04X\n", seq_num);
 					
 					if (is_duplicate_seq(seq_num)) {
-						printf("Duplicate packet detected! Dropping packet with sequence: 0x%04X\n", seq_num);
+						//printf("Duplicate packet detected! Dropping packet with sequence: 0x%04X\n", seq_num);
 					} else {
 						add_sequence(seq_num);
 						send(uds_conn, buffer, bytes_read, 0);  // Forward only unique packets
 					}
 				} else {
-					printf("Packet too short (%d bytes), forwarding by default.\n", bytes_read);
+					//printf("Packet too short (%d bytes), forwarding by default.\n", bytes_read);
 					send(uds_conn, buffer, bytes_read, 0);
 				}
 			} else {
