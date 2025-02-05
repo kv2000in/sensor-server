@@ -1048,6 +1048,363 @@ def activity_handler(activity_name):
 		fobj.close()
 	except Exception as e:
 		print(e)
+
+
+
+# Circular buffer implementation
+class CircularBuffer:
+	def __init__(self, size):
+		self.size = size
+		self.buffer = [0] * size
+		self.index = 0
+
+	def add(self, value):
+		self.buffer[self.index] = value
+		self.index = (self.index + 1) % self.size
+
+	def get_data(self):
+		return self.buffer
+
+# Initialize buffers and RMS variables for each channel
+BUFFER_SIZE = 50
+adc_channel_0 = CircularBuffer(BUFFER_SIZE)
+adc_channel_1 = CircularBuffer(BUFFER_SIZE)
+rms_channel_0 = 0
+rms_channel_1 = 0
+
+
+def calculate_checksum(data):
+	"""Calculate the checksum for the given data."""
+	return sum(map(ord, data)) & 0xFFFF
+
+
+def is_duplicate_packet(packet_id):
+	"""
+	Check if a packet ID is a duplicate.
+	If not a duplicate, add it to the tracker.
+	"""
+	if packet_id in PACKET_ID_TRACKER:
+		return True
+	PACKET_ID_TRACKER.append(packet_id)
+	return False
+
+
+def validate_data(data):
+	"""
+	Validate the received data based on checksum and other criteria.
+	"""
+	# Print raw packet in hex
+	#print_packet_hex(data)
+	if len(data) < HEADER_LENGTH + FOOTER_LENGTH:
+		return False, "Invalid data length."
+
+	# Extract header components
+	mac_addr = data[:MAC_ADDRESS_LENGTH]
+	packet_id = struct.unpack('<H', data[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
+	total_packets, sequence, payload_length = struct.unpack('BBB', data[MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH:HEADER_LENGTH])
+	payload_length = int(payload_length)
+	# Define the position where the checksum starts (header + payload length byte)
+	checksum_position = HEADER_LENGTH + payload_length
+
+	# Validate checksum
+	payload = data[HEADER_LENGTH:checksum_position]  # Payload is between the header and checksum
+	checksum_received = struct.unpack('<H', data[checksum_position:checksum_position + FOOTER_LENGTH])[0]
+	checksum_calculated = calculate_checksum(data[:checksum_position])  # Include header + payload for checksum calculation
+	if checksum_received != checksum_calculated:
+		return False, "Checksum mismatch."
+
+	return True, {
+		"mac_addr": mac_addr,
+		"packet_id": packet_id,
+		"total_packets": total_packets,
+		"sequence": sequence,
+		"payload_length": payload_length,
+		"payload": payload,
+	}
+
+
+def process_data_esp32(packets):
+	"""
+	Process ESP32 data packets, handling segmented and non-segmented data.
+	"""
+	for packet in packets:
+		packet_id = packet["packet_id"]
+		total_packets = packet["total_packets"]
+		sequence = packet["sequence"]
+		payload = packet["payload"]
+		
+		# Calculate the range of expected packet IDs
+		expected_packet_ids = set(packet_id + i for i in range(-sequence + 1, total_packets - sequence + 1))
+		
+		# Unique key for grouping packets
+		key = tuple(sorted(expected_packet_ids))
+
+		if total_packets == 1:
+			# Non-segmented data
+			data_type = payload[0]  # First byte is the data type
+			call_handler(data_type, payload)
+		else:
+			# Segmented data
+			if key not in pending_segments:
+				pending_segments[key] = {
+					"total_packets": total_packets,
+					"received": {},
+					"start_time": time.time(),
+				}
+
+			# Add packet to the received dictionary
+			pending_segments[key]["received"][sequence] = payload
+
+			# Check if all packets are received
+			if len(pending_segments[key]["received"]) == total_packets:
+				# Reassemble packets in sequence order
+				reassembled_payload = b''.join(
+					pending_segments[key]["received"][i] for i in range(1, total_packets + 1)
+				)
+
+				# Determine data type from the first byte of the first packet
+				data_type = reassembled_payload[0]
+				call_handler(data_type, reassembled_payload)
+
+				# Remove entry from pending_segments
+				del pending_segments[key]
+			else:
+				# Handle timeout for incomplete segments
+				current_time = time.time()
+				if current_time - pending_segments[key]["start_time"] > 5.0:  # 5-second timeout
+					# Concatenate received packets
+					partial_payload = b''.join(
+						pending_segments[key]["received"].get(i, b'') for i in range(1, total_packets + 1)
+					)
+					print("Timeout for segmented data: Missing packets for key {}. Proceeding with partial data.".format(key))
+
+					# Determine data type from partial data
+					data_type = partial_payload[0] if partial_payload else None
+					if data_type:
+						call_handler(data_type, partial_payload)
+
+					# Remove entry from pending_segments
+					del pending_segments[key]
+
+def call_handler(data_type, payload):
+	"""
+	Calls the appropriate handler based on the data type.
+	"""
+	if data_type == DATA_TYPE_HEARTBEAT:
+		process_esp32_heartbeat(payload)
+	elif data_type in [DATA_TYPE_ADC0, DATA_TYPE_ADC1]:
+		process_esp32_adc_data(payload)
+	else:
+		process_esp32_unknown_data_type(payload)
+def process_esp32_heartbeat(payload):
+	global rms_channel_0, rms_channel_1
+
+	print("Heartbeat from ESP32")
+	
+	# Remove the first byte (data type)
+	payload = payload[1:]
+
+	# Extract ADC channel 0 and channel 1 data
+	adc_data_0 = payload[:100]  # First 100 bytes
+	adc_data_1 = payload[100:200]  # Next 100 bytes
+	padding = payload[200:]  # Remaining bytes (padding)
+
+	# Convert raw ADC data into 16-bit integers
+	adc_samples_0 = [struct.unpack('<H', adc_data_0[i:i + 2])[0] for i in range(0, len(adc_data_0), 2)]
+	adc_samples_1 = [struct.unpack('<H', adc_data_1[i:i + 2])[0] for i in range(0, len(adc_data_1), 2)]
+	# Update circular buffers
+	for sample in adc_samples_0:
+		adc_channel_0.add(sample)
+	for sample in adc_samples_1:
+		adc_channel_1.add(sample)
+
+	# Calculate RMS for each channel
+	rms_channel_0 = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
+	rms_channel_1 = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
+
+	# Pass padding to the status bits handler
+	handlestatusbits(padding)
+
+	# Print or log the results
+	print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
+	print("Channel 1 RMS: {:.2f}".format(rms_channel_1))
+	print("Channel 0 Data: {}".format(adc_channel_0.get_data()))
+	print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
+
+def handlestatusbits(padding):
+	global led_state  # Use the global state variable
+	# Process padding bytes
+	#print(f"Handling status bits: {padding}")
+
+	# Toggle LED state
+	if led_state:
+		send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
+	else:
+		send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
+	# Update the LED state
+	led_state = not led_state
+
+def process_esp32_adc_data(payload):
+	print("ADC data")
+def process_esp32_unknown_data_type(payload):
+	print("unknown data type")
+def process_data_other_node(payload):
+	"""
+	Process data for other sensor nodes (different format).
+	"""
+	print("Processed data from other node: {}".format(payload))
+
+
+def send_ack(ser, mac_addr, packet_id):
+	"""
+	Send acknowledgment for a packet.
+	"""
+	import struct
+	ack_message = mac_addr + b'\x41' + struct.pack('<H', packet_id)
+	send_msg_to_ESP32(ack_message)
+	print("Sent ACK for packet ID {}: {}".format(packet_id, ack_message))
+
+
+def print_packet_hex(data):
+	"""
+	Print received packet data in hexadecimal format.
+	"""
+	print("Received Packet (Hex):", " ".join("{:02X}".format(ord(byte) if isinstance(byte, str) else byte) for byte in data))
+
+def ESP32send(GPIO,STATUS):
+	print("ESP32send called")
+def send_msg_to_ESP32(msg):
+	if ESP01:
+		try:
+			ser.write(msg)
+		except serial.SerialException as e:
+			print("Serial error: {}".format(str(e)))
+	else:
+		try:
+			esp_uds_socket.send(msg)
+		except socket.error as e:
+			print("UNIX socket connection error: {}".format(str(e)))
+
+def receive_data_from_c_program():
+	global esp_uds_socket, running_flag
+	data = b''
+	try:
+		esp_uds_socket.settimeout(1.0)  # Set timeout to allow checking running_flag
+		while running_flag:
+			try:
+				data = esp_uds_socket.recv(2048)
+				if data:
+					handlepacket(data)
+					print_packet_hex(data)
+				time.sleep(0.1)
+			except socket.timeout:
+				pass  # Ignore timeout, just loop again to check running_flag
+	except Exception as e:
+		print("An error occurred: {}".format(e))
+	finally:
+		try:
+			esp_uds_socket.close()
+		except NameError:
+			pass
+		print("Exiting receive_data_from_c_program")
+
+def receive_data_from_c_plus_program():
+	global lora_uds_socket, running_flag
+	data = b''
+	try:
+		lora_uds_socket.settimeout(1.0)  # Set timeout to allow checking running_flag
+		while running_flag:
+			try:
+				data = lora_uds_socket.recv(2048)
+				if data:
+					handlepacket(data)
+					print_packet_hex(data)
+				time.sleep(0.1)
+			except socket.timeout:
+				pass  # Ignore timeout, just loop again to check running_flag
+	except Exception as e:
+		print("An error occurred: {}".format(e))
+	finally:
+		try:
+			lora_uds_socket.close()
+		except NameError:
+			pass
+		print("Exiting receive_data_from_c_plus_program")
+
+def handlepacket(packet):
+	"""
+	Handles the processing of a received packet.
+	Processes ESP32 packets and hands over non-ESP32 packets for further handling.
+	"""
+	# Ensure the packet has at least 6 bytes for MAC address check
+	if len(packet) < MAC_ADDRESS_LENGTH:
+		print("Incomplete packet received. Skipping.")
+		return  # Exit function for incomplete packet
+
+	# Extract the MAC address
+	mac_addr = packet[:MAC_ADDRESS_LENGTH]
+
+	if mac_addr == ESP32_MAC_ADDR:
+		print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
+
+		# Extract Packet ID
+		try:
+			packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
+
+			# Check for duplicate Packet ID
+			if is_duplicate_packet(packet_id):
+				print("Duplicate packet detected. Packet ID: {}".format(packet_id))
+				return  # Exit function for duplicate packet
+
+			# Validate the data
+			is_valid, result = validate_data(packet)
+
+			if not is_valid:
+				print("Invalid ESP32 data: {}".format(result))
+				return  # Exit function for invalid data
+
+			# Process valid ESP32 packet
+			process_data_esp32([result])
+
+		except struct.error as e:
+			print("Error processing ESP32 data: {}".format(e))
+
+	else:
+		# Hand over non-ESP32 data
+		print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
+		process_data_other_node(packet)
+
+def receive_data_from_serial():
+	"""Main function to handle serial communication."""
+	global running_flag, ser
+	buffer = b''  
+
+	try:
+		with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
+			print("Listening on {} at {} baud rate.".format(SERIAL_PORT, BAUD_RATE))
+
+			while running_flag:
+				# Read incoming data
+				if ser.in_waiting > 0:
+					buffer += ser.read(ser.in_waiting)
+
+					# Split buffer into packets based on delimiter
+					while PACKET_DELIMITER in buffer:
+						packet, buffer = buffer.split(PACKET_DELIMITER, 1)
+						handlepacket(packet)
+					time.sleep(0.1)  # Small delay to prevent busy-waiting
+
+	except serial.SerialException as e:
+		print("Serial error: {}".format(str(e)))
+	finally:
+		try:
+			ser.close()
+		except NameError:
+			pass
+		print("Exiting receive_data_from_serial")
+
+
+
 ######################################
 #LCD screen Defining functions
 ######################################
@@ -1128,8 +1485,8 @@ def lcd_string(message,line):
 
 
 ##### This updates the LCD screen##############
-def lcdticker():
-	print("Python lcdticker  called")
+def lcdtickerthread():
+	print("Python lcdtickerthread  called")
 	lcd_string("MODE = "+MODE,LCD_LINE_1)
 	lcd_string("AC POWER = "+ACPOWER,LCD_LINE_2)
 	time.sleep(1.5)
@@ -1161,31 +1518,34 @@ def lcdticker():
 #######################################################
 
 #This is used to gracefully exit in incase of SIGINT/SIGTERM (ctrl+c)
+#All infinite loops - whether in the thread or with in a function being called from a thread must constantly check for running_flag
 class GracefulKiller:
 	kill_now = False
 	def __init__(self):
 		signal.signal(signal.SIGINT, self.exit_gracefully)
 		signal.signal(signal.SIGTERM, self.exit_gracefully)
 
-	def exit_gracefully(self,signum, frame):
-		self.kill_now = True
-		print "SIGNAL received"
+	def exit_gracefully(self, signum, frame):
+		print("Received signal, exiting gracefully...")
 		global running_flag
-		running_flag=False
+		running_flag = False
+		self.kill_now = True
+
 #Thread # 1
 def LoRaReceiverthread(): 
 	try:
 		print("Python LoRaReceiverthread called")
-		while running_flag:
-			try:
-				print("Python LORA_UDS_PATH Unix socket opened successfully")
-				receive_data_from_c_plus_program()
-			except socket.error as e:
-				print("UNIX socket connection error: {}".format(str(e)))
-			time.sleep(1)
+		try:
+			print("Python LORA_UDS_PATH Unix socket opened successfully")
+			receive_data_from_c_plus_program()
+		except socket.error as e:
+			print("UNIX socket connection error: {}".format(str(e)))
 	except Exception as e:
 		error_handler(LoRaReceiverthread.__name__,e)
 		pass
+	finally:
+		print("Exiting LoRaReceiverthread")
+
 #Thread # 2
 #was HTTP Server
 def esp32handlerthread():
@@ -1206,16 +1566,34 @@ def esp32handlerthread():
 	except Exception as e:
 		error_handler(esp32handlerthread.__name__,e.message)
 		pass
+	finally:
+		print("Exiting esp32handlerthread")
 #Thread # 3
-def websocketservarthread(): 
-	print("Python websocket-server thread called")
+def websocketservarthread():
+	"""Python WebSocket server thread."""
+	global running_flag
+	print("Python websocket-server thread started")
+
 	try:
-		websocketservarthread.server = SimpleWebSocketServer('', WS_PORT, SimpleChat)
-		websocketservarthread.server.serveforever()
-		#print time.asctime(), "Websocket Server Starts - %s:%s" % (TCP_IP, WS_PORT)
+		server = SimpleWebSocketServer('', WS_PORT, SimpleChat)
+		websocketservarthread.server = server  # Store reference for external shutdown
+		
+		while running_flag:  # Run while the flag is True
+			server.serveonce()  # Process one request at a time
+			#server.serveforever() # This is an infinite loop of it's own and it wouldn't respect running_flag
+			time.sleep(0.1)  # Prevent high CPU usage
+			
 	except Exception as e:
-		error_handler(websocketservarthread.__name__,e.message)
-		pass
+		error_handler(websocketservarthread.__name__, str(e))
+
+	finally:
+		try:
+			server.close()  # Properly close WebSocket server
+		except:
+			pass
+		print("Exiting websocketservarthread")
+
+
 #Thread # 4
 def analogreadthread(): 
 	print("Python analogreadthread called")
@@ -1226,15 +1604,13 @@ def analogreadthread():
 			try:
 				for ws in clients:
 					ws.sendMessage(u'POWERDATA#ACVOLTAGE='+str(ACVOLTAGE)+u',MOTORCURRENT='+str(MOTORCURRENT))
-					#ws._sendMessage(False, TEXT, message) 
 			except Exception as e:
-				if hasattr(e, 'message'):
-					print(e.message)
-				else:
-					print(e)
-			time.sleep(1) # 100 ms sample everysecond
+				print(e)
+			time.sleep(1)  # Ensure sleep isn't blocking the exit process
 	except KeyboardInterrupt:
 		pass
+	finally:
+		print("Exiting analogreadthread")
 #Thread # 5
 def commandthread():
 	try:
@@ -1246,6 +1622,9 @@ def commandthread():
 			time.sleep(1)
 	except KeyboardInterrupt:
 		pass
+	finally:
+		print("Exiting commandthread")
+	
 #Thread # 6
 def autothread():
 	try:
@@ -1408,6 +1787,9 @@ def autothread():
 			time.sleep(15) # Evaluate @ twice the frequency of sensor update - in this case every 15 seconds
 	except KeyboardInterrupt:
 		pass
+	finally:
+		print("Exiting autothread")
+	
 def autothread2023():
 	#NOT in USE#
 	#Sensor #2 destroyed by hanuman jee. Running Auto on Sensor 1 and timed filling (10 minutes each tank) only.
@@ -1664,357 +2046,60 @@ def watchdogthread():
 			time.sleep(1)
 	except KeyboardInterrupt:
 		pass
+	finally:
+		print("Exiting watchdogthread")
 
+#Thread # 8 
+def lcdtickerthread():
+	"""Thread for updating the LCD screen at fixed intervals."""
+	global running_flag
+	print("Python lcdticker thread started")
 
+	while running_flag:
+		try:
+			print("Python lcdticker called")
+			lcd_string("MODE = " + MODE, LCD_LINE_1)
+			lcd_string("AC POWER = " + ACPOWER, LCD_LINE_2)
+			time.sleep(1.5)
 
-# Circular buffer implementation
-class CircularBuffer:
-	def __init__(self, size):
-		self.size = size
-		self.buffer = [0] * size
-		self.index = 0
+			lcd_string("MOTOR = " + MOTOR, LCD_LINE_1)
+			lcd_string("TANK = " + TANK, LCD_LINE_2)
+			time.sleep(1.5)
 
-	def add(self, value):
-		self.buffer[self.index] = value
-		self.index = (self.index + 1) % self.size
+			if MOTOR == "ON":
+				lcd_string("Motor V = " + str(ACVOLTAGE), LCD_LINE_1)
+				lcd_string("Current(A) = " + str(MOTORCURRENT), LCD_LINE_2)
+				time.sleep(1.5)
 
-	def get_data(self):
-		return self.buffer
-
-# Initialize buffers and RMS variables for each channel
-BUFFER_SIZE = 50
-adc_channel_0 = CircularBuffer(BUFFER_SIZE)
-adc_channel_1 = CircularBuffer(BUFFER_SIZE)
-rms_channel_0 = 0
-rms_channel_1 = 0
-
-
-def calculate_checksum(data):
-	"""Calculate the checksum for the given data."""
-	return sum(map(ord, data)) & 0xFFFF
-
-
-def is_duplicate_packet(packet_id):
-	"""
-	Check if a packet ID is a duplicate.
-	If not a duplicate, add it to the tracker.
-	"""
-	if packet_id in PACKET_ID_TRACKER:
-		return True
-	PACKET_ID_TRACKER.append(packet_id)
-	return False
-
-
-def validate_data(data):
-	"""
-	Validate the received data based on checksum and other criteria.
-	"""
-	# Print raw packet in hex
-	#print_packet_hex(data)
-	if len(data) < HEADER_LENGTH + FOOTER_LENGTH:
-		return False, "Invalid data length."
-
-	# Extract header components
-	mac_addr = data[:MAC_ADDRESS_LENGTH]
-	packet_id = struct.unpack('<H', data[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
-	total_packets, sequence, payload_length = struct.unpack('BBB', data[MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH:HEADER_LENGTH])
-	payload_length = int(payload_length)
-	# Define the position where the checksum starts (header + payload length byte)
-	checksum_position = HEADER_LENGTH + payload_length
-
-	# Validate checksum
-	payload = data[HEADER_LENGTH:checksum_position]  # Payload is between the header and checksum
-	checksum_received = struct.unpack('<H', data[checksum_position:checksum_position + FOOTER_LENGTH])[0]
-	checksum_calculated = calculate_checksum(data[:checksum_position])  # Include header + payload for checksum calculation
-	if checksum_received != checksum_calculated:
-		return False, "Checksum mismatch."
-
-	return True, {
-		"mac_addr": mac_addr,
-		"packet_id": packet_id,
-		"total_packets": total_packets,
-		"sequence": sequence,
-		"payload_length": payload_length,
-		"payload": payload,
-	}
-
-
-def process_data_esp32(packets):
-	"""
-	Process ESP32 data packets, handling segmented and non-segmented data.
-	"""
-	for packet in packets:
-		packet_id = packet["packet_id"]
-		total_packets = packet["total_packets"]
-		sequence = packet["sequence"]
-		payload = packet["payload"]
-		
-		# Calculate the range of expected packet IDs
-		expected_packet_ids = set(packet_id + i for i in range(-sequence + 1, total_packets - sequence + 1))
-		
-		# Unique key for grouping packets
-		key = tuple(sorted(expected_packet_ids))
-
-		if total_packets == 1:
-			# Non-segmented data
-			data_type = payload[0]  # First byte is the data type
-			call_handler(data_type, payload)
-		else:
-			# Segmented data
-			if key not in pending_segments:
-				pending_segments[key] = {
-					"total_packets": total_packets,
-					"received": {},
-					"start_time": time.time(),
-				}
-
-			# Add packet to the received dictionary
-			pending_segments[key]["received"][sequence] = payload
-
-			# Check if all packets are received
-			if len(pending_segments[key]["received"]) == total_packets:
-				# Reassemble packets in sequence order
-				reassembled_payload = b''.join(
-					pending_segments[key]["received"][i] for i in range(1, total_packets + 1)
-				)
-
-				# Determine data type from the first byte of the first packet
-				data_type = reassembled_payload[0]
-				call_handler(data_type, reassembled_payload)
-
-				# Remove entry from pending_segments
-				del pending_segments[key]
+			if IsSENSOR1UP:
+				lcd_string("TANK 1 Level = ", LCD_LINE_1)
+				lcd_string(str(TANK1LEVEL) + "%", LCD_LINE_2)
+				time.sleep(1.5)
 			else:
-				# Handle timeout for incomplete segments
-				current_time = time.time()
-				if current_time - pending_segments[key]["start_time"] > 5.0:  # 5-second timeout
-					# Concatenate received packets
-					partial_payload = b''.join(
-						pending_segments[key]["received"].get(i, b'') for i in range(1, total_packets + 1)
-					)
-					print("Timeout for segmented data: Missing packets for key {}. Proceeding with partial data.".format(key))
+				lcd_string("SENSOR 1 DOWN", LCD_LINE_1)
+				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR1TIME)), LCD_LINE_2)
+				time.sleep(1.5)
+			
+			if IsSENSOR2UP:
+				lcd_string("TANK 2 Level = ", LCD_LINE_1)
+				lcd_string(str(TANK2LEVEL) + "%", LCD_LINE_2)
+				time.sleep(1.5)
+			else:
+				lcd_string("SENSOR 2 DOWN", LCD_LINE_1)
+				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2)
+				time.sleep(1.5)
+			time.sleep(1)
 
-					# Determine data type from partial data
-					data_type = partial_payload[0] if partial_payload else None
-					if data_type:
-						call_handler(data_type, partial_payload)
+		except Exception as e:
+			print("Error in lcdticker thread:", e)
+			pass
+		finally
+			#Wipe the LCD screen
+			#lcd_byte(0x01, LCD_CMD)
+			print("Exiting lcdtickerthread")
 
-					# Remove entry from pending_segments
-					del pending_segments[key]
 
-def call_handler(data_type, payload):
-	"""
-	Calls the appropriate handler based on the data type.
-	"""
-	if data_type == DATA_TYPE_HEARTBEAT:
-		process_esp32_heartbeat(payload)
-	elif data_type in [DATA_TYPE_ADC0, DATA_TYPE_ADC1]:
-		process_esp32_adc_data(payload)
-	else:
-		process_esp32_unknown_data_type(payload)
-def process_esp32_heartbeat(payload):
-	global rms_channel_0, rms_channel_1
-
-	print("Heartbeat from ESP32")
 	
-	# Remove the first byte (data type)
-	payload = payload[1:]
-
-	# Extract ADC channel 0 and channel 1 data
-	adc_data_0 = payload[:100]  # First 100 bytes
-	adc_data_1 = payload[100:200]  # Next 100 bytes
-	padding = payload[200:]  # Remaining bytes (padding)
-
-	# Convert raw ADC data into 16-bit integers
-	adc_samples_0 = [struct.unpack('<H', adc_data_0[i:i + 2])[0] for i in range(0, len(adc_data_0), 2)]
-	adc_samples_1 = [struct.unpack('<H', adc_data_1[i:i + 2])[0] for i in range(0, len(adc_data_1), 2)]
-	# Update circular buffers
-	for sample in adc_samples_0:
-		adc_channel_0.add(sample)
-	for sample in adc_samples_1:
-		adc_channel_1.add(sample)
-
-	# Calculate RMS for each channel
-	rms_channel_0 = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
-	rms_channel_1 = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
-
-	# Pass padding to the status bits handler
-	handlestatusbits(padding)
-
-	# Print or log the results
-	print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
-	print("Channel 1 RMS: {:.2f}".format(rms_channel_1))
-	print("Channel 0 Data: {}".format(adc_channel_0.get_data()))
-	print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
-
-def handlestatusbits(padding):
-	global led_state  # Use the global state variable
-	# Process padding bytes
-	#print(f"Handling status bits: {padding}")
-
-	# Toggle LED state
-	if led_state:
-		send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
-	else:
-		send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
-	# Update the LED state
-	led_state = not led_state
-
-def process_esp32_adc_data(payload):
-	print("ADC data")
-def process_esp32_unknown_data_type(payload):
-	print("unknown data type")
-def process_data_other_node(payload):
-	"""
-	Process data for other sensor nodes (different format).
-	"""
-	print("Processed data from other node: {}".format(payload))
-
-
-def send_ack(ser, mac_addr, packet_id):
-	"""
-	Send acknowledgment for a packet.
-	"""
-	import struct
-	ack_message = mac_addr + b'\x41' + struct.pack('<H', packet_id)
-	send_msg_to_ESP32(ack_message)
-	print("Sent ACK for packet ID {}: {}".format(packet_id, ack_message))
-
-
-def print_packet_hex(data):
-	"""
-	Print received packet data in hexadecimal format.
-	"""
-	print("Received Packet (Hex):", " ".join("{:02X}".format(ord(byte) if isinstance(byte, str) else byte) for byte in data))
-
-def ESP32send(GPIO,STATUS):
-	print("ESP32send called")
-def send_msg_to_ESP32(msg):
-	if ESP01:
-		try:
-			ser.write(msg)
-		except serial.SerialException as e:
-			print("Serial error: {}".format(str(e)))
-	else:
-		try:
-			esp_uds_socket.send(msg)
-		except socket.error as e:
-			print("UNIX socket connection error: {}".format(str(e)))
-def receive_data_from_c_program():
-	global esp_uds_socket
-	data = b''
-	try:
-		while True:
-			data = esp_uds_socket.recv(2048)
-			if data:
-				handlepacket(data[63:]) # Raw socket packets have 63 bytes of header compared with packets from Serial
-				#print_packet_hex(data)
-			time.sleep(0.1)  # Adjust if needed, based on how often data is expected
-	except Exception as e:
-		print("An error occurred: {}".format(e))
-	except KeyboardInterrupt:
-		print("Exiting program.")
-	finally:
-		try:
-			esp_uds_socket.close()
-		except NameError:
-			pass
-
-def receive_data_from_c_plus_program():
-	global lora_uds_socket
-	data = b''
-	try:
-		while True:
-			data = lora_uds_socket.recv(2048)
-			if data:
-				handlepacket(data) # Raw socket packets have 63 bytes of header compared with packets from Serial
-				print_packet_hex(data)
-			time.sleep(0.1)  # Adjust if needed, based on how often data is expected
-	except Exception as e:
-		print("An error occurred: {}".format(e))
-	except KeyboardInterrupt:
-		print("Exiting program.")
-	finally:
-		try:
-			lora_uds_socket.close()
-		except NameError:
-			pass
-
-def handlepacket(packet):
-	"""
-	Handles the processing of a received packet.
-	Processes ESP32 packets and hands over non-ESP32 packets for further handling.
-	"""
-	# Ensure the packet has at least 6 bytes for MAC address check
-	if len(packet) < MAC_ADDRESS_LENGTH:
-		print("Incomplete packet received. Skipping.")
-		return  # Exit function for incomplete packet
-
-	# Extract the MAC address
-	mac_addr = packet[:MAC_ADDRESS_LENGTH]
-
-	if mac_addr == ESP32_MAC_ADDR:
-		print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
-
-		# Extract Packet ID
-		try:
-			packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
-
-			# Check for duplicate Packet ID
-			if is_duplicate_packet(packet_id):
-				print("Duplicate packet detected. Packet ID: {}".format(packet_id))
-				return  # Exit function for duplicate packet
-
-			# Validate the data
-			is_valid, result = validate_data(packet)
-
-			if not is_valid:
-				print("Invalid ESP32 data: {}".format(result))
-				return  # Exit function for invalid data
-
-			# Process valid ESP32 packet
-			process_data_esp32([result])
-
-		except struct.error as e:
-			print("Error processing ESP32 data: {}".format(e))
-
-	else:
-		# Hand over non-ESP32 data
-		print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
-		process_data_other_node(packet)
-def receive_data_from_serial():
-	"""Main function to handle serial communication."""
-	global ser
-	try:
-		buffer = b'' 
-		with serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1) as ser:
-			print("Listening on {} at {} baud rate.".format(SERIAL_PORT, BAUD_RATE))
-			# ser.write(ESP32_MAC_ADDR + RESET)
-			while True:
-				# Read incoming data
-				if ser.in_waiting > 0:
-					buffer += ser.read(ser.in_waiting)
-
-					# Split buffer into packets based on delimiter
-					while PACKET_DELIMITER in buffer:
-						# Split the buffer into one packet and the rest
-						packet, buffer = buffer.split(PACKET_DELIMITER, 1)
-						handlepacket(packet)
-				# Small delay to prevent busy-waiting
-				time.sleep(0.1)
-
-	except serial.SerialException as e:
-		print("Serial error: {}".format(str(e)))
-
-	except KeyboardInterrupt:
-		print("Exiting program.")
-
-	finally:
-		try:
-			ser.close()
-		except NameError:
-			pass
-
 
 if __name__ == '__main__':
 	try:#Load the settings
@@ -2049,6 +2134,7 @@ if __name__ == '__main__':
 		t5=Thread(target=commandthread)
 		t6=Thread(target=autothread2023)
 		t7=Thread(target=watchdogthread)
+		t8=Thread(target=lcdtickerthread)
 		#Daemon - means threads will exit when the main thread exits
 		t1.daemon=True
 		t2.daemon=True
@@ -2057,6 +2143,7 @@ if __name__ == '__main__':
 		t5.daemon=True
 		t6.daemon=True
 		t7.daemon=True
+		t8.daemon=True
 		#Start the threads 
 		t1.start()
 		t2.start()
@@ -2065,32 +2152,26 @@ if __name__ == '__main__':
 		t5.start()
 		t6.start()
 		t7.start()
+		t8.start()
 		#For killing gracefully
 		killer = GracefulKiller()
 		while True:
-			try:
-				print("Python lcdticker dummy call")
-				#lcdticker() #March 2022 -Getting I/O error - disable LCD
-			except Exception as e:
-				print(e)
-				pass
-			time.sleep(1) # Makes a huge difference in CPU usage - without >95%, with <10%
 			if killer.kill_now:
 				#save the settings
 				settingshandler("null","save")
 				calibrationhandler("null","save")
-				#Wipe the LCD screen
-				#lcd_byte(0x01, LCD_CMD)
 				#Join means wait for the threads to exit
-				t1.join() #TCPserverthread - has runningflag
-				t2.join()
-				t3.join() #websocketservarthread
+				t1.join() #LoRaReceiverthread - has runningflag in its function
+				t2.join() #esp32handlerthread - has runningflag in its function
+				t3.join() #websocketservarthread - has runningflag
 				t4.join() #analogreadthread - has runningflag
 				t5.join() #commandthread - has runningflag
 				t6.join()	#autothread - has runningflag
 				t7.join() # watchdogthread - has runningflag
+				t8.join()#lcdtickerthread - has runningflag
 				print "exited gracefully"
 				break
+			time.sleep(1) # without it CPU runs as fast as possible.
 	except KeyboardInterrupt:
 		#Signal is caught by graceful killer class
 		pass
