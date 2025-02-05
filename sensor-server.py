@@ -303,7 +303,7 @@ def sendchangedstatus(mymsg):
 			ws.sendMessage(u'STATUS#'+mymsg)
 		activity_handler(mymsg)
 	except Exception as e:
-		error_handler(sendchangedstatus.__name__,e)
+		error_handler(sendchangedstatus.__name__,str(e))
 		pass
 ## Commands are handled in the order they are received - this function is invoked by commandthread
 def commandhandler(command):
@@ -408,7 +408,7 @@ def commandhandler(command):
 					if (MOTOR=="ON"):
 						send_msg_to_ESP32("SWSTARTPB","LOW")
 	except Exception as e:
-		error_handler(commandhandler.__name__,e)
+		error_handler(commandhandler.__name__,str(e))
 		pass
 ###SENSOR VALUES ARE RECEIVED, SAVED and UPDATED by THIS FUNCTION
 def worker_sensorthread(data):
@@ -529,7 +529,7 @@ def worker_sensorthread(data):
 		myTANK1AVERAGELEVEL = sum(TANK1AVERAGINGLIST)/len(TANK1AVERAGINGLIST)
 		myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
 	except Exception as e:
-		error_handler(worker_sensorthread.__name__,e)
+		error_handler(worker_sensorthread.__name__,str(e))
 		pass
 def savesensordatatofile(formattedsensordata):
 	try:
@@ -538,7 +538,7 @@ def savesensordatatofile(formattedsensordata):
 		fobj.write('\n')
 		fobj.close()
 	except Exception as e:
-		error_handler(savesensordatatofile.__name__,e)
+		error_handler(savesensordatatofile.__name__,str(e))
 		pass
 ## Sending the raw ADC values to the client - to plot- and use it to calibrate
 def send_raw_adc(param):
@@ -552,7 +552,7 @@ def send_raw_adc(param):
 		elif param == "CURRENT":
 			return sampleIArray
 	except Exception as e:
-		error_handler(send_raw_adc.__name__,e)
+		error_handler(send_raw_adc.__name__,str(e))
 		pass
 ##THIS FUNCTION READs the analog ADC values (voltage and current)
 def myanalogread(timeout):
@@ -611,7 +611,7 @@ def myanalogread(timeout):
 				sendchangedstatus("MOTOR="+MOTOR)
 		#############################################
 	except Exception as e:
-		error_handler(myanalogread.__name__,e)
+		error_handler(myanalogread.__name__,str(e))
 		pass
 ##This function loads and saves the voltage and current calibration settings
 def calibrationhandler(vals,operation):
@@ -687,7 +687,7 @@ def calibrationhandler(vals,operation):
 			CadcValue=float(valsdict['Cadc'])
 			sobj.close()
 	except Exception as e:
-		error_handler(calibrationhandler.__name__,e)
+		error_handler(calibrationhandler.__name__,str(e))
 		pass
 ##This function loads and saves the general settings (tank high/low etc)
 def settingshandler(settings,operation):
@@ -832,7 +832,7 @@ def settingshandler(settings,operation):
 			sensortotankattachmentdict['T2MAC']=settingsdict['T2MAC']
 			MONCURR=float(settingsdict['MONCURR'])
 	except Exception as e:
-		error_handler(settingshandler.__name__,e)
+		error_handler(settingshandler.__name__,str(e))
 		pass
 def handlemacaddresschange(data):
 	#MACADDR#T1MAC=5ccf7f1754d1
@@ -841,7 +841,7 @@ def handlemacaddresschange(data):
 		sensortotankattachmentdict[data.split("=")[0]]=data.split("=")[1]
 		settingshandler("null","savemacaddr")
 	except Exception as e:
-		error_handler(handlemacaddresschange.__name__,e)
+		error_handler(handlemacaddresschange.__name__,str(e))
 		pass
 ##This handles the "Manual mode"
 def manualmodehandler(data):
@@ -888,7 +888,7 @@ class SimpleChat(WebSocket):
 					#self.sendMessage(u'StoredData-'+str(plotcharts("./sensordata",(time.time()-360),time.time(),"b")))
 					#self.sendMessage(u'StoredData-'+str(plotcharts(self.data.split("#")[1],float(self.data.split("#")[2]),float(self.data.split("#")[3]),str(self.data.split("#")[4]))))
 				except Exception as e:
-					error_handler("STOREDDATA",e)
+					error_handler("STOREDDATA",str(e))
 					pass
 			elif (self.data.split("#")[0]=="SOFTMODE"): #changing software mode SOFTMODE
 				SOFTMODE=self.data.split("#")[1]
@@ -931,7 +931,7 @@ class SimpleChat(WebSocket):
 					if client != self:
 						client.sendMessage(self.address[0] + u' # ' + self.data)
 		except Exception as e:
-			error_handler(handleMessage.__name__,e)
+			error_handler(handleMessage.__name__,str(e))
 			pass
 	def handleConnected(self):
 		global SOFTMODE
@@ -952,7 +952,7 @@ class SimpleChat(WebSocket):
 				sendchangedstatus("SENSORDOWN=2,SENSORTIME="+time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(SENSOR2TIME)))
 			'''
 		except Exception as e:
-			error_handler(handleConnected.__name__,e)
+			error_handler(handleConnected.__name__,str(e))
 			pass
 	def handleClose(self):
 		try:
@@ -1048,7 +1048,7 @@ def activity_handler(activity_name):
 		fobj.write('**')
 		fobj.close()
 	except Exception as e:
-		print(e)
+		error_handler(activity_handler.__name__, str(e))
 
 
 
@@ -1279,12 +1279,12 @@ def send_msg_to_ESP32(msg):
 		try:
 			ser.write(msg)
 		except serial.SerialException as e:
-			print("Serial error: {}".format(str(e)))
+			error_handler(send_msg_to_ESP32.__name__, str(e))
 	else:
 		try:
 			esp_uds_socket.send(msg)
 		except socket.error as e:
-			print("UNIX socket connection error: {}".format(str(e)))
+			error_handler(send_msg_to_ESP32.__name__, str(e))
 
 def receive_data_from_c_program():
 	global esp_uds_socket, running_flag
@@ -1301,7 +1301,7 @@ def receive_data_from_c_program():
 			except socket.timeout:
 				pass  # Ignore timeout, just loop again to check running_flag
 	except Exception as e:
-		print("An error occurred: {}".format(e))
+		error_handler(receive_data_from_c_program.__name__, str(e))
 	finally:
 		try:
 			esp_uds_socket.close()
@@ -1324,7 +1324,7 @@ def receive_data_from_c_plus_program():
 			except socket.timeout:
 				pass  # Ignore timeout, just loop again to check running_flag
 	except Exception as e:
-		print("An error occurred: {}".format(e))
+		error_handler(receive_data_from_c_plus_program.__name__, str(e))
 	finally:
 		try:
 			lora_uds_socket.close()
@@ -1368,7 +1368,7 @@ def handlepacket(packet):
 			process_data_esp32([result])
 
 		except struct.error as e:
-			print("Error processing ESP32 data: {}".format(e))
+			error_handler(handlepacket.__name__, str(e))
 
 	else:
 		# Hand over non-ESP32 data
@@ -1396,7 +1396,7 @@ def receive_data_from_serial():
 					time.sleep(0.1)  # Small delay to prevent busy-waiting
 
 	except serial.SerialException as e:
-		print("Serial error: {}".format(str(e)))
+		error_handler(receive_data_from_serial.__name__, str(e))
 	finally:
 		try:
 			ser.close()
@@ -1505,9 +1505,9 @@ def LoRaReceiverthread():
 			print("Python LORA_UDS_PATH Unix socket opened successfully")
 			receive_data_from_c_plus_program()
 		except socket.error as e:
-			print("UNIX socket connection error: {}".format(str(e)))
+			error_handler(LoRaReceiverthread.__name__,str(e))
 	except Exception as e:
-		error_handler(LoRaReceiverthread.__name__,e)
+		error_handler(LoRaReceiverthread.__name__,str(e))
 		pass
 	finally:
 		print("Exiting LoRaReceiverthread")
@@ -1522,15 +1522,15 @@ def esp32handlerthread():
 				ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
 				receive_data_from_serial()
 			except serial.SerialException as e:
-				print("Serial error: {}".format(str(e)))
+				error_handler(esp32handlerthread.__name__,str(e))
 		else:
 			try:
 				print("Python ESP_UDS_PATH unix socket opened successfully")
 				receive_data_from_c_program()
 			except socket.error as e:
-				print("UNIX socket connection error: {}".format(str(e)))
+				error_handler(esp32handlerthread.__name__,str(e))
 	except Exception as e:
-		error_handler(esp32handlerthread.__name__,e.message)
+		error_handler(esp32handlerthread.__name__,str(e))
 		pass
 	finally:
 		print("Exiting esp32handlerthread")
@@ -1545,8 +1545,8 @@ def websocketservarthread():
 		websocketservarthread.server = server  # Store reference for external shutdown
 		
 		while running_flag:  # Run while the flag is True
-			server.serveonce()  # Process one request at a time
-			#server.serveforever() # This is an infinite loop of it's own and it wouldn't respect running_flag
+			#server.serveonce()  # Process one request at a time BUT not available on currently installed version of this lib
+			server.serveforever() # This is an infinite loop of it's own and it wouldn't respect running_flag
 			time.sleep(0.1)  # Prevent high CPU usage
 			
 	except Exception as e:
@@ -1571,7 +1571,7 @@ def analogreadthread():
 				for ws in clients:
 					ws.sendMessage(u'POWERDATA#ACVOLTAGE='+str(ACVOLTAGE)+u',MOTORCURRENT='+str(MOTORCURRENT))
 			except Exception as e:
-				print(e)
+				error_handler(analogreadthread.__name__, str(e))
 			time.sleep(1)  # Ensure sleep isn't blocking the exit process
 	except KeyboardInterrupt:
 		pass
@@ -2025,10 +2025,11 @@ def lcdtickerthread():
 		print("dummy call for lcd_init")
 		#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
 	except Exception as e:
-		print(e)
+		error_handler(lcdtickerthread.__name__, str(e))
 		print("Error initializing LCD screen, exiting LCD Ticker Thread")
 		return
 	while running_flag:
+		time.sleep(1)
 		try:
 			print("Python lcdticker called")
 			lcd_string("MODE = " + MODE, LCD_LINE_1)
@@ -2061,11 +2062,10 @@ def lcdtickerthread():
 				lcd_string("SENSOR 2 DOWN", LCD_LINE_1)
 				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2)
 				time.sleep(LCD_REFRESH_INTERVAL)
-			time.sleep(1)
-
 		except Exception as e:
-			print("Error in lcdticker thread:", e)
-			pass
+			error_handler(lcdtickerthread.__name__, str(e))
+			print("Exiting due to Error in lcdticker thread:", e)
+			return
 		finally:
 			#Wipe the LCD screen
 			#lcd_byte(0x01, LCD_CMD)
