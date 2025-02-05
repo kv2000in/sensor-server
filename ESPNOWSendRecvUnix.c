@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
 				
 				if (bytes_read >= 50) {  // Ensure packet has at least 50 bytes
-					uint16_t seq_num = (buffer[48] << 8) | buffer[49]; // Convert to 16-bit (big-endian)
+					uint16_t seq_num = (buffer[46] << 8) | buffer[47]; // Convert to 16-bit (big-endian)
 					
 					printf("Extracted Sequence Number: 0x%04X\n", seq_num);
 					
