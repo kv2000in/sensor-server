@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
 				
 					// Locate the sequence number (2 bytes before {0x15, 0, 8, 0x7f18fe34})
-				uint8_t *ptr = buffer;
+				char *ptr = buffer;
 				int seq_offset = -1;
 				
 				for (int i = 0; i < bytes_read - 4; i++) {
