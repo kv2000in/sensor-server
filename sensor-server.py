@@ -2067,6 +2067,7 @@ if __name__ == '__main__':
 		killer = GracefulKiller()
 		while True:
 			try:
+			print("Python lcdticker dummy call")
 			#lcdticker() #March 2022 -Getting I/O error - disable LCD
 			except Exception as e:
 				print(e)
