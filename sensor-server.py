@@ -146,6 +146,8 @@ SWSTOPPB=19# High = stop PB pressed
 SWTANK=26
 
 
+SENSOR_PACKET_LENGTH=16 # Non-ESP32 packets longer than this size are discarded
+
 #SOFTWARE MODE
 SOFTMODE="Auto" # Turn off motor if AC voltage low or high, motor current too high, 
 #tank levels high, switch tanks. Turn on Motor if Tank level low. 
@@ -1302,7 +1304,7 @@ def receive_data_from_c_plus_program():
 				data = lora_uds_socket.recv(2048)
 				if data:
 					handlepacket(data)
-					print_packet_hex(data)
+					#print_packet_hex(data)
 				time.sleep(0.1)
 			except socket.timeout:
 				pass  # Ignore timeout, just loop again to check running_flag
@@ -1324,7 +1326,7 @@ def handlepacket(packet):
 	if len(packet) < MAC_ADDRESS_LENGTH:
 		print("Incomplete packet received. Skipping.")
 		return  # Exit function for incomplete packet
-
+		
 	# Extract the MAC address
 	mac_addr = packet[:MAC_ADDRESS_LENGTH]
 
@@ -1353,9 +1355,13 @@ def handlepacket(packet):
 		except struct.error as e:
 			error_handler(handlepacket.__name__, str(e))
 
+	elif len(packet) >SENSOR_PACKET_LENGTH:
+		print_packet_hex(packet)
+		print("Random node in the area transmitting data on same frequency")
+		return #Exit function for random packet
 	else:
 		# Hand over non-ESP32 data
-		print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
+		#print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
 		#process_data_other_node(packet)
 		sensor_data_handler(packet)
 
