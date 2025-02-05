@@ -65,6 +65,27 @@ void print_packet(uint8_t *data, int len)
 	}
 	printf("\n\n");
 }
+#define SEQ_BUFFER_SIZE 30  // Store last 30 sequence numbers
+
+uint16_t seq_buffer[SEQ_BUFFER_SIZE] = {0};  // Circular buffer for sequence numbers
+int seq_index = 0;  // Tracks the position in buffer
+
+	// Function to check if sequence number exists in buffer
+int is_duplicate_seq(uint16_t seq_num) {
+	for (int i = 0; i < SEQ_BUFFER_SIZE; i++) {
+		if (seq_buffer[i] == seq_num) {
+			return 1; // Found duplicate
+		}
+	}
+	return 0; // Unique sequence
+}
+
+	// Function to add a new sequence number to the circular buffer
+void add_sequence(uint16_t seq_num) {
+	seq_buffer[seq_index] = seq_num;
+	seq_index = (seq_index + 1) % SEQ_BUFFER_SIZE; // Circular index
+}
+
 
 int create_raw_socket(char *dev, struct sock_fprog *bpf)
 {
@@ -220,14 +241,55 @@ int main(int argc, char **argv)
 		
 			// Handle data from raw Ethernet socket
 		if (FD_ISSET(sock_fd, &readfds)) {
+
+
+
+			
+		
+		
+		
+		
+		
 			int bytes_read = recv(sock_fd, buffer, BUFFER_SIZE, 0);
 			if (bytes_read > 0) {
 				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
-					// Forward to UNIX socket
-				send(uds_conn, buffer, bytes_read, 0);
+				
+					// Locate the sequence number (2 bytes before {0x15, 0, 8, 0x7f18fe34})
+				uint8_t *ptr = buffer;
+				int seq_offset = -1;
+				
+				for (int i = 0; i < bytes_read - 4; i++) {
+					if (ptr[i] == 0x15 && ptr[i + 1] == 0x00 && ptr[i + 2] == 0x08 && ptr[i + 3] == 0x7f &&
+						ptr[i + 4] == 0x18 && ptr[i + 5] == 0xfe && ptr[i + 6] == 0x34) {
+						seq_offset = i - 2;  // Sequence number is 2 bytes before
+						break;
+					}
+				}
+				
+				if (seq_offset >= 0) {
+					uint16_t seq_num = (buffer[seq_offset] << 8) | buffer[seq_offset + 1]; // Convert to 16-bit
+					
+					printf("Extracted Sequence Number: 0x%04X\n", seq_num);
+					
+					if (is_duplicate_seq(seq_num)) {
+						printf("Duplicate packet detected! Dropping packet with sequence: 0x%04X\n", seq_num);
+					} else {
+						add_sequence(seq_num);
+						send(uds_conn, buffer, bytes_read, 0);  // Forward only unique packets
+					}
+				} else {
+					printf("Could not locate sequence number, forwarding by default.\n");
+					send(uds_conn, buffer, bytes_read, 0);
+				}
 			} else {
 				perror("recv");
 			}
+		
+		
+		
+		
+		
+		
 		}
 	}
 	
