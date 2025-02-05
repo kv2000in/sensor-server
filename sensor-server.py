@@ -2081,12 +2081,12 @@ if __name__ == '__main__':
 		print datetime.datetime.today()
 		settingshandler("null","load")
 		calibrationhandler("null","load")
-		subprocess.Popen(["./mysendrecv.o", "mon0"])
+		mysendrecv_proc=subprocess.Popen(["./mysendrecv.o", "mon0"])
 		print("Python mysendrecv C called")
 		time.sleep(2)
 		esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		esp_uds_socket.connect(ESP_UDS_PATH)
-		subprocess.Popen(["./LoRaReceiver"])
+		lora_proc=subprocess.Popen(["./LoRaReceiver"])
 		print("Python LoRaReceiver C++ called")
 		time.sleep(2)
 		lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -2126,21 +2126,30 @@ if __name__ == '__main__':
 				#save the settings
 				settingshandler("null","save")
 				calibrationhandler("null","save")
+				# Send termination signal to subprocesses
+				mysendrecv_proc.terminate()
+				lora_proc.terminate()
 				#Join means wait for the threads to exit
 				t1.join() #LoRaReceiverthread - has runningflag in its function
 				t2.join() #esp32handlerthread - has runningflag in its function
-				t3.join() #websocketservarthread - has runningflag
 				t4.join() #analogreadthread - has runningflag
 				t5.join() #commandthread - has runningflag
 				t6.join()	#autothread - has runningflag
 				t7.join() # watchdogthread - has runningflag
 				t8.join()#lcdtickerthread - has runningflag
+				mysendrecv_proc.wait()
+				lora_proc.wait()
+				websocketservarthread.server.close()
+				t3.join() #websocketservarthread - has runningflag but has serveforever() infinite loop which runs independent.hence calling server.close
 				print "exited gracefully"
 				break
 			time.sleep(1) # without it CPU runs as fast as possible.
 	except KeyboardInterrupt:
 		#Signal is caught by graceful killer class
 		pass
+	finally:
+		mysendrecv_proc.terminate()
+		lora_proc.terminate()
 
 
 
