@@ -176,11 +176,11 @@ HMCURR=7 # At the start of the motor - current draw is going to be high
 MONCURR=19 # Jan 2022 - was 0.9 - changed it to 19 for debugging
 
 #Set Max and initial Tank Level ADC reads
-MAXT1=10.0#CM Values. how many Centimeters from HCSR04 when the tank 1 is full. 
-MAXT2=10.0 # decimal point necessary so that this is treated as float when calculations are done
+MAXT1=100.0#MM Values. how many Centimeters from HCSR04 when the tank 1 is full. 
+MAXT2=100.0 # decimal point necessary so that this is treated as float when calculations are done
 
-MINT1=199.0 # Adjust max and min for each sensor, Min level is basically offset
-MINT2=199.0 # Tanklevel in % = (sensorvalue-min)/(max-min)*100
+MINT1=1990.0 # Adjust max and min for each sensor, Min level is basically offset
+MINT2=1990.0 # Tanklevel in % = (sensorvalue-min)/(max-min)*100
 
 T1LLVL=75 # less than this % value - switch tank or motor on
 T1HLVL=95
