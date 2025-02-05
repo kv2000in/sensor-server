@@ -1329,7 +1329,7 @@ def handlepacket(packet):
 	mac_addr = packet[:MAC_ADDRESS_LENGTH]
 
 	if mac_addr == ESP32_MAC_ADDR:
-		print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
+		#print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
 
 		# Extract Packet ID
 		try:

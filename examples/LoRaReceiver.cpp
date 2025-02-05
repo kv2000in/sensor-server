@@ -72,17 +72,18 @@ void loop() {
 	if (packetSize) {
 		uint8_t buffer[BUFFER_SIZE];
 		int index = 0;
-		/*
-		printf("Received LoRa packet: ");
+		
+		//printf("Received LoRa packet: ");
 		while (LoRa.available() && index < BUFFER_SIZE - 1) {
 			uint8_t byte = LoRa.read();
-			printf("%02X ", byte);
+			//printf("%02X ", byte);
 			buffer[index++] = byte;
 		}
 		 
 		buffer[index] = '\0'; // Null terminate for safety
-		printf("\n");
-		*/
+		
+		//printf("\n");
+		
 			// Send the LoRa packet data to Python via Unix socket
 		if (send(client_sock, buffer, index, 0) < 0) {
 			perror("Sending LoRa packet to Unix socket failed");
