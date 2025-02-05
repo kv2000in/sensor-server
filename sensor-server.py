@@ -411,7 +411,7 @@ def commandhandler(command):
 		error_handler(commandhandler.__name__,str(e))
 		pass
 ###SENSOR VALUES ARE RECEIVED, SAVED and UPDATED by THIS FUNCTION
-def worker_sensorthread(data):
+def sensor_data_handler(data):
 	try:
 		global TANK1LEVEL
 		global TANK2LEVEL
@@ -529,7 +529,7 @@ def worker_sensorthread(data):
 		myTANK1AVERAGELEVEL = sum(TANK1AVERAGINGLIST)/len(TANK1AVERAGINGLIST)
 		myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
 	except Exception as e:
-		error_handler(worker_sensorthread.__name__,str(e))
+		error_handler(sensor_data_handler.__name__,str(e))
 		pass
 def savesensordatatofile(formattedsensordata):
 	try:
@@ -1373,7 +1373,8 @@ def handlepacket(packet):
 	else:
 		# Hand over non-ESP32 data
 		print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
-		process_data_other_node(packet)
+		#process_data_other_node(packet)
+		sensor_data_handler(packet)
 
 def receive_data_from_serial():
 	"""Main function to handle serial communication."""
@@ -2098,7 +2099,7 @@ if __name__ == '__main__':
 		t3=Thread(target=websocketservarthread)
 		t4=Thread(target=analogreadthread)
 		t5=Thread(target=commandthread)
-		t6=Thread(target=autothread2023)
+		t6=Thread(target=autothread)
 		t7=Thread(target=watchdogthread)
 		t8=Thread(target=lcdtickerthread)
 		#Daemon - means threads will exit when the main thread exits
