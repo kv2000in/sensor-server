@@ -168,6 +168,7 @@ CadcValue=17.5
 HVLVL=350 ##CHANGE##
 LVLVL=110
 
+LCD_REFRESH_INTERVAL = 1.5 # LCD numbers change every this many seconds
 #Turn off motor if current draw is too high
 HMCURR=7 # At the start of the motor - current draw is going to be high
 
@@ -1482,41 +1483,6 @@ def lcd_string(message,line):
 ##########################################
 
 
-
-
-##### This updates the LCD screen##############
-def lcdtickerthread():
-	print("Python lcdtickerthread  called")
-	lcd_string("MODE = "+MODE,LCD_LINE_1)
-	lcd_string("AC POWER = "+ACPOWER,LCD_LINE_2)
-	time.sleep(1.5)
-	lcd_string("MOTOR = "+MOTOR,LCD_LINE_1)
-	lcd_string("TANK = "+TANK,LCD_LINE_2)
-	time.sleep(1.5)
-	if (MOTOR=="ON"):
-		lcd_string("Motor V = "+str(ACVOLTAGE),LCD_LINE_1)
-		lcd_string("Current(A)= "+str(MOTORCURRENT),LCD_LINE_2)
-		time.sleep(1.5)
-	if (running_flag):
-		if (IsSENSOR1UP):
-			lcd_string("TANK 1 Level = ",LCD_LINE_1)
-			lcd_string(str(TANK1LEVEL)+"%",LCD_LINE_2)
-			time.sleep(1.5)
-		else:
-			lcd_string("SENSOR 1 DOWN",LCD_LINE_1)
-			lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR1TIME)),LCD_LINE_2)
-			time.sleep(1.5)
-	if (running_flag):
-		if (IsSENSOR2UP):
-			lcd_string("TANK 2 Level = ",LCD_LINE_1)
-			lcd_string(str(TANK2LEVEL)+"%",LCD_LINE_2)
-			time.sleep(1.5)
-		else:
-			lcd_string("SENSOR 2 DOWN",LCD_LINE_1)
-			lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)),LCD_LINE_2)
-			time.sleep(1.5)
-#######################################################
-
 #This is used to gracefully exit in incase of SIGINT/SIGTERM (ctrl+c)
 #All infinite loops - whether in the thread or with in a function being called from a thread must constantly check for running_flag
 class GracefulKiller:
@@ -2054,46 +2020,53 @@ def lcdtickerthread():
 	"""Thread for updating the LCD screen at fixed intervals."""
 	global running_flag
 	print("Python lcdticker thread started")
-
+	#initialize the LCD screen
+	try:
+		print("dummy call for lcd_init")
+		#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
+	except Exception as e:
+		print(e)
+		print("Error initializing LCD screen, exiting LCD Ticker Thread")
+		return
 	while running_flag:
 		try:
 			print("Python lcdticker called")
 			lcd_string("MODE = " + MODE, LCD_LINE_1)
 			lcd_string("AC POWER = " + ACPOWER, LCD_LINE_2)
-			time.sleep(1.5)
+			time.sleep(LCD_REFRESH_INTERVAL)
 
 			lcd_string("MOTOR = " + MOTOR, LCD_LINE_1)
 			lcd_string("TANK = " + TANK, LCD_LINE_2)
-			time.sleep(1.5)
+			time.sleep(LCD_REFRESH_INTERVAL)
 
 			if MOTOR == "ON":
 				lcd_string("Motor V = " + str(ACVOLTAGE), LCD_LINE_1)
 				lcd_string("Current(A) = " + str(MOTORCURRENT), LCD_LINE_2)
-				time.sleep(1.5)
+				time.sleep(LCD_REFRESH_INTERVAL)
 
 			if IsSENSOR1UP:
 				lcd_string("TANK 1 Level = ", LCD_LINE_1)
 				lcd_string(str(TANK1LEVEL) + "%", LCD_LINE_2)
-				time.sleep(1.5)
+				time.sleep(LCD_REFRESH_INTERVAL)
 			else:
 				lcd_string("SENSOR 1 DOWN", LCD_LINE_1)
 				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR1TIME)), LCD_LINE_2)
-				time.sleep(1.5)
+				time.sleep(LCD_REFRESH_INTERVAL)
 			
 			if IsSENSOR2UP:
 				lcd_string("TANK 2 Level = ", LCD_LINE_1)
 				lcd_string(str(TANK2LEVEL) + "%", LCD_LINE_2)
-				time.sleep(1.5)
+				time.sleep(LCD_REFRESH_INTERVAL)
 			else:
 				lcd_string("SENSOR 2 DOWN", LCD_LINE_1)
 				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2)
-				time.sleep(1.5)
+				time.sleep(LCD_REFRESH_INTERVAL)
 			time.sleep(1)
 
 		except Exception as e:
 			print("Error in lcdticker thread:", e)
 			pass
-		finally
+		finally:
 			#Wipe the LCD screen
 			#lcd_byte(0x01, LCD_CMD)
 			print("Exiting lcdtickerthread")
@@ -2118,14 +2091,7 @@ if __name__ == '__main__':
 		time.sleep(2)
 		lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 		lora_uds_socket.connect(LORA_UDS_PATH)
-		#initialize the LCD screen
-		try:
-			print("dummy call for lcd_init")
-			#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
-		except Exception as e:
-			print(e)
-			pass
-		#Check initial GPIO statuses - added 2/19/18
+
 		init_status()
 		t1=Thread(target=LoRaReceiverthread) 
 		t2=Thread(target=esp32handlerthread)
