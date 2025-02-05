@@ -425,7 +425,7 @@ def sensor_data_handler(data):
 		global TANK2temp
 		global myTANK1AVERAGELEVEL
 		global myTANK2AVERAGELEVEL
-		if (datat):
+		if (data):
 			request = data
 			currtime=time.time()
 			strcurrtime = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(currtime))
