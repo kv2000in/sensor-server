@@ -1175,13 +1175,9 @@ class GracefulKiller:
 #Thread # 1
 def LoRaReceiverthread(): 
 	try:
+		print("Python LoRaReceiverthread called")
 		while running_flag:
 			try:
-				subprocess.Popen(["./LoRaReceiver"])
-				print("Python LoRaReceiverthread called")
-				time.sleep(2)
-				lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-				lora_uds_socket.connect(LORA_UDS_PATH)
 				print("Python LORA_UDS_PATH Unix socket opened successfully")
 				receive_data_from_c_plus_program()
 			except socket.error as e:
@@ -1203,10 +1199,6 @@ def esp32handlerthread():
 				print("Serial error: {}".format(str(e)))
 		else:
 			try:
-				subprocess.Popen(["./mysendrecv.o", "mon0"])
-				time.sleep(5)
-				esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-				esp_uds_socket.connect(ESP_UDS_PATH)
 				print("Python ESP_UDS_PATH unix socket opened successfully")
 				receive_data_from_c_program()
 			except socket.error as e:
@@ -2031,6 +2023,16 @@ if __name__ == '__main__':
 		print datetime.datetime.today()
 		settingshandler("null","load")
 		calibrationhandler("null","load")
+		subprocess.Popen(["./mysendrecv.o", "mon0"])
+		print("Python mysendrecv C called")
+		time.sleep(2)
+		esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+		esp_uds_socket.connect(ESP_UDS_PATH)
+		subprocess.Popen(["./LoRaReceiver"])
+		print("Python LoRaReceiver C++ called")
+		time.sleep(2)
+		lora_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+		lora_uds_socket.connect(LORA_UDS_PATH)
 		#initialize the LCD screen
 		try:
 			print("dummy call for lcd_init")
