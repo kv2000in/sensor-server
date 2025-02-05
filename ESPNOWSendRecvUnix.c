@@ -254,20 +254,8 @@ int main(int argc, char **argv)
 			if (bytes_read > 0) {
 				printf("Received data on raw Ethernet socket: %d bytes\n", bytes_read);
 				
-					// Locate the sequence number (2 bytes before {0x15, 0, 8, 0x7f18fe34})
-				uint8_t *ptr = buffer;
-				int seq_offset = -1;
-				
-				for (int i = 0; i < bytes_read - 4; i++) {
-					if (ptr[i] == 0x15 && ptr[i + 1] == 0x00 && ptr[i + 2] == 0x08 && ptr[i + 3] == 0x7f &&
-						ptr[i + 4] == 0x18 && ptr[i + 5] == 0xfe && ptr[i + 6] == 0x34) {
-						seq_offset = i - 2;  // Sequence number is 2 bytes before
-						break;
-					}
-				}
-				
-				if (seq_offset >= 0) {
-					uint16_t seq_num = (buffer[seq_offset] << 8) | buffer[seq_offset + 1]; // Convert to 16-bit
+				if (bytes_read >= 50) {  // Ensure packet has at least 50 bytes
+					uint16_t seq_num = (buffer[48] << 8) | buffer[49]; // Convert to 16-bit (big-endian)
 					
 					printf("Extracted Sequence Number: 0x%04X\n", seq_num);
 					
@@ -278,7 +266,7 @@ int main(int argc, char **argv)
 						send(uds_conn, buffer, bytes_read, 0);  // Forward only unique packets
 					}
 				} else {
-					printf("Could not locate sequence number, forwarding by default.\n");
+					printf("Packet too short (%d bytes), forwarding by default.\n", bytes_read);
 					send(uds_conn, buffer, bytes_read, 0);
 				}
 			} else {
