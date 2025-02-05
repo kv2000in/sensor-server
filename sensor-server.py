@@ -2033,30 +2033,30 @@ if __name__ == '__main__':
 		calibrationhandler("null","load")
 		#initialize the LCD screen
 		try:
-			lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
+			#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
 		except Exception as e:
 			print(e)
 			pass
 		#Check initial GPIO statuses - added 2/19/18
 		init_status()
-		#t1=Thread(target=LoRaReceiverthread) 
-		#t2=Thread(target=esp32handlerthread)
+		t1=Thread(target=LoRaReceiverthread) 
+		t2=Thread(target=esp32handlerthread)
 		t3=Thread(target=websocketservarthread)
 		t4=Thread(target=analogreadthread)
 		t5=Thread(target=commandthread)
 		t6=Thread(target=autothread2023)
 		t7=Thread(target=watchdogthread)
 		#Daemon - means threads will exit when the main thread exits
-		#t1.daemon=True
-		#t2.daemon=True
+		t1.daemon=True
+		t2.daemon=True
 		t3.daemon=True
 		t4.daemon=True
 		t5.daemon=True
 		t6.daemon=True
 		t7.daemon=True
 		#Start the threads 
-		#t1.start()
-		#t2.start()
+		t1.start()
+		t2.start()
 		t3.start()
 		t4.start()
 		t5.start()
@@ -2066,7 +2066,7 @@ if __name__ == '__main__':
 		killer = GracefulKiller()
 		while True:
 			try:
-				lcdticker() #March 2022 -Getting I/O error - disable LCD
+			#lcdticker() #March 2022 -Getting I/O error - disable LCD
 			except Exception as e:
 				print(e)
 				pass
@@ -2078,12 +2078,9 @@ if __name__ == '__main__':
 				#Wipe the LCD screen
 				#lcd_byte(0x01, LCD_CMD)
 				#Join means wait for the threads to exit
-				#t1.join() #TCPserverthread - has runningflag
-				print "TCP server closed"
-				#t2.join()
-				websocketservarthread.server.close()
+				t1.join() #TCPserverthread - has runningflag
+				t2.join()
 				t3.join() #websocketservarthread
-				print "websocket closed"
 				t4.join() #analogreadthread - has runningflag
 				t5.join() #commandthread - has runningflag
 				t6.join()	#autothread - has runningflag
