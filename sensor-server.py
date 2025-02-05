@@ -2147,9 +2147,6 @@ if __name__ == '__main__':
 	except KeyboardInterrupt:
 		#Signal is caught by graceful killer class
 		pass
-	finally:
-		mysendrecv_proc.terminate()
-		lora_proc.terminate()
 
 
 
