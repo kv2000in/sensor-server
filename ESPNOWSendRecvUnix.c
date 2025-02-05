@@ -207,7 +207,7 @@ int main(int argc, char **argv)
 		if (FD_ISSET(uds_conn, &readfds)) {
 			int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
 			if (bytes_read > 0) {
-				printf("Received data on UNIX socket: %d bytes\n", bytes_read);
+				//printf("Received data on UNIX socket: %d bytes\n", bytes_read);
 				if (bytes_read==7){
 						// Forward to raw socket
 					memcpy(destinationMAC, buffer, 6);
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
 						data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
 					}
 					
-					printf("Sending to ESP32\n");
+					//printf("Sending to ESP32\n");
 					sendto(sock_fd, data, sizeof(data), 0,NULL, 0);
 				} else {
 					printf("Who knows what I have received");

@@ -554,65 +554,7 @@ def send_raw_adc(param):
 	except Exception as e:
 		error_handler(send_raw_adc.__name__,str(e))
 		pass
-##THIS FUNCTION READs the analog ADC values (voltage and current)
-def myanalogread(timeout):
-	try:
-		global ACVOLTAGE
-		global MOTORCURRENT
-		global sampleVArray
-		global sampleIArray
-		global VoltCalibrate
-		global VadcValue
-		global CurrentCalibrate
-		global CadcValue
-		global offsetI
-		global offsetV
-		global raw_RMS_Voltage_ADC
-		global raw_RMS_Current_ADC
-		VArray=[]
-		IArray=[]
-		sumV=0
-		sumI=0
-		numberOfSamples=0
-		#round(float((y-x)/(z-x)*100),1) - float to 1 decimal
-		#ACVOLTAGE = round((V_RATIO*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
-		ACVOLTAGE = round(((VoltCalibrate/VadcValue)*math.sqrt(sumV / numberOfSamples)),1) # root of the mean of the squared values.
-		raw_RMS_Voltage_ADC=round(math.sqrt(sumV/numberOfSamples),1)
-		#MOTORCURRENT = round((I_RATIO*math.sqrt(sumI / numberOfSamples)),2)
-		MOTORCURRENT = round(((CurrentCalibrate/CadcValue)*math.sqrt(sumI / numberOfSamples)),2)
-		raw_RMS_Current_ADC=round(math.sqrt(sumI/numberOfSamples),1)
-		sampleVArray=VArray
-		sampleIArray=IArray
-		#############################################
-		# BACK UP AC/MOTOR STATUS DETECTION SECTION # 
-		#############################################
-		#ALSO USEFUL IN TESTING THE AUTOTHREAD with MOTOR instead of dMOTOR.
-		#Use a separate light switch and bulb-set the current sensor to sense this bulb current draw - manually turn on the bulb when SWSTARTPB relay is active and manually turn off the bulb when SWSTOPPB is active
-		global ACPOWER
-		global MOTOR
-		global MONCURR
-		#If Voltage >LOW VOLTAGE - AC present
-		if (ACVOLTAGE>LVLVL):
-			if (ACPOWER=="OFF"):
-				ACPOWER="ON"
-				sendchangedstatus("ACPOWER="+ACPOWER)
-		else:
-			if (ACPOWER=="ON"):
-				ACPOWER="OFF"
-				sendchangedstatus("ACPOWER="+ACPOWER)
-		#If Motor drawing more than MONCURR  - MOTOR is ON
-		if (MOTORCURRENT>MONCURR):
-			if (MOTOR=="OFF"):
-				MOTOR="ON"
-				sendchangedstatus("MOTOR="+MOTOR)
-		else:
-			if(MOTOR=="ON"):
-				MOTOR="OFF"
-				sendchangedstatus("MOTOR="+MOTOR)
-		#############################################
-	except Exception as e:
-		error_handler(myanalogread.__name__,str(e))
-		pass
+
 ##This function loads and saves the voltage and current calibration settings
 def calibrationhandler(vals,operation):
 	try:
@@ -1198,9 +1140,18 @@ def call_handler(data_type, payload):
 	else:
 		process_esp32_unknown_data_type(payload)
 def process_esp32_heartbeat(payload):
-	global rms_channel_0, rms_channel_1
-
-	print("Heartbeat from ESP32")
+	global raw_RMS_Voltage_ADC
+	global raw_RMS_Current_ADC
+	global ACVOLTAGE
+	global MOTORCURRENT
+	global sampleVArray
+	global sampleIArray
+	global VoltCalibrate
+	global VadcValue
+	global CurrentCalibrate
+	global CadcValue
+	
+	#print("Heartbeat from ESP32")
 	
 	# Remove the first byte (data type)
 	payload = payload[1:]
@@ -1211,26 +1162,58 @@ def process_esp32_heartbeat(payload):
 	padding = payload[200:]  # Remaining bytes (padding)
 
 	# Convert raw ADC data into 16-bit integers
-	adc_samples_0 = [struct.unpack('<H', adc_data_0[i:i + 2])[0] for i in range(0, len(adc_data_0), 2)]
+	sampleVArray = [struct.unpack('<H', adc_data_0[i:i + 2])[0] for i in range(0, len(adc_data_0), 2)]
 	adc_samples_1 = [struct.unpack('<H', adc_data_1[i:i + 2])[0] for i in range(0, len(adc_data_1), 2)]
 	# Update circular buffers
-	for sample in adc_samples_0:
+	for sample in sampleVArray:
 		adc_channel_0.add(sample)
-	for sample in adc_samples_1:
+	for sample in sampleIArray:
 		adc_channel_1.add(sample)
 
 	# Calculate RMS for each channel
-	rms_channel_0 = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
-	rms_channel_1 = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
+	raw_RMS_Voltage_ADC = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
+	raw_RMS_Current_ADC = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
 
 	# Pass padding to the status bits handler
 	handlestatusbits(padding)
 
+
+	
+	ACVOLTAGE = round((VoltCalibrate/VadcValue)*raw_RMS_Voltage_ADC) # root of the mean of the squared values.
+	MOTORCURRENT = round((CurrentCalibrate/CadcValue)*raw_RMS_Current_ADC)
+
+	#############################################
+	# BACK UP AC/MOTOR STATUS DETECTION SECTION # 
+	#############################################
+	#ALSO USEFUL IN TESTING THE AUTOTHREAD with MOTOR instead of dMOTOR.
+	#Use a separate light switch and bulb-set the current sensor to sense this bulb current draw - manually turn on the bulb when SWSTARTPB relay is active and manually turn off the bulb when SWSTOPPB is active
+	global ACPOWER
+	global MOTOR
+	global MONCURR
+	#If Voltage >LOW VOLTAGE - AC present
+	if (ACVOLTAGE>LVLVL):
+		if (ACPOWER=="OFF"):
+			ACPOWER="ON"
+			sendchangedstatus("ACPOWER="+ACPOWER)
+	else:
+		if (ACPOWER=="ON"):
+			ACPOWER="OFF"
+			sendchangedstatus("ACPOWER="+ACPOWER)
+	#If Motor drawing more than MONCURR  - MOTOR is ON
+	if (MOTORCURRENT>MONCURR):
+		if (MOTOR=="OFF"):
+			MOTOR="ON"
+			sendchangedstatus("MOTOR="+MOTOR)
+	else:
+		if(MOTOR=="ON"):
+			MOTOR="OFF"
+			sendchangedstatus("MOTOR="+MOTOR)
+#############################################
 	# Print or log the results
-	print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
-	print("Channel 1 RMS: {:.2f}".format(rms_channel_1))
-	print("Channel 0 Data: {}".format(adc_channel_0.get_data()))
-	print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
+	#print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
+	#print("Channel 1 RMS: {:.2f}".format(rms_channel_1))
+	#print("Channel 0 Data: {}".format(adc_channel_0.get_data()))
+	#print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
 
 def handlestatusbits(padding):
 	global led_state  # Use the global state variable
