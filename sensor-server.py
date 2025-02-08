@@ -97,6 +97,7 @@ LORA_UDS_PATH = "/tmp/raw_socket_uds_lora"
 
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
+BROADCAST_MAC_ADDR = '\xFF\xFF\xFF\xFF\xFF\xFF'
 
 RESET = '\x40'
 ACK = '\x41'
@@ -1224,9 +1225,11 @@ def handlestatusbits(padding):
 
 	# Toggle LED state
 	if led_state:
-		send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
+		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
+		send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_OFF)
 	else:
-		send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
+		send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_ON)
+		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
 	# Update the LED state
 	led_state = not led_state
 
