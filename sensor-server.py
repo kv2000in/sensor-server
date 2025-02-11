@@ -1513,6 +1513,7 @@ def esp32handlerthread():
 		if ESP01:
 			try:
 				ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+				print("Receiving data from Serial port")
 				receive_data_from_serial()
 			except serial.SerialException as e:
 				error_handler(esp32handlerthread.__name__,str(e))
@@ -2015,8 +2016,8 @@ def lcdtickerthread():
 	print("Python lcdticker thread started")
 	#initialize the LCD screen
 	try:
-		print("dummy call for lcd_init")
-		#lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
+		print("call for lcd_init")
+		lcd_init() # March 2022 - Remote - Getting I/O error after a reboot so disabling the LCD altogether
 	except Exception as e:
 		error_handler(lcdtickerthread.__name__, str(e))
 		print("Error initializing LCD screen, exiting LCD Ticker Thread")
