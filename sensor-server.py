@@ -1403,8 +1403,8 @@ def receive_data_from_serial():
 #LCD screen Defining functions
 ######################################
 # Define some device parameters
-I2C_ADDR  = 0x27 # I2C device address # Jan 2022 - device marked 2 - address = 0x3F . i2cdetect -l , i2cdetect -y 1
-#I2C_ADDR  = 0x3F
+#I2C_ADDR  = 0x27 # I2C device address # Jan 2022 - device marked 2 - address = 0x3F . i2cdetect -l , i2cdetect -y 1
+I2C_ADDR  = 0x3F
 LCD_WIDTH = 16   # Maximum characters per line
 
 # Define some device constants
