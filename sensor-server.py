@@ -1324,7 +1324,7 @@ def handlestatusbits(padding):
 
 	# Print updated GPIO states (Python 2 compatible)
 	updated_states = {key: globals()[key] for key in GPIO_INPUT_MAP}
-	#print("Updated Input GPIO States:", updated_states)
+	print("Updated Input GPIO States:", updated_states)
 
 def process_esp32_adc_data(payload):
 	print("ADC data")
