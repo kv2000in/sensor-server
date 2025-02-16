@@ -1492,6 +1492,7 @@ def receive_data_from_serial():
 
 					# Split buffer into packets based on delimiter
 					while PACKET_DELIMITER in buffer:
+						print("Packet received via Serial")
 						packet, buffer = buffer.split(PACKET_DELIMITER, 1)
 						handlepacket(packet)
 					time.sleep(0.1)  # Small delay to prevent busy-waiting
@@ -2183,11 +2184,12 @@ if __name__ == '__main__':
 		print datetime.datetime.today()
 		settingshandler("null","load")
 		calibrationhandler("null","load")
-		mysendrecv_proc=subprocess.Popen(["./mysendrecv.o", "mon0"])
-		print("Python mysendrecv C called")
-		time.sleep(2)
-		esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-		esp_uds_socket.connect(ESP_UDS_PATH)
+		if not ESP01:
+			mysendrecv_proc=subprocess.Popen(["./mysendrecv.o", "mon0"])
+			print("Python mysendrecv C called")
+			time.sleep(2)
+			esp_uds_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+			esp_uds_socket.connect(ESP_UDS_PATH)
 		lora_proc=subprocess.Popen(["./LoRaReceiver"])
 		print("Python LoRaReceiver C++ called")
 		time.sleep(2)
@@ -2229,7 +2231,8 @@ if __name__ == '__main__':
 				settingshandler("null","save")
 				calibrationhandler("null","save")
 				# Send termination signal to subprocesses
-				mysendrecv_proc.terminate()
+				if not ESP01:
+					mysendrecv_proc.terminate()
 				lora_proc.terminate()
 				#Join means wait for the threads to exit
 				t1.join() #LoRaReceiverthread - has runningflag in its function
