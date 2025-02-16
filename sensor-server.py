@@ -1289,7 +1289,7 @@ def process_esp32_heartbeat(payload):
 def handlestatusbits(padding):
 	global led_state  # Use the global state variable
 	# Process padding bytes
-	#print(f"Handling status bits: {padding}")
+	print("Handling status bits")
 
 	# Toggle LED state
 	if led_state:
@@ -1349,7 +1349,7 @@ def ESP32send(GPIO, STATUS):
 	GPIO: str - Name of the GPIO pin (e.g., "SWSTARTPB")
 	STATUS: str - "HIGH" or "LOW"
 	"""
-	#print("ESP32send called")
+	print("ESP32send called")
 	
 	# Ensure GPIO is valid
 	if GPIO not in GPIO_OUTPUT_MAP:
