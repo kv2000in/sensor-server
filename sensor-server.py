@@ -2170,7 +2170,7 @@ def lcdtickerthread():
 			return
 		finally:
 			#Wipe the LCD screen
-			#lcd_byte(0x01, LCD_CMD)
+			lcd_byte(0x01, LCD_CMD)
 			#print("Exiting lcdtickerthread")
 
 
