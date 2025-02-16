@@ -5,7 +5,6 @@
 
 
 
-#define ONBOARD_LED 5
 #define MAX_PACKET_SIZE 250
 #define MAX_PAYLOAD_SIZE 237 //250 - 13  {header (6 MAC Address + 2 Packet ID + 1 Total Packets + 1 sequence + 1 payload length =11) + footer = Checksum 2 bytes)}
 #define MAC_ADDR_SIZE 6
@@ -20,6 +19,13 @@
 
 
 static const char *TAG = "APP";
+
+#define TOTAL_O_PINS 15  // Number of output pins
+#define TOTAL_I_PINS 6  // Number of output pins
+
+// Define the GPIO pins you want to control
+int outputPins[TOTAL_O_PINS] = {4, 5, 13, 14, 15, 18, 19, 21, 22, 23, 25, 26,27, 32, 33 };
+int inputPins[TOTAL_I_PINS] = {16,17, 34,35,36,39};
 
 
 //uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC [b8:27:eb:f9:9f:40 for pi Zero W DUT]
@@ -114,42 +120,39 @@ void sampleADC(void *param) {
 
 
 
-
-// Function to send heartbeat with ADC data (without RMS calculation)
 void sendHeartbeat() {
-  // Start ADC sampling task on core 1 with high priority
-   //xTaskCreatePinnedToCore(sampleADC, "SampleADC", 2048, NULL, 1, NULL, 1); // High-priority task on core 1
-
-  xTaskCreate(sampleADC, "SampleADC", 2048, NULL, 1, NULL); // High-priority task on core 1
+    xTaskCreate(sampleADC, "SampleADC", 2048, NULL, 1, NULL); // High-priority task on core 1
    
     uint8_t payload[MAX_PAYLOAD_SIZE]; // Allocate enough space for dataType and ADC channel data
     payload[0] = 0xFF;   // Set the dataType as the first byte
 
-    //50 samples of 2 bytes each per channel
+    // 50 samples of 2 bytes each per channel
     for (int ch = 0; ch < ADC_CHANNELS; ch++) {
-    memcpy(&payload[1 + ch * BUFFER_SIZE * sizeof(uint16_t)], &circularBuffer[ch], BUFFER_SIZE * sizeof(uint16_t)); // Copy full 100 bytes
+        memcpy(&payload[1 + ch * BUFFER_SIZE * sizeof(uint16_t)], &circularBuffer[ch], BUFFER_SIZE * sizeof(uint16_t)); // Copy full 100 bytes
     }
 
-    // Add padding after ADC data (using 0xAA for padding)
-memset(&payload[1 + ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t)], 0xAA, MAX_PAYLOAD_SIZE - (1 + ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t)));
+    // **Read input pins and pack into 1 byte**
+    uint8_t inputStatus = 0;
+    for (int i = 0; i < TOTAL_I_PINS; i++) {
+        if (digitalRead(inputPins[i])) {
+            inputStatus |= (1 << i); // Set corresponding bit if HIGH
+        }
+    }
 
-    // Create packet ID and other header values
+    // **Insert inputStatus before padding (after ADC data)**
+    size_t adcDataSize = ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t);
+    payload[1 + adcDataSize] = inputStatus;
+
+    // **Add padding after ADC data + inputStatus byte**
+    memset(&payload[2 + adcDataSize], 0xAA, MAX_PAYLOAD_SIZE - (2 + adcDataSize));
+
+    // **Create packet ID and send**
     uint16_t packetId = random(0, 65536); // Generate a random Packet ID
 
-
-    // Queue the packet (sending mechanism)
-   // queuePacket(payload, sizeof(payload), 1, 1, packetId); // Send the payload with the header and data
-
-        if (sendData(payload, sizeof(payload),
-                         1, 1, packetId)) {
-                ESP_LOGD(TAG"Packet sent successfully. Waiting for esp_send_now_callback function to return..."); }
-//    ESP_LOGE(TAG, "This is an error message!");
-//ESP_LOGW(TAG, "This is a warning message.");
-//ESP_LOGI(TAG, "This is an informational message.");
-//ESP_LOGD(TAG, "This is a debug message.");
-//ESP_LOGV(TAG, "This is a verbose message.");
+    if (sendData(payload, sizeof(payload), 1, 1, packetId)) {
+        ESP_LOGD(TAG, "Packet sent successfully. Waiting for esp_send_now_callback function to return...");
+    }
 }
-
 
 
 
@@ -292,8 +295,10 @@ void onDataReceived(const uint8_t *mac, const uint8_t *incomingData, int len) {
 //    
 //}
 
-
-
+void switch_to_wifi()
+{};
+ void future_reserved()
+{};
 void processReceivedDataTask(void *param) {
     ReceivedPacket packet;
     
@@ -301,64 +306,74 @@ void processReceivedDataTask(void *param) {
         // Wait for data in the queue
         if (xQueueReceive(recvQueue, &packet, portMAX_DELAY) == pdPASS) {
             if (packet.length < 1) {
-                ESP_LOGD(TAG,"Invalid packet length.");
+                ESP_LOGD(TAG, "Invalid packet length.");
                 continue;
             }
 
-            uint8_t command = packet.data[0];
-            
-                ESP_LOGD(TAG,"Processing command: 0x");
-               
-           
+            uint8_t command = packet.data[0];  // Extract command byte
+            ESP_LOGD(TAG, "Processing command: %d", command);
 
-            // Process based on command type
+            // **Command Byte Handling**
             switch (command) {
-                case 0x40: // Reset
-                   ESP_LOGD(TAG,"Command: Reset");
+                case 0xAA:
+                    ESP_LOGD(TAG, "Command received: Switch to WiFi mode");
+                    switch_to_wifi();
+                    continue;
+                case 0xBB:
+                case 0xCC:
+                case 0xDD:
+                    ESP_LOGD(TAG, "Reserved Command received: %X", command);
+                    future_reserved();
+                    continue;
+                case 0xEE:
+                    ESP_LOGD(TAG, "Restart command received. Restarting ESP...");
                     ESP.restart();
-                    break;
+                    continue;
+            }
 
-                case 0x42: // LED_ON
-                    ESP_LOGD(TAG,"Command: LED_ON");
-                    digitalWrite(ONBOARD_LED, HIGH);
-                    break;
+            // **GPIO Control Logic (Unchanged)**
+            uint8_t gpioPin = command / 10;  // First two digits -> GPIO number
+            uint8_t pinState = command % 10; // Last digit (0 = LOW, 1 = HIGH)
 
-                case 0x43: // LED_OFF
-                    ESP_LOGD(TAG,"Command: LED_OFF"); 
-                    digitalWrite(ONBOARD_LED, LOW);
-                    break;
-
-                case 0x41: // ACK
-                    
-                       ESP_LOGD(TAG,"ACK Application Layer Recvd."); 
-                  
-                    
-                    break;
-
-                default:
-                    ESP_LOGD(TAG,"Unknown command received.");
-                    break;
+            if (gpioPin >= 0 && gpioPin <= 39) {  // ESP32 GPIO range
+                ESP_LOGD(TAG, "Setting GPIO %d to %s", gpioPin, (pinState ? "HIGH" : "LOW"));
+                pinMode(gpioPin, OUTPUT);
+                digitalWrite(gpioPin, pinState);
+            } else {
+                ESP_LOGD(TAG, "Invalid GPIO pin: %d", gpioPin);
             }
         }
     }
 }
 
-
-
-
+ 
+ 
 void setup() {
 
     WiFi.mode(WIFI_STA);
     prepareESPNOW();
 
-    pinMode(ONBOARD_LED, OUTPUT);
-    digitalWrite(ONBOARD_LED, LOW);
+ 
+   // Set all defined pins as OUTPUT and initialize them to LOW
+    for (int i = 0; i < TOTAL_O_PINS; i++) {
+        pinMode(outputPins[i], OUTPUT);
+        digitalWrite(outputPins[i], LOW);
+    }
+
+
+   // Set all defined pins as INPUT 
+    for (int i = 0; i < TOTAL_I_PINS; i++) {
+        pinMode(inputPins[i], INPUT);
+      
+    }
+
 
     // Create packet recv queue 
  recvQueue = xQueueCreate(MAX_RECV_QUEUE_SIZE, sizeof(ReceivedPacket));
 
     // Create a task to process the queue
   xTaskCreate(processReceivedDataTask, "ProcessReceivedData", 4096, NULL, 1, NULL);
+
 
     
 

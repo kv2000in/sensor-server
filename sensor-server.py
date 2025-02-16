@@ -41,7 +41,52 @@
 #Jan 2022 - todo: - change host ip on sensor nodes and extenders to 192.168.1.110
 #LCD i2c address - see comments in lcd section i2c address 0x27 vs 0x3F
 #Removed limit on websocket clients - disconnection probably due to errors rather than number of clients
-
+'''
+	ESP32 Usable GPIO Pins
+	Usable Output Pins	Notes
+	GPIO 2	OK, but connected to LED on some boards.
+	GPIO 4	Safe for output.
+	GPIO 5	Safe, often used for SPI SS (can be used normally).
+	GPIO 12	Safe for output. Be careful if using strapping pins.
+	GPIO 13	Safe for output.
+	GPIO 14	Safe for output.
+	GPIO 15	Safe for output.
+	GPIO 18	Safe for SPI and normal output.
+	GPIO 19	Safe for SPI and normal output.
+	GPIO 21	Safe for output.
+	GPIO 22	Safe for output.
+	GPIO 23	Safe for output.
+	GPIO 25	Safe for output (DAC available).
+	GPIO 26	Safe for output (DAC available).
+	GPIO 27	Safe for output.
+	GPIO 32	Safe for output (RTC capable).
+	GPIO 33	Safe for output (RTC capable).
+	
+	Usable Input Pins	Notes
+	GPIO 2	Can read input, but connected to on-board LED on some boards.
+	GPIO 4	Safe for input.
+	GPIO 5	Safe for input.
+	GPIO 12	Safe for input, but avoid pulling HIGH at boot (strapping pin).
+	GPIO 13	Safe for input.
+	GPIO 14	Safe for input.
+	GPIO 15	Safe for input.
+	GPIO 16	Safe for input.
+	GPIO 17	Safe for input.
+	GPIO 18	Safe for input.
+	GPIO 19	Safe for input.
+	GPIO 21	Safe for input.
+	GPIO 22	Safe for input.
+	GPIO 23	Safe for input.
+	GPIO 25	Safe for input.
+	GPIO 26	Safe for input.
+	GPIO 27	Safe for input.
+	GPIO 32	Safe for input (RTC capable).
+	GPIO 33	Safe for input (RTC capable).
+	GPIO 34	Input only (cannot be output).
+	GPIO 35	Input only (cannot be output).
+	GPIO 36	Input only (cannot be output).
+	GPIO 39	Input only (cannot be output).
+'''
 
 
 import time
@@ -99,10 +144,6 @@ LORA_UDS_PATH = "/tmp/raw_socket_uds_lora"
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 BROADCAST_MAC_ADDR = '\xFF\xFF\xFF\xFF\xFF\xFF'
 
-RESET = '\x40'
-ACK = '\x41'
-LED_ON = '\x42'
-LED_OFF = '\x43'
 
 # Set to track received Packet IDs
 PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
@@ -139,13 +180,34 @@ PONG = 0xA
 #WebSocket clients
 clients = []
  
-STATUSMODE=5 # Computer vs Human (High = Human). THis is a hardware switch on the board
-STATUSTANK1=20 
-STATUSTANK2=21 
-SWSTARTPB=13 # High = start PB pressed
-SWSTOPPB=19# High = stop PB pressed
-SWTANK=26
+# ESP32 GPIO mapping dictionary
+GPIO_OUTPUT_MAP = {
+	"SWSTARTPB": 13,
+	"SWSTOPPB": 14,
+	"SWTANK":15,
+	"SWTANKRELAY":27,
+	"ESP32_STATUS_LED":5
+}
+GPIO_INPUT_MAP = 
+	"STATUSMODE": 16,
+	"STATUSTANK1": 17,
+	"STATUSTANK2": 39,
+}
 
+# Fixed sequence of ESP32 input GPIOs corresponding to bits in the received byte
+INPUT_PINS_SEQUENCE = [16, 17, 34, 35, 36, 39]
+
+STATUSMODE = False
+STATUSTANK1 = False
+STATUSTANK2 = False
+
+#STATUSMODE=23 # Computer vs Human (High = Human). THis is a hardware switch on the board
+#STATUSTANK1=21 
+#STATUSTANK2=22 
+#SWSTARTPB=13 # High = start PB pressed
+#SWSTOPPB=14# High = stop PB pressed
+#SWTANK=15
+#SWTANKRELAY=27 #Cuts off the 12V supply to actuator. Actuator stays in position. 
 
 SENSOR_PACKET_LENGTH=16 # Non-ESP32 packets longer than this size are discarded
 
@@ -263,14 +325,14 @@ def init_status():
 	global TANK
 	global SUMMER
 	TODAY = datetime.datetime.today()
-	if (STATUSMODE==1):
+	if (STATUSMODE):
 		MODE="HUMAN"
 	else:
 		MODE="COMPUTER"
 	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
-	if (STATUSTANK1==0):
+	if (STATUSTANK1):
 		TANK="Tank 1"
-	elif (STATUSTANK2==0):
+	elif (STATUSTANK2):
 		TANK="Tank 2"
 	else:
 		TANK="undefined"
@@ -282,7 +344,7 @@ def init_status():
 #Function called by change in STATUSMODE GPIO
 def modeswitch(channel):
 	global MODE
-	if (STATUSMODE==1):
+	if (STATUSMODE):
 		MODE="HUMAN"
 	else:
 		MODE="COMPUTER"
@@ -292,9 +354,9 @@ def modeswitch(channel):
 def tankswitch(channel):
 	global TANK
 	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
-	if (STATUSTANK1==0):
+	if (STATUSTANK1):
 		TANK="Tank 1"
-	elif (STATUSTANK2==0):
+	elif (STATUSTANK2):
 		TANK="Tank 2"
 	else:
 		TANK="undefined"
@@ -323,15 +385,15 @@ def commandhandler(command):
 						time.sleep(5) # THIS WILL BLOCK THE SCRIPT EXECUTION FOR 5 SECONDS
 						finalACVOLTAGE=ACVOLTAGE
 						if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
-							send_msg_to_ESP32("SWSTARTPB","HIGH") 
+							ESP32send("SWSTARTPB","HIGH") 
 							time.sleep(3)
 							activity_handler("Motor On")
 							if (MOTOR=="ON"): #wait 3 seconds for Motor status to change to ON
-								send_msg_to_ESP32("SWSTARTPB","LOW") # then release the STARTPB 
+								ESP32send("SWSTARTPB","LOW") # then release the STARTPB 
 								#Check motor current draw and turn off motor if current > limit
 								if (MOTORCURRENT>HMCURR):
 									#Motor is ON but current is high - turn off the Motor
-									send_msg_to_ESP32("SWSTOPPB","HIGH") #Press STOP PB
+									ESP32send("SWSTOPPB","HIGH") #Press STOP PB
 									sendchangedstatus("ERROR=MOTORHIGHCURRENT")
 									error_handler(commandhandler.__name__,"MOTORHIGHCURRENT")
 									#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
@@ -341,7 +403,7 @@ def commandhandler(command):
 										sendchangedstatus("SOFTMODE="+SOFTMODE)
 									time.sleep(3) # Wait for 3 seconds
 									if (MOTOR=="OFF"): # If motor turned off
-										send_msg_to_ESP32("SWSTOPPB","LOW") # Release STOP PB
+										ESP32send("SWSTOPPB","LOW") # Release STOP PB
 								#Motor has been turned ON successfully. Set the motoroontimestamp
 								MOTORONTIMESTAMP=time.time()
 								if (TANK=="Tank 1"):
@@ -349,7 +411,7 @@ def commandhandler(command):
 								elif (TANK=="Tank 2"):
 									TANK2FILLINGSTARTTIME = time.time()
 							else:#Motor didn't start,
-								send_msg_to_ESP32("SWSTARTPB","LOW") #  Release START PB and send Error
+								ESP32send("SWSTARTPB","LOW") #  Release START PB and send Error
 								sendchangedstatus("ERROR=MOTORSTART")
 								error_handler(commandhandler.__name__,"MOTORSTART")
 								#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
@@ -367,13 +429,13 @@ def commandhandler(command):
 								sendchangedstatus("SOFTMODE="+SOFTMODE)
 				if (command.split("=")[1]=="OFF"):
 					if (MOTOR=="ON"):
-						send_msg_to_ESP32("SWSTOPPB","HIGH") #Press STOP PB
+						ESP32send("SWSTOPPB","HIGH") #Press STOP PB
 						time.sleep(3) # Wait for 3 seconds
 						if (MOTOR=="OFF"): # If Motor turned off
-							send_msg_to_ESP32("SWSTOPPB","LOW") # Release STOP PB
+							ESP32send("SWSTOPPB","LOW") # Release STOP PB
 							activity_handler("Motor Off")
 						else: # Motor didn't stop
-							send_msg_to_ESP32("SWSTOPPB","LOW") # Release STOP PB and send error
+							ESP32send("SWSTOPPB","LOW") # Release STOP PB and send error
 							sendchangedstatus("ERROR=MOTORSTOP")
 							error_handler(commandhandler.__name__,"MOTORSTOP")
 							#In case of any error while running in "SOFTMODE=Auto" , switch to SOFTMODE=Manual and notify the connected clients
@@ -385,13 +447,13 @@ def commandhandler(command):
 		if (command.split("=")[0]=="TANK"):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
-					send_msg_to_ESP32("SWTANK","HIGH")
+					ESP32send("SWTANK","HIGH")
 					if (MOTOR=="ON"):
 						TANK1FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 2") #Using the statuschange of Tank instead to capture human mode actions
 			if (command.split("=")[1]=="Tank 1"):
 				if (TANK=="Tank 2"):
-					send_msg_to_ESP32("SWTANK","LOW")
+					ESP32send("SWTANK","LOW")
 					if (MOTOR=="ON"):
 						TANK2FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 1") #Using the statuschange of Tank instead to capture human mode actions
@@ -404,12 +466,12 @@ def commandhandler(command):
 						time.sleep(5)
 						finalACVOLTAGE=ACVOLTAGE
 						if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
-							send_msg_to_ESP32("SWSTARTPB","HIGH")
+							ESP32send("SWSTARTPB","HIGH")
 						else:# Doesn't meet voltage criteria - unstable or too low/too high
 							sendchangedstatus("ERROR=MOTORNOTSTABLEVOLTAGE")
 				if (command.split("=")[1]=="OFF"):
 					if (MOTOR=="ON"):
-						send_msg_to_ESP32("SWSTARTPB","LOW")
+						ESP32send("SWSTARTPB","LOW")
 	except Exception as e:
 		error_handler(commandhandler.__name__,str(e))
 		pass
@@ -1211,6 +1273,12 @@ def process_esp32_heartbeat(payload):
 		if(MOTOR=="ON"):
 			MOTOR="OFF"
 			sendchangedstatus("MOTOR="+MOTOR)
+	try:
+		for ws in clients:
+			ws.sendMessage(u'POWERDATA#ACVOLTAGE='+str(ACVOLTAGE)+u',MOTORCURRENT='+str(MOTORCURRENT))
+	except Exception as e:
+		error_handler(process_esp32_heartbeat.__name__, str(e))
+	
 #############################################
 	# Print or log the results
 	#print("Channel 0 RMS: {:.2f}".format(rms_channel_0))
@@ -1226,12 +1294,37 @@ def handlestatusbits(padding):
 	# Toggle LED state
 	if led_state:
 		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
-		send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_OFF)
+		#send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_OFF)
+		ESP32send("ESP32_STATUS_LED","LOW")
 	else:
-		send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_ON)
+		ESP32send("ESP32_STATUS_LED","HIGH")
+		#send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_ON)
 		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
 	# Update the LED state
 	led_state = not led_state
+	#First byte of padding has ESP32 Input GPIOs statuses.
+	global STATUSMODE, STATUSTANK1, STATUSTANK2
+
+	if not isinstance(padding, (str, bytearray)) or len(padding) < 1:
+		print("Error: Invalid padding data")
+		return
+
+	input_byte = ord(padding[0])  # Extract first byte (Python 2.7 compatibility)
+
+	# Extract bit values based on fixed sequence
+	gpio_states = {}
+	for idx, gpio in enumerate(INPUT_PINS_SEQUENCE):
+		state = (input_byte >> idx) & 1  # Extract bit
+		gpio_states[gpio] = bool(state)  # Store state in dictionary
+
+	# Apply GPIO_INPUT_MAP to set global variables
+	for var_name, mapped_gpio in GPIO_INPUT_MAP.items():
+		if mapped_gpio in gpio_states:
+			globals()[var_name] = gpio_states[mapped_gpio]
+
+	# Print updated GPIO states (Python 2 compatible)
+	updated_states = {key: globals()[key] for key in GPIO_INPUT_MAP}
+	print("Updated Input GPIO States:", updated_states)
 
 def process_esp32_adc_data(payload):
 	print("ADC data")
@@ -1244,24 +1337,40 @@ def process_data_other_node(payload):
 	print("Processed data from other node: {}".format(payload))
 
 
-def send_ack(ser, mac_addr, packet_id):
-	"""
-	Send acknowledgment for a packet.
-	"""
-	import struct
-	ack_message = mac_addr + b'\x41' + struct.pack('<H', packet_id)
-	send_msg_to_ESP32(ack_message)
-	print("Sent ACK for packet ID {}: {}".format(packet_id, ack_message))
-
-
 def print_packet_hex(data):
 	"""
 	Print received packet data in hexadecimal format.
 	"""
 	print("Received Packet (Hex):", " ".join("{:02X}".format(ord(byte) if isinstance(byte, str) else byte) for byte in data))
 
-def ESP32send(GPIO,STATUS):
-	print("ESP32send called")
+def ESP32send(GPIO, STATUS):
+	"""
+	Convert GPIO name and status to a binary message and send it.
+	GPIO: str - Name of the GPIO pin (e.g., "SWSTARTPB")
+	STATUS: str - "HIGH" or "LOW"
+	"""
+	#print("ESP32send called")
+	
+	# Ensure GPIO is valid
+	if GPIO not in GPIO_OUTPUT_MAP:
+		print "Error: Invalid GPIO name '{}'".format(GPIO)
+		return
+
+	# Get the GPIO number
+	gpio_number = GPIO_OUTPUT_MAP[GPIO]
+
+	# Convert HIGH/LOW to binary value
+	if STATUS == "HIGH":
+		binary_msg = gpio_number * 10 + 1  # Example: GPIO 13 -> 131
+	elif STATUS == "LOW":
+		binary_msg = gpio_number * 10      # Example: GPIO 13 -> 130
+	else:
+		print "Error: Invalid status '{}', expected 'HIGH' or 'LOW'".format(STATUS)
+		return
+
+    # Send the binary message
+    send_msg_to_ESP32(BROADCAST_MAC_ADDR+binary_msg)
+
 def send_msg_to_ESP32(msg):
 	if ESP01:
 		try:
@@ -2025,7 +2134,7 @@ def lcdtickerthread():
 	while running_flag:
 		time.sleep(1)
 		try:
-			print("Python lcdticker called")
+			#print("Python lcdticker called")
 			lcd_string("MODE = " + MODE, LCD_LINE_1)
 			lcd_string("AC POWER = " + ACPOWER, LCD_LINE_2)
 			time.sleep(LCD_REFRESH_INTERVAL)
@@ -2063,7 +2172,7 @@ def lcdtickerthread():
 		finally:
 			#Wipe the LCD screen
 			#lcd_byte(0x01, LCD_CMD)
-			print("Exiting lcdtickerthread")
+			#print("Exiting lcdtickerthread")
 
 
 	
@@ -2090,7 +2199,7 @@ if __name__ == '__main__':
 		t1=Thread(target=LoRaReceiverthread) 
 		t2=Thread(target=esp32handlerthread)
 		t3=Thread(target=websocketservarthread)
-		t4=Thread(target=analogreadthread)
+		#t4=Thread(target=analogreadthread)
 		t5=Thread(target=commandthread)
 		t6=Thread(target=autothread)
 		t7=Thread(target=watchdogthread)
@@ -2099,7 +2208,7 @@ if __name__ == '__main__':
 		t1.daemon=True
 		t2.daemon=True
 		t3.daemon=True
-		t4.daemon=True
+		#t4.daemon=True
 		t5.daemon=True
 		t6.daemon=True
 		t7.daemon=True
@@ -2108,7 +2217,7 @@ if __name__ == '__main__':
 		t1.start()
 		t2.start()
 		t3.start()
-		t4.start()
+		#t4.start()
 		t5.start()
 		t6.start()
 		t7.start()
@@ -2126,7 +2235,7 @@ if __name__ == '__main__':
 				#Join means wait for the threads to exit
 				t1.join() #LoRaReceiverthread - has runningflag in its function
 				t2.join() #esp32handlerthread - has runningflag in its function
-				t4.join() #analogreadthread - has runningflag
+				#t4.join() #analogreadthread - has runningflag
 				t5.join() #commandthread - has runningflag
 				t6.join()	#autothread - has runningflag
 				t7.join() # watchdogthread - has runningflag
