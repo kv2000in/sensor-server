@@ -1367,9 +1367,8 @@ def ESP32send(GPIO, STATUS):
 	else:
 		print "Error: Invalid status '{}', expected 'HIGH' or 'LOW'".format(STATUS)
 		return
-
-    # Send the binary message
-    send_msg_to_ESP32(BROADCAST_MAC_ADDR+binary_msg)
+	# Send the binary message
+	send_msg_to_ESP32(BROADCAST_MAC_ADDR+binary_msg)
 
 def send_msg_to_ESP32(msg):
 	if ESP01:
