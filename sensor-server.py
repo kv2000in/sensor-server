@@ -1392,7 +1392,7 @@ def receive_data_from_c_program():
 				data = esp_uds_socket.recv(2048)
 				if data:
 					handlepacket(data[63:]) # Raw socket packets have 63 bytes of header compared with packets from Serial
-					#print_packet_hex(data)
+					print_packet_hex(data)
 				time.sleep(0.1)
 			except socket.timeout:
 				pass  # Ignore timeout, just loop again to check running_flag
