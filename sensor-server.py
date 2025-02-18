@@ -155,7 +155,7 @@ pending_segments = {}
 led_state = False  # False means OFF, True means ON
 
 #global Switch for using ESP01 via serial vs Direct Pi Zero Wifi Packet injection to connect with ESP nodes
-ESP01 = False # True means using Serial, False means using raw socket packet injection
+ESP01 = True # True means using Serial, False means using raw socket packet injection
 
 # Create a Unix domain socket to receive data from the C program
 esp_uds_socket = None
@@ -2242,7 +2242,8 @@ if __name__ == '__main__':
 				t6.join()	#autothread - has runningflag
 				t7.join() # watchdogthread - has runningflag
 				t8.join()#lcdtickerthread - has runningflag
-				mysendrecv_proc.wait()
+				if not ESP01:
+					mysendrecv_proc.wait()
 				lora_proc.wait()
 				websocketservarthread.server.close()
 				t3.join() #websocketservarthread - has runningflag but has serveforever() infinite loop which runs independent.hence calling server.close
