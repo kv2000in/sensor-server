@@ -1324,7 +1324,7 @@ def handlestatusbits(padding):
 
 	# Print updated GPIO states (Python 2 compatible)
 	updated_states = {key: globals()[key] for key in GPIO_INPUT_MAP}
-	print("Updated Input GPIO States:", updated_states)
+	#print("Updated Input GPIO States:", updated_states)
 
 def process_esp32_adc_data(payload):
 	print("ADC data")
@@ -1492,7 +1492,7 @@ def receive_data_from_serial():
 
 					# Split buffer into packets based on delimiter
 					while PACKET_DELIMITER in buffer:
-						print("Packet received via Serial")
+						#print("Packet received via Serial")
 						packet, buffer = buffer.split(PACKET_DELIMITER, 1)
 						handlepacket(packet)
 					time.sleep(0.1)  # Small delay to prevent busy-waiting
