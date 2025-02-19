@@ -2,45 +2,8 @@
 # -*- coding: utf-8 -*-
 #
 
-#Changelog 1/21/2018 - added battery voltage display
-#changelog 2/10/2018 - cleanup - removed unused functions
-#Changelog 2/18/2018 - only one websocket client connection at a time
-#Changelog 2/19/2018 - Adding "backup" way of detecting AC (via voltmeter) and Motor (via Current meter) statuses - in case the Chinese AC detection board doesn't work.
-#						Back up methods are commented out for now.
-#						Added init_status - to consolidate all the global status variables
-#						Adjusted manual mode shut off routine - now fill both tanks and then turn off the motor when टंकी भर जाये ता माेटर बँद? is checked
-#						Added a watchdog thread - which basically monitors for High Low Voltage and High Motor current, Sensors staying active etc.
-#						Added a logfile to log all the errors with timestamps- switch from Auto to Manual SOFTMODE - in case of an error
-#						Modified the HTTP handler - to serve anyfile in the directory, also serving files as objects instead of reading and writing line by line
-#						To do - Watch for increase in tank's water level (if water being used at the same time - level might not rise).
-#ToDO - 3/5/18 - display sensor values as soon as user webpage is displayed, figure out why webserver got stuck, fix sensor up/down UI, fix manual mode shutdown
-#Changelog 3/6/18 - added - send battery level when user connects, changed all relative paths to absolute paths, change the LCD ticker logic to fix simultaneous "sensor 1 down and Tank1 level" messages
-#Changelog #3-7-18 - Using Apache2 HTTP server instead of python server. Allowed 2 simultaneous websocket connections
-#Changelog 3-8-18 - Changed MONCURR=0.9 - . 0.1 pe when Power is switched on - falsely detects motor on
-#Changelog 3-9-18 - Vineet reported inability to connect to websocket server, apache sever running. Multiple restarts attempted. error msg on client side was "connection refused" suggesting that python script might not be running. 
-					#We tried changing the NUMofWebSocketClientsAllowed=2 to 10 but this was not the problem since the problem related to this leads to an error like "websocket closed before handshake was complete". Meaning - if the 
-					#NUMofWebSocketClientsAllowed is set to 2 and 3rd client is trying to connect - that one is closed. Also - on the client side "onblur - websocket.close()" routine was added to prevent "hanging' of the server script
-					#if the client goes to sleep with active websocket connection. This didn't seem to be the problem either. "Connection refused" suggests that python script was exiting after starting - due to some error OR the script was
-					#not starting at all. Start of the script was tested multiple times - even after installation of apache. It tunrs out that this problem was fixed when sensor2 came online. 
-					#
-					#{{{{ 
-					#Tank 2 overflow - sensor destroyed. To prevent - 
-					#even with the bigger overflow hole - i think water will still reach the sensors and sensor 1 is also going to be destroyed sooner or later. Will need to come up with a better way to install these sensors so that these are 
-					#never in contact with water - no matter what. 
-					#Overflow happened when in auto mode - tank2 kept on filling and motor wasn't turned off.  Motor was started because one/both of the tanks were below low set level. It switched from tank1 to tank2 automatically when tank1 
-					#reached its high set level then it turned off when tank2 was above its LOW set level. Restarted again when Tank2 went below the low set level (from 40 to 39) and then it didn't stop.
-					#If there were an error encountered -auto mode should have been switched to manual and if motor was on - it should have been switched off (will have to double check this). If someone switches from Auto mode to Manual mode 
-					#while the motor is on - motor will not stop.
-					#}}}}
-					#
-					#SO - when the sensor 2 was down - python script failed or atleast the websocket server was not running. As of 3-10-18 - Both sensors were online, both tanks had bigger and may be more than one over flow holes , script was running.
-					#WILL NEED TO IMPLEMENT TIMER BASED SAFETY (takes x mins to fill tank 1 from level y to level z - turn off the motor after that amount of time has passed.
-					#Check the sensor down logic.
-					# Turn off the motor - in case of an error in auto mode.
-					# ALSO - We are not using the optocouplers for detection of AC status and Motor running status. We are using the voltmeter and currentmeter "Backup" method since it needed less hardware to implement.
-#Jan 2022 - todo: - change host ip on sensor nodes and extenders to 192.168.1.110
-#LCD i2c address - see comments in lcd section i2c address 0x27 vs 0x3F
-#Removed limit on websocket clients - disconnection probably due to errors rather than number of clients
+#ESP01 - via Serial leads to kernel panic. especially if ESP01 is trying to send message to pi while pi is booting or shutting down.
+#Hence, communicating with ESP32 via UART will also be ruled out. Best bet is using ESP NOW. WHich means - a secondary networking interface will be needed.
 '''
 	ESP32 Usable GPIO Pins
 	Usable Output Pins	Notes
@@ -155,7 +118,7 @@ pending_segments = {}
 led_state = False  # False means OFF, True means ON
 
 #global Switch for using ESP01 via serial vs Direct Pi Zero Wifi Packet injection to connect with ESP nodes
-ESP01 = True # True means using Serial, False means using raw socket packet injection
+ESP01 = False # True means using Serial, False means using raw socket packet injection
 
 # Create a Unix domain socket to receive data from the C program
 esp_uds_socket = None
@@ -1324,7 +1287,7 @@ def handlestatusbits(padding):
 
 	# Print updated GPIO states (Python 2 compatible)
 	updated_states = {key: globals()[key] for key in GPIO_INPUT_MAP}
-	#print("Updated Input GPIO States:", updated_states)
+	print("Updated Input GPIO States:", updated_states)
 
 def process_esp32_adc_data(payload):
 	print("ADC data")
