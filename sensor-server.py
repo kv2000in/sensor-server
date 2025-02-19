@@ -304,8 +304,8 @@ def init_status():
 		SUMMER=True
 	else:
 		SUMMER=False
-#Function called by change in STATUSMODE GPIO
-def modeswitch(channel):
+#Function called by change in STATUSMODE updated by heartbeat data from ESP32
+def modeswitch():
 	global MODE
 	if (STATUSMODE):
 		MODE="HUMAN"
@@ -313,10 +313,9 @@ def modeswitch(channel):
 		MODE="COMPUTER"
 	sendchangedstatus("MODE="+MODE)
 
-#Function called by change in STATUSTANK1 and STATUSTANK2 GPIOs
-def tankswitch(channel):
+#Function called by change in STATUSTANK1 and STATUSTANK2 updated by heartbeat data from ESP32
+def tankswitch():
 	global TANK
-	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
 	if (STATUSTANK1):
 		TANK="Tank 1"
 	elif (STATUSTANK2):
@@ -1287,7 +1286,9 @@ def handlestatusbits(padding):
 
 	# Print updated GPIO states (Python 2 compatible)
 	updated_states = {key: globals()[key] for key in GPIO_INPUT_MAP}
-	print("Updated Input GPIO States:", updated_states)
+	modeswitch()
+	tankswitch()
+	#print("Updated Input GPIO States:", updated_states)
 
 def process_esp32_adc_data(payload):
 	print("ADC data")
