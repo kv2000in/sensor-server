@@ -1414,6 +1414,7 @@ def handlepacket(packet):
 		first_byte = packet[0]
 		if first_byte in actuatoraddressdict.values():
 			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
+			send_msg_to_LoRaNode('\xAA\x22')
 		else:
 			print("Packet does not match any known actuator address.")
 	# Ensure the packet has at least 6 bytes for MAC address check
