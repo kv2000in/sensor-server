@@ -49,7 +49,10 @@
 	GPIO 35	Input only (cannot be output).
 	GPIO 36	Input only (cannot be output).
 	GPIO 39	Input only (cannot be output).
-'''
+ESP32PLCHUB programmed with
+int outputPins[TOTAL_O_PINS] = {4, 5, 13, 14, 15, 18, 19, 21, 22, 23, 25, 26,27, 32, 33 };
+int inputPins[TOTAL_I_PINS] = {16,17, 34,35,36,39};
+	'''
 
 
 import time
@@ -155,7 +158,7 @@ GPIO_OUTPUT_MAP = {
 	"SWSTARTPB": 13,
 	"SWSTOPPB": 14,
 	"SWTANK":15,
-	"SWTANKRELAY":27,
+	"SWTANKRELAY":33,
 	"ESP32_STATUS_LED":5
 }
 GPIO_INPUT_MAP = {
@@ -1414,7 +1417,8 @@ def handlepacket(packet):
 		first_byte = packet[0]
 		if first_byte in actuatoraddressdict.values():
 			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
-			send_msg_to_LoRaNode('\xAA\x22')
+			#send_msg_to_LoRaNode('\xAA\x22')
+			ESP32send("SWTANK","HIGH")
 		else:
 			print("Packet does not match any known actuator address.")
 	# Ensure the packet has at least 6 bytes for MAC address check
@@ -1447,6 +1451,7 @@ def handlepacket(packet):
 
 				# Process valid ESP32 packet
 				process_data_esp32([result])
+				ESP32send("SWTANKRELAY","HIGH")
 
 			except struct.error as e:
 				error_handler(handlepacket.__name__, str(e))
