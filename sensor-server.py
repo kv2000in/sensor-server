@@ -1410,8 +1410,14 @@ def handlepacket(packet):
 	Handles the processing of a received packet.
 	Processes ESP32 packets and hands over non-ESP32 packets for further handling.
 	"""
+	if len(packet) == 2:
+		first_byte = packet[0]
+		if first_byte in actuatoraddressdict.values():
+			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
+		else:
+			print("Packet does not match any known actuator address.")
 	# Ensure the packet has at least 6 bytes for MAC address check
-	if len(packet) < MAC_ADDRESS_LENGTH:
+	elif len(packet) < MAC_ADDRESS_LENGTH:
 		print("Incomplete packet received. Skipping.")
 		return  # Exit function for incomplete packet
 		
@@ -1442,13 +1448,6 @@ def handlepacket(packet):
 
 		except struct.error as e:
 			error_handler(handlepacket.__name__, str(e))
-
-	elif len(packet) == 2:
-		first_byte = packet[0]
-		if first_byte in actuatoraddressdict.values():
-			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
-		else:
-			print("Packet does not match any known actuator address.")
 	elif len(packet) == SENSOR_PACKET_LENGTH:
 		sensor_data_handler(packet)
 	else:
