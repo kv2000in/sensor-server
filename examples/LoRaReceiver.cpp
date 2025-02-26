@@ -1,3 +1,9 @@
+/*
+ To compile
+ pi@raspberrypi:~/Downloads/playground/sensor-server $ g++ -Wall -o LoRaReceiver ./examples/LoRaReceiver.cpp ./src/LoRa.cpp ./src/Print.cpp ./src/WString.cpp ./src/itoa.cpp -I ./src  -lwiringPi
+ 
+ */
+
 #include "LoRa.h"
 #include <stdio.h>
 #include <stdint.h>

@@ -1,3 +1,9 @@
+/*
+ To compile
+pi@raspberrypi:~/Downloads/playground/sensor-server $ g++ -Wall -o LoRaDuplexWithRecvCallBack ./examples/LoRaDuplexWithRecvCallBack.cpp ./src/LoRa.cpp ./src/Print.cpp ./src/WString.cpp ./src/itoa.cpp -I ./src  -lwiringPi
+ */
+
+
 #include "LoRa.h"
 #include <stdio.h>
 #include <stdint.h>
@@ -55,64 +61,46 @@ printf("Python connected to Unix socket\n");
 }
 
 const int csPin = 10;          // LoRa radio chip select
-const int resetPin = 6;       // LoRa radio reset
-const int irqPin = 24;         // change for your board; must be a hardware interrupt pin
-
-String outgoing;              // outgoing message
-
-uint8_t msgCount = 0;            // count of outgoing messages
-uint8_t localAddress = 0xBB;     // address of this device
-uint8_t destination = 0xFF;      // destination to send to
-long lastSendTime = 0;        // last send time
-unsigned int interval = 2000;          // interval between sends
+const int resetPin = 3;       // LoRa radio reset
+const int irqPin = 7;         // change for your board; must be a hardware interrupt pin
 
 
 void sendMessage(String outgoing) {
-LoRa.beginPacket();                   // start packet
-LoRa.write(destination);              // add destination address
-LoRa.write(localAddress);             // add sender address
-LoRa.write(msgCount);                 // add message ID
-LoRa.write(outgoing.length());        // add payload length
-LoRa.print(outgoing);                 // add payload
-LoRa.endPacket();                     // finish packet and send it
-msgCount++;                           // increment message ID
+//LoRa.beginPacket();                   // start packet
+//LoRa.write(destination);              // add destination address
+//LoRa.write(localAddress);             // add sender address
+//LoRa.write(msgCount);                 // add message ID
+//LoRa.write(outgoing.length());        // add payload length
+//LoRa.print(outgoing);                 // add payload
+//LoRa.endPacket();                     // finish packet and send it
+//msgCount++;                           // increment message ID
 }
 
 void onReceive(int packetSize) {
 if (packetSize == 0) return;          // if there's no packet, return
-
-// read packet header bytes:
-int recipient = LoRa.read();          // recipient address
-uint8_t sender = LoRa.read();            // sender address
-uint8_t incomingMsgId = LoRa.read();     // incoming msg ID
-uint8_t incomingLength = LoRa.read();    // incoming msg length
-
-String incoming = "";
-
-while (LoRa.available()) {
-incoming += (char)LoRa.read();
-}
-
-if (incomingLength != incoming.length()) {   // check length for error
-printf("error: message length does not match length\n");
-return;                             // skip rest of function
-}
-
-// if the recipient isn't this device or broadcast,
-if (recipient != localAddress && recipient != 0xFF) {
-printf("This message is not for me.\n");
-return;                             // skip rest of function
-}
-
-// if message is for this device, or broadcast, print details:
-cout << "Received from: 0x" <<  String(sender, HEX) << endl;
-cout << "Sent to: 0x" << String(recipient, HEX) << endl;
-cout << "Message ID: " << String(incomingMsgId) << endl;
-cout << "Message length: " << String(incomingLength) <<endl;
-cout << "Message: " << incoming << endl;
-cout << "RSSI: " <<  String(LoRa.packetRssi()) << endl;
-cout << "Snr: " << String(LoRa.packetSnr())<< endl;
-std::cout << endl;
+packetSize = LoRa.parsePacket();
+    if (packetSize) {
+        uint8_t buffer[BUFFER_SIZE];
+        int index = 0;
+        
+        //printf("Received LoRa packet: ");
+        while (LoRa.available() && index < BUFFER_SIZE - 1) {
+            uint8_t byte = LoRa.read();
+            //printf("%02X ", byte);
+            buffer[index++] = byte;
+        }
+        
+        buffer[index] = '\0'; // Null terminate for safety
+        
+        //printf("\n");
+        
+        // Send the LoRa packet data to Python via Unix socket
+        if (send(client_sock, buffer, index, 0) < 0) {
+            perror("Sending LoRa packet to Unix socket failed");
+        } else {
+            //printf("Sent %d bytes to Python via Unix socket\n", index);
+        }
+    }
 }
 
 
@@ -123,30 +111,24 @@ printf("LoRa Duplex\n");
 // override the default CS, reset, and IRQ pins (optional)
 LoRa.setPins(csPin, resetPin, irqPin);   // set CS, reset, IRQ pin
 
-if (!LoRa.begin(868E6, 0)) {
-printf("Starting LoRa failed!\n");
-while (1);
-}
-printf("LoRa init succeeded.\n");
+    if (!LoRa.begin(439E6, 0)) {
+        printf("Starting LoRa failed!\n");
+        while (1);
+    }
+
+    printf("Init LoRa Done!\n");
+    setup_unix_socket(); // Start Unix socket server and wait for Python
 
 LoRa.onReceive(onReceive);
 LoRa.receive();
-
-/* seed the randaom */
-srand (time(NULL));
-}
+    }
 
 
 void loop() {
-if (millis() - lastSendTime > interval) {
-String message = "HeLoRa World!";   // send a message
-sendMessage(message);
-cout << "Sending " << message << endl;
-lastSendTime = millis();            // timestamp the message
-interval = (rand() % 2000) + 1000;    // 1-3 seconds
+//sendMessage(message);
 LoRa.receive();                     // go back into receive mode
 }
-}
+
 
 
 int  main(void) {
