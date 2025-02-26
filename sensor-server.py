@@ -133,6 +133,13 @@ ser = None
 
 #MAC Addresses of sensornodes # loads from settings file or user can input from webinterface for the first run
 sensortotankattachmentdict={}
+# Define the dictionary with actuator addresses
+actuatoraddressdict = {
+    "ACTUATOR_1_ADDRESS": '\xAA',
+    "ACTUATOR_2_ADDRESS": '\xBB',
+    "ACTUATOR_3_ADDRESS": '\xCC'
+}
+
 #WebSocket OPCODES
 STREAM = 0x0
 TEXT = 0x1
@@ -173,6 +180,7 @@ STATUSTANK2 = False
 #SWTANKRELAY=27 #Cuts off the 12V supply to actuator. Actuator stays in position. 
 
 SENSOR_PACKET_LENGTH=16 # Non-ESP32 packets longer than this size are discarded
+ACTUATOR_NODE_PACKET_LENGTH=2 # Tank Actuator ATMEGA sneds 2 bytes, 1 for Address and 1 for status
 
 #SOFTWARE MODE
 SOFTMODE="Auto" # Turn off motor if AC voltage low or high, motor current too high, 
@@ -410,6 +418,7 @@ def commandhandler(command):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
 					ESP32send("SWTANK","HIGH")
+                    send_msg_to_LoRaNode('/xAA,/xCC')
 					if (MOTOR=="ON"):
 						TANK1FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 2") #Using the statuschange of Tank instead to capture human mode actions
@@ -1345,7 +1354,11 @@ def send_msg_to_ESP32(msg):
 			esp_uds_socket.send(msg)
 		except socket.error as e:
 			error_handler(send_msg_to_ESP32.__name__, str(e))
-
+def send_msg_to_LoRaNode(msg):
+        try:
+            lora_uds_socket.send(msg)
+        except socket.error as e:
+            error_handler(send_msg_to_LoRaNode.__name__, str(e))
 def receive_data_from_c_program():
 	global esp_uds_socket, running_flag
 	data = b''
@@ -1430,15 +1443,21 @@ def handlepacket(packet):
 		except struct.error as e:
 			error_handler(handlepacket.__name__, str(e))
 
-	elif len(packet) >SENSOR_PACKET_LENGTH:
-		print_packet_hex(packet)
-		print("Random node in the area transmitting data on same frequency")
-		return #Exit function for random packet
+    elif len(packet) == 2:
+        first_byte = packet[0]
+        if first_byte in actuatoraddressdict.values():
+            print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
+        else:
+            print("Packet does not match any known actuator address.")
+    elif len(packet) == SENSOR_PACKET_LENGTH:
+        sensor_data_handler(packet)
 	else:
 		# Hand over non-ESP32 data
 		#print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
 		#process_data_other_node(packet)
-		sensor_data_handler(packet)
+        print_packet_hex(packet)
+        print("Random node in the area transmitting data on same frequency")
+        return #Exit function for random packet
 
 def receive_data_from_serial():
 	"""Main function to handle serial communication."""

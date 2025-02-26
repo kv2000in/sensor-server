@@ -1,137 +1,189 @@
 /*
  To compile
 pi@raspberrypi:~/Downloads/playground/sensor-server $ g++ -Wall -o LoRaDuplexWithRecvCallBack ./examples/LoRaDuplexWithRecvCallBack.cpp ./src/LoRa.cpp ./src/Print.cpp ./src/WString.cpp ./src/itoa.cpp -I ./src  -lwiringPi
+ 
+ chmod +x LoRaDuplexWithRecvCallBack
  */
 
-
+#include <signal.h>
 #include "LoRa.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/select.h>
 
 #define UDS_PATH "/tmp/raw_socket_uds_lora"
 #define BUFFER_SIZE 2048
 
 int uds_sock, client_sock;
 
+const int csPin = 10;          // LoRa radio chip select
+const int resetPin = 3;        // LoRa radio reset
+const int irqPin = 7;          // change for your board; must be a hardware interrupt pin
+
+// Function to send data over LoRa
+void sendMessage(uint8_t *data, int len) {
+    LoRa.beginPacket();
+    LoRa.write(data, len);
+    LoRa.endPacket();
+}
+
 // Function to set up Unix socket server
 void setup_unix_socket() {
-struct sockaddr_un addr;
-
-// Remove any existing socket file
-unlink(UDS_PATH);
-
-uds_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-if (uds_sock < 0) {
-perror("Unix socket creation failed");
-exit(1);
+    struct sockaddr_un addr;
+    
+    // Remove any existing socket file
+    unlink(UDS_PATH);
+    
+    uds_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (uds_sock < 0) {
+        perror("Unix socket creation failed");
+        exit(1);
+    }
+    
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, UDS_PATH, sizeof(addr.sun_path) - 1);
+    
+    if (bind(uds_sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+        perror("Binding Unix socket failed");
+        close(uds_sock);
+        exit(1);
+    }
+    
+    if (listen(uds_sock, 1) == -1) {
+        perror("Listening on Unix socket failed");
+        close(uds_sock);
+        exit(1);
+    }
+    
+    printf("Waiting for Python to connect...\n");
+    
+    // Accept connection from Python
+    client_sock = accept(uds_sock, NULL, NULL);
+    if (client_sock == -1) {
+        perror("Accepting connection failed");
+        close(uds_sock);
+        exit(1);
+    }
+    
+    printf("Python connected to Unix socket\n");
 }
 
-memset(&addr, 0, sizeof(addr));
-addr.sun_family = AF_UNIX;
-strncpy(addr.sun_path, UDS_PATH, sizeof(addr.sun_path) - 1);
-
-if (bind(uds_sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-perror("Binding Unix socket failed");
-close(uds_sock);
-exit(1);
-}
-
-if (listen(uds_sock, 1) == -1) {
-perror("Listening on Unix socket failed");
-close(uds_sock);
-exit(1);
-}
-
-printf("Waiting for Python to connect...\n");
-
-// Accept connection from Python
-client_sock = accept(uds_sock, NULL, NULL);
-if (client_sock == -1) {
-perror("Accepting connection failed");
-close(uds_sock);
-exit(1);
-}
-
-printf("Python connected to Unix socket\n");
-}
-
-const int csPin = 10;          // LoRa radio chip select
-const int resetPin = 3;       // LoRa radio reset
-const int irqPin = 7;         // change for your board; must be a hardware interrupt pin
-
-
-void sendMessage(String outgoing) {
-//LoRa.beginPacket();                   // start packet
-//LoRa.write(destination);              // add destination address
-//LoRa.write(localAddress);             // add sender address
-//LoRa.write(msgCount);                 // add message ID
-//LoRa.write(outgoing.length());        // add payload length
-//LoRa.print(outgoing);                 // add payload
-//LoRa.endPacket();                     // finish packet and send it
-//msgCount++;                           // increment message ID
-}
-
+// Function to handle LoRa packet reception
 void onReceive(int packetSize) {
-if (packetSize == 0) return;          // if there's no packet, return
-packetSize = LoRa.parsePacket();
-    if (packetSize) {
-        uint8_t buffer[BUFFER_SIZE];
-        int index = 0;
-        
-        //printf("Received LoRa packet: ");
-        while (LoRa.available() && index < BUFFER_SIZE - 1) {
-            uint8_t byte = LoRa.read();
-            //printf("%02X ", byte);
-            buffer[index++] = byte;
-        }
-        
+    if (packetSize == 0) return;
+    
+    uint8_t buffer[BUFFER_SIZE];
+    int index = 0;
+    
+    while (LoRa.available() && index < BUFFER_SIZE - 1) {
+        buffer[index++] = LoRa.read();
+    }
+    
+    if (index > 0) {
         buffer[index] = '\0'; // Null terminate for safety
-        
-        //printf("\n");
-        
-        // Send the LoRa packet data to Python via Unix socket
         if (send(client_sock, buffer, index, 0) < 0) {
             perror("Sending LoRa packet to Unix socket failed");
-        } else {
-            //printf("Sent %d bytes to Python via Unix socket\n", index);
         }
     }
 }
 
+// Function to receive data from Unix socket and send via LoRa
+void receiveUnixSocket() {
+    uint8_t buffer[BUFFER_SIZE];
+    int bytesRead = recv(client_sock, buffer, BUFFER_SIZE, 0);
+    
+    if (bytesRead > 0) {
+        printf("Received %d bytes from Python, sending via LoRa\n", bytesRead);
+        sendMessage(buffer, bytesRead);
+    } else if (bytesRead == 0) {
+        printf("Python disconnected, waiting for reconnection...\n");
+        close(client_sock);
+        client_sock = accept(uds_sock, NULL, NULL);
+        if (client_sock == -1) {
+            perror("Accepting connection failed");
+            close(uds_sock);
+            exit(1);
+        }
+        printf("Python reconnected\n");
+    } else {
+        perror("Error receiving from Unix socket");
+    }
+}
+
+
+
+
+
+void cleanup(int signum) {
+    printf("Caught signal %d, cleaning up...\n", signum);
+    
+    // Close the sockets
+    if (client_sock > 0) close(client_sock);
+    if (uds_sock > 0) close(uds_sock);
+    
+    // Remove the Unix domain socket file
+    unlink(UDS_PATH);
+    
+    printf("Cleanup complete. Exiting...\n");
+    exit(0);
+}
+
+void setup_signal_handler() {
+    struct sigaction sa;
+    sa.sa_handler = cleanup;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    
+    sigaction(SIGINT, &sa, NULL);  // Handle Ctrl+C
+    sigaction(SIGTERM, &sa, NULL); // Handle termination signals
+}
 
 void setup() {
-
-printf("LoRa Duplex\n");
-
-// override the default CS, reset, and IRQ pins (optional)
-LoRa.setPins(csPin, resetPin, irqPin);   // set CS, reset, IRQ pin
-
+    printf("LoRa Duplex\n");
+    
+    setup_signal_handler();
+    
+    LoRa.setPins(csPin, resetPin, irqPin);
+    
     if (!LoRa.begin(439E6, 0)) {
         printf("Starting LoRa failed!\n");
         while (1);
     }
-
+    
     printf("Init LoRa Done!\n");
-    setup_unix_socket(); // Start Unix socket server and wait for Python
-
-LoRa.onReceive(onReceive);
-LoRa.receive();
-    }
-
-
-void loop() {
-//sendMessage(message);
-LoRa.receive();                     // go back into receive mode
+    setup_unix_socket();
+    
+    LoRa.onReceive(onReceive);
+    LoRa.receive();
 }
 
+void loop() {
+    fd_set read_fds;
+    FD_ZERO(&read_fds);
+    FD_SET(client_sock, &read_fds);
+    int max_fd = client_sock;
+    
+    struct timeval timeout = {0, 100000};  // 100ms timeout
+    
+    int activity = select(max_fd + 1, &read_fds, NULL, NULL, &timeout);
+    
+    if (activity > 0) {
+        if (FD_ISSET(client_sock, &read_fds)) {
+            receiveUnixSocket();
+        }
+    }
+    
+    LoRa.receive(); // Continue receiving LoRa packets
+}
 
-
-int  main(void) {
-setup();
-while(1) loop();
+int main(void) {
+    setup();
+    while (1) loop();
 }

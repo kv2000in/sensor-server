@@ -83,9 +83,9 @@ void printPacketHex(const uint8_t *packet, size_t length) {
   for (size_t i = 0; i < length; i++) {
     if (i > 0) Serial.printf(" ");
     Serial.printf("%02X", packet[i]);
-  #endif
-  }
   
+  }
+  #endif
 }
 
 unsigned int get_distance_via_triggerecho()
