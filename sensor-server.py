@@ -1421,42 +1421,43 @@ def handlepacket(packet):
 		print("Incomplete packet received. Skipping.")
 		return  # Exit function for incomplete packet
 		
-	# Extract the MAC address
-	mac_addr = packet[:MAC_ADDRESS_LENGTH]
-
-	if mac_addr == ESP32_MAC_ADDR:
-		#print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
-
-		# Extract Packet ID
-		try:
-			packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
-
-			# Check for duplicate Packet ID
-			if is_duplicate_packet(packet_id):
-				print("Duplicate packet detected. Packet ID: {}".format(packet_id))
-				return  # Exit function for duplicate packet
-
-			# Validate the data
-			is_valid, result = validate_data(packet)
-
-			if not is_valid:
-				print("Invalid ESP32 data: {}".format(result))
-				return  # Exit function for invalid data
-
-			# Process valid ESP32 packet
-			process_data_esp32([result])
-
-		except struct.error as e:
-			error_handler(handlepacket.__name__, str(e))
-	elif len(packet) == SENSOR_PACKET_LENGTH:
-		sensor_data_handler(packet)
 	else:
-		# Hand over non-ESP32 data
-		#print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
-		#process_data_other_node(packet)
-		print_packet_hex(packet)
-		print("Random node in the area transmitting data on same frequency")
-		return #Exit function for random packet
+		# Extract the MAC address
+		mac_addr = packet[:MAC_ADDRESS_LENGTH]
+
+		if mac_addr == ESP32_MAC_ADDR:
+			#print("ESP32 packet detected. MAC: {}".format(mac_addr.encode("hex").upper()))
+
+			# Extract Packet ID
+			try:
+				packet_id = struct.unpack('<H', packet[MAC_ADDRESS_LENGTH:MAC_ADDRESS_LENGTH + PACKET_ID_LENGTH])[0]
+
+				# Check for duplicate Packet ID
+				if is_duplicate_packet(packet_id):
+					print("Duplicate packet detected. Packet ID: {}".format(packet_id))
+					return  # Exit function for duplicate packet
+
+				# Validate the data
+				is_valid, result = validate_data(packet)
+
+				if not is_valid:
+					print("Invalid ESP32 data: {}".format(result))
+					return  # Exit function for invalid data
+
+				# Process valid ESP32 packet
+				process_data_esp32([result])
+
+			except struct.error as e:
+				error_handler(handlepacket.__name__, str(e))
+		elif len(packet) == SENSOR_PACKET_LENGTH:
+			sensor_data_handler(packet)
+		else:
+			# Hand over non-ESP32 data
+			#print("Non-ESP32 MAC detected: {}".format(mac_addr.encode("hex").upper()))
+			#process_data_other_node(packet)
+			print_packet_hex(packet)
+			print("Random node in the area transmitting data on same frequency")
+			return #Exit function for random packet
 
 def receive_data_from_serial():
 	"""Main function to handle serial communication."""

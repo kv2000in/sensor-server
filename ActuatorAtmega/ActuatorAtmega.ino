@@ -51,7 +51,8 @@ LoRa.receive();                     // go back into receive mode
 
 void sendMessage(String outgoing) {
 LoRa.beginPacket();                   // start packet
-LoRa.write(myAddress);             // add sender address
+LoRa.write(myAddress);// add sender address
+LoRa.write(0xCC);
 //LoRa.print(outgoing);                 // add payload
 LoRa.endPacket();                     // finish packet and send it
 }
