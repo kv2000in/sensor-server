@@ -159,7 +159,7 @@ clients = []
  
 # ESP32 GPIO mapping dictionary
 GPIO_OUTPUT_MAP = {
-	"SWSTARTPB": 21,
+	"SWSTARTPB": 4,
 	"SWSTOPPB": 22,
 	"SWTANK": 4,
 	"SWTANKRELAY": 23,
@@ -168,7 +168,7 @@ GPIO_OUTPUT_MAP = {
 GPIO_INPUT_MAP = {
 	"STATUSMODE": 13,
 	"STATUSTANK1": 14,
-	"STATUSTANK2": 25,
+	"STATUSTANK2": 36,
 }
 
 # Fixed sequence of ESP32 input GPIOs corresponding to bits in the received byte
@@ -425,7 +425,7 @@ def commandhandler(command):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
 					ESP32send("SWTANK","HIGH")
-					send_msg_to_LoRaNode('/xAA,/xCC')
+					#send_msg_to_LoRaNode('/xAA,/xCC')
 					if (MOTOR=="ON"):
 						TANK1FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 2") #Using the statuschange of Tank instead to capture human mode actions
@@ -1426,8 +1426,6 @@ def handlepacket(packet):
 		if first_byte in actuatoraddressdict.values():
 			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
 			#send_msg_to_LoRaNode('\xAA\x22')
-			print("Calling SWTANK HIGH since Actuator Node recv")
-			ESP32send("SWTANK","HIGH")
 		else:
 			print("Packet does not match any known actuator address.")
 	# Ensure the packet has at least 6 bytes for MAC address check
@@ -1460,8 +1458,6 @@ def handlepacket(packet):
 
 				# Process valid ESP32 packet
 				process_data_esp32([result])
-				print("Calling SWTANKRELAY HIGH since esp32 received")
-				ESP32send("SWTANKRELAY","HIGH")
 
 			except struct.error as e:
 				error_handler(handlepacket.__name__, str(e))
