@@ -159,7 +159,7 @@ clients = []
  
 # ESP32 GPIO mapping dictionary
 GPIO_OUTPUT_MAP = {
-	"SWSTARTPB": 4,
+	"SWSTARTPB": 23,
 	"SWSTOPPB": 22,
 	"SWTANK": 4,
 	"SWTANKRELAY": 23,
