@@ -50,8 +50,12 @@
 	GPIO 36	Input only (cannot be output).
 	GPIO 39	Input only (cannot be output).
 ESP32PLCHUB programmed with
-int outputPins[TOTAL_O_PINS] = {4, 5, 13, 14, 15, 18, 19, 21, 22, 23, 25, 26,27, 32, 33 };
-int inputPins[TOTAL_I_PINS] = {16,17, 34,35,36,39};
+#define TOTAL_O_PINS 13  // Number of output pins
+#define TOTAL_I_PINS 5  // Number of input pins
+
+// Define the GPIO pins you want to control
+int outputPins[TOTAL_O_PINS] = {4, 5, 16, 17, 18, 19, 21, 22, 23, 26,27, 32, 33 };
+int inputPins[TOTAL_I_PINS] = {13,14,25,36,39};
 	'''
 
 
@@ -155,20 +159,20 @@ clients = []
  
 # ESP32 GPIO mapping dictionary
 GPIO_OUTPUT_MAP = {
-	"SWSTARTPB": 13,
-	"SWSTOPPB": 14,
-	"SWTANK": 15,
-	"SWTANKRELAY": 33,
+	"SWSTARTPB": 21,
+	"SWSTOPPB": 22,
+	"SWTANK": 4,
+	"SWTANKRELAY": 23,
 	"ESP32_STATUS_LED": 5
 }
 GPIO_INPUT_MAP = {
-	"STATUSMODE": 16,
-	"STATUSTANK1": 17,
-	"STATUSTANK2": 39,
+	"STATUSMODE": 13,
+	"STATUSTANK1": 14,
+	"STATUSTANK2": 25,
 }
 
 # Fixed sequence of ESP32 input GPIOs corresponding to bits in the received byte
-INPUT_PINS_SEQUENCE = [16, 17, 34, 35, 36, 39]
+INPUT_PINS_SEQUENCE = [13, 14, 25, 36, 39]
 
 STATUSMODE = False
 STATUSTANK1 = False
@@ -1321,30 +1325,34 @@ def print_packet_hex(data):
 
 def ESP32send(GPIO, STATUS):
 	"""
-	Convert GPIO name and status to a binary message and send it.
-	GPIO: str - Name of the GPIO pin (e.g., "SWSTARTPB")
-	STATUS: str - "HIGH" or "LOW"
+	Convert GPIO name and status to a single-byte message and send it.
 	"""
-	#print("ESP32send called")
-	
-	# Ensure GPIO is valid
 	if GPIO not in GPIO_OUTPUT_MAP:
-		print "Error: Invalid GPIO name '{}'".format(GPIO)
+		print("Error: Invalid GPIO name '{}'".format(GPIO))
 		return
 
-	# Get the GPIO number
 	gpio_number = GPIO_OUTPUT_MAP[GPIO]
 
-	# Convert HIGH/LOW to binary value
-	if STATUS == "HIGH":
-		binary_msg = gpio_number * 10 + 1  # Example: GPIO 13 -> 131
-	elif STATUS == "LOW":
-		binary_msg = gpio_number * 10      # Example: GPIO 13 -> 130
-	else:
-		print "Error: Invalid status '{}', expected 'HIGH' or 'LOW'".format(STATUS)
+	if not (0 <= gpio_number <= 39):  # Ensure GPIO fits within 6 bits
+		print("Error: GPIO number {} out of range (0-39)".format(gpio_number))
 		return
-	# Send the binary message
-	send_msg_to_ESP32(BROADCAST_MAC_ADDR + chr(binary_msg))
+
+	state_bit = 1 if STATUS == "HIGH" else 0 if STATUS == "LOW" else None
+	if state_bit is None:
+		print("Error: Invalid status '{}', expected 'HIGH' or 'LOW'".format(STATUS))
+		return
+
+	# Encode into a single byte: (GPIO << 1) | state_bit
+	encoded_byte = (gpio_number << 1) | state_bit
+
+	# Ensure we don’t overlap with reserved commands
+	if encoded_byte >= 0xA0:
+		print("Error: Encoded byte {} conflicts with reserved commands!".format(encoded_byte))
+		return
+
+	# Send the encoded byte
+	send_msg_to_ESP32(BROADCAST_MAC_ADDR + chr(encoded_byte))
+
 
 def send_msg_to_ESP32(msg):
 	if ESP01:

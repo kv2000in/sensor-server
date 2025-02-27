@@ -20,12 +20,12 @@
 
 static const char *TAG = "APP";
 
-#define TOTAL_O_PINS 15  // Number of output pins
-#define TOTAL_I_PINS 6  // Number of output pins
+#define TOTAL_O_PINS 13  // Number of output pins
+#define TOTAL_I_PINS 5  // Number of input pins
 
 // Define the GPIO pins you want to control
-int outputPins[TOTAL_O_PINS] = {4, 5, 13, 14, 15, 18, 19, 21, 22, 23, 25, 26,27, 32, 33 };
-int inputPins[TOTAL_I_PINS] = {16,17, 34,35,36,39};
+int outputPins[TOTAL_O_PINS] = {4, 5, 16, 17, 18, 19, 21, 22, 23, 26,27, 32, 33 };
+int inputPins[TOTAL_I_PINS] = {13,14,25,36,39};
 
 
 //uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC [b8:27:eb:f9:9f:40 for pi Zero W DUT]
@@ -303,7 +303,6 @@ void processReceivedDataTask(void *param) {
     ReceivedPacket packet;
     
     while (true) {
-        // Wait for data in the queue
         if (xQueueReceive(recvQueue, &packet, portMAX_DELAY) == pdPASS) {
             if (packet.length < 1) {
                 ESP_LOGD(TAG, "Invalid packet length.");
@@ -311,31 +310,33 @@ void processReceivedDataTask(void *param) {
             }
 
             uint8_t command = packet.data[0];  // Extract command byte
-            ESP_LOGD(TAG, "Processing command: %d", command);
+            ESP_LOGD(TAG, "Processing command: 0x%X", command);
 
-            // **Command Byte Handling**
-            switch (command) {
-                case 0xAA:
-                    ESP_LOGD(TAG, "Command received: Switch to WiFi mode");
-                    switch_to_wifi();
-                    continue;
-                case 0xBB:
-                case 0xCC:
-                case 0xDD:
-                    ESP_LOGD(TAG, "Reserved Command received: %X", command);
-                    future_reserved();
-                    continue;
-                case 0xEE:
-                    ESP_LOGD(TAG, "Restart command received. Restarting ESP...");
-                    ESP.restart();
-                    continue;
+            // **Command Byte Handling (Preserved)**
+            if (command >= 0xA0) {  // Reserved commands
+                switch (command) {
+                    case 0xAA:
+                        ESP_LOGD(TAG, "Command received: Switch to WiFi mode");
+                        switch_to_wifi();
+                        continue;
+                    case 0xBB:
+                    case 0xCC:
+                    case 0xDD:
+                        ESP_LOGD(TAG, "Reserved Command received: %X", command);
+                        future_reserved();
+                        continue;
+                    case 0xEE:
+                        ESP_LOGD(TAG, "Restart command received. Restarting ESP...");
+                        ESP.restart();
+                        continue;
+                }
             }
 
-            // **GPIO Control Logic (Unchanged)**
-            uint8_t gpioPin = command / 10;  // First two digits -> GPIO number
-            uint8_t pinState = command % 10; // Last digit (0 = LOW, 1 = HIGH)
+            // **GPIO Control Logic**
+            uint8_t gpioPin = command >> 1;  // Extract GPIO number (6 bits)
+            uint8_t pinState = command & 1;  // Extract state (1 bit)
 
-            if (gpioPin >= 0 && gpioPin <= 39) {  // ESP32 GPIO range
+            if (gpioPin <= 39) {  // Ensure valid ESP32 GPIO
                 ESP_LOGD(TAG, "Setting GPIO %d to %s", gpioPin, (pinState ? "HIGH" : "LOW"));
                 pinMode(gpioPin, OUTPUT);
                 digitalWrite(gpioPin, pinState);
@@ -345,6 +346,7 @@ void processReceivedDataTask(void *param) {
         }
     }
 }
+
 
  
  
