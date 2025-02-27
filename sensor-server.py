@@ -157,9 +157,9 @@ clients = []
 GPIO_OUTPUT_MAP = {
 	"SWSTARTPB": 13,
 	"SWSTOPPB": 14,
-	"SWTANK":15,
-	"SWTANKRELAY":33,
-	"ESP32_STATUS_LED":5
+	"SWTANK": 15,
+	"SWTANKRELAY": 33,
+	"ESP32_STATUS_LED": 5
 }
 GPIO_INPUT_MAP = {
 	"STATUSMODE": 16,
@@ -1418,6 +1418,7 @@ def handlepacket(packet):
 		if first_byte in actuatoraddressdict.values():
 			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
 			#send_msg_to_LoRaNode('\xAA\x22')
+			print("Calling SWTANK HIGH since Actuator Node recv")
 			ESP32send("SWTANK","HIGH")
 		else:
 			print("Packet does not match any known actuator address.")
@@ -1451,6 +1452,7 @@ def handlepacket(packet):
 
 				# Process valid ESP32 packet
 				process_data_esp32([result])
+				print("Calling SWTANKRELAY HIGH since esp32 received")
 				ESP32send("SWTANKRELAY","HIGH")
 
 			except struct.error as e:
