@@ -56,6 +56,23 @@ ESP32PLCHUB programmed with
 // Define the GPIO pins you want to control
 int outputPins[TOTAL_O_PINS] = {4, 5, 16, 17, 18, 19, 21, 22, 23, 26,27, 32, 33 };
 int inputPins[TOTAL_I_PINS] = {13,14,25,36,39};
+
+GPIO	High (1)	Low (0)
+4	0x09	0x08
+5	0x0B	0x0A
+16	0x21	0x20
+17	0x23	0x22
+18	0x25	0x24
+19	0x27	0x26
+21	0x2B	0x2A
+22	0x2D	0x2C
+23	0x2F	0x2E
+26	0x35	0x34
+27	0x37	0x36
+32	0x41	0x40
+33	0x43	0x42
+
+
 	'''
 
 
@@ -1202,6 +1219,7 @@ def process_esp32_heartbeat(payload):
 	# Extract ADC channel 0 and channel 1 data
 	adc_data_0 = payload[:100]  # First 100 bytes
 	adc_data_1 = payload[100:200]  # Next 100 bytes
+	print_packet_hex(adc_data_1)
 	padding = payload[200:]  # Remaining bytes (padding)
 
 	# Convert raw ADC data into 16-bit integers
