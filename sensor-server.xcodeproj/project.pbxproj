@@ -38,17 +38,23 @@
 		2A5A58CB21EC10C0001653D3 /* ESP-conn-test.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "ESP-conn-test.py"; sourceTree = "<group>"; };
 		2A5A58CC21EC10C1001653D3 /* Adccalibration */ = {isa = PBXFileReference; lastKnownFileType = text; path = Adccalibration; sourceTree = "<group>"; };
 		2A5A58CD21EC10C1001653D3 /* sensorsettingsbakup */ = {isa = PBXFileReference; lastKnownFileType = text; path = sensorsettingsbakup; sourceTree = "<group>"; };
-		2A62712A21E1990B00930500 /* sensor-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sensor-server.py"; sourceTree = "<group>"; };
+		2A62712A21E1990B00930500 /* sensor-server.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sensor-server.py"; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.python; };
 		2A62713321E933C900930500 /* ESP8266-HCSR04.ino */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ESP8266-HCSR04.ino"; sourceTree = "<group>"; };
 		2A62713421E934CD00930500 /* sensor.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = sensor.html; sourceTree = "<group>"; };
 		2A62713521E934F600930500 /* plotly.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = plotly.js; sourceTree = "<group>"; };
 		2A6E1517277FAB2B00923F56 /* ESP8266-US100-ESPNOW.ino */ = {isa = PBXFileReference; lastKnownFileType = text; name = "ESP8266-US100-ESPNOW.ino"; path = "ESP8266-US100-ESPNOW/ESP8266-US100-ESPNOW.ino"; sourceTree = "<group>"; };
+		EB6424D12D6F68F8001F7CF9 /* LoRaDuplexWithRecvCallBack */ = {isa = PBXFileReference; lastKnownFileType = file; path = LoRaDuplexWithRecvCallBack; sourceTree = "<group>"; };
+		EB6424D22D6F6E8A001F7CF9 /* sensor-server-startup.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "sensor-server-startup.sh"; sourceTree = "<group>"; };
+		EBF6221A2D6F82FC00C88CF6 /* ActuatorAtmega */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ActuatorAtmega; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		2A62712221E1985200930500 = {
 			isa = PBXGroup;
 			children = (
+				EBF6221A2D6F82FC00C88CF6 /* ActuatorAtmega */,
+				EB6424D22D6F6E8A001F7CF9 /* sensor-server-startup.sh */,
+				EB6424D12D6F68F8001F7CF9 /* LoRaDuplexWithRecvCallBack */,
 				2A4319472D51E5FA0033D160 /* LoRaReceiver */,
 				2A4319462D51E5FA0033D160 /* mysendrecv.o */,
 				2A4319452D476E2E0033D160 /* examples */,

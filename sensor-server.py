@@ -1223,13 +1223,12 @@ def process_esp32_heartbeat(payload):
 
 	# Convert raw ADC data into 16-bit integers
 	sampleVArray = [struct.unpack('<H', adc_data_0[i:i + 2])[0] for i in range(0, len(adc_data_0), 2)]
-	adc_samples_1 = [struct.unpack('<H', adc_data_1[i:i + 2])[0] for i in range(0, len(adc_data_1), 2)]
+	sampleIArray = [struct.unpack('<H', adc_data_1[i:i + 2])[0] for i in range(0, len(adc_data_1), 2)]
 	# Update circular buffers
 	for sample in sampleVArray:
 		adc_channel_0.add(sample)
 	for sample in sampleIArray:
 		adc_channel_1.add(sample)
-		print(sample)
 
 	# Calculate RMS for each channel
 	raw_RMS_Voltage_ADC = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
