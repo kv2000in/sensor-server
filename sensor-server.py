@@ -1219,7 +1219,6 @@ def process_esp32_heartbeat(payload):
 	# Extract ADC channel 0 and channel 1 data
 	adc_data_0 = payload[:100]  # First 100 bytes
 	adc_data_1 = payload[100:200]  # Next 100 bytes
-	print_packet_hex(adc_data_1)
 	padding = payload[200:]  # Remaining bytes (padding)
 
 	# Convert raw ADC data into 16-bit integers
@@ -1230,6 +1229,7 @@ def process_esp32_heartbeat(payload):
 		adc_channel_0.add(sample)
 	for sample in sampleIArray:
 		adc_channel_1.add(sample)
+		print(sample)
 
 	# Calculate RMS for each channel
 	raw_RMS_Voltage_ADC = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
