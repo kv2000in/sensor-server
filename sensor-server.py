@@ -1437,8 +1437,6 @@ def LoRasend(GPIO, STATUS):
 		if not address:
 			print("Unknown actuator number:", actuator_number)
 			return
-		print("ACTUATOR Address = "+address)
-		print("gpio_pin ="+gpio_pin)
 		cmd_value = gpio_pin * 10 + (1 if STATUS == "HIGH" else 0)
 		msg = address + chr(cmd_value)
 
