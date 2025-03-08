@@ -1516,7 +1516,7 @@ def handlepacket(packet):
 			actuator_name = None
 			for key, value in actuatoraddressdict.items():
 				if value == first_byte:
-					actuator_name = key.replace("_ADDRESS", "")  # Extract actuator name
+					actuator_name = key.replace("ACTUATOR_ADDRESS_", "")  # Extract actuator name
 					break
 
 			if actuator_name:
