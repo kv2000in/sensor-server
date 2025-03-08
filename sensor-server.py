@@ -1521,21 +1521,22 @@ def handlepacket(packet):
 
 				# Send updated LED status via LoRa
 				led_status = "HIGH" if actuator_status_led_state[actuator_name] else "LOW"
-				LoRasend(f"STATUS_{actuator_name}", led_status)
+				LoRasend("STATUS_{}".format(actuator_name), led_status)
 
-				print(f"Toggled STATUS LED of {actuator_name} to {led_status}")
+				print("Toggled STATUS LED of {} to {}".format(actuator_name, led_status))
 
 			# Process second byte as one's complement of status bits
 			raw_status = ord(packet[1])
 			decoded_status = ~raw_status & 0xFF  # Convert back from one's complement
 
 			for status_name, (actuator_id, bit_pos) in ACTUATOR_STATUS_MAP.items():
-				if actuatoraddressdict.get(f"ACTUATOR_{actuator_id}_ADDRESS") == first_byte:
+				if actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_id)) == first_byte:
 					is_active = bool(decoded_status & (1 << bit_pos))
 					print("{} = {}".format(status_name, is_active))
 					tankswitch()
 		else:
 			print("Packet does not match any known actuator address.")
+
 	# Ensure the packet has at least 6 bytes for MAC address check
 	elif len(packet) < MAC_ADDRESS_LENGTH:
 		print("Incomplete packet received. Skipping.")
