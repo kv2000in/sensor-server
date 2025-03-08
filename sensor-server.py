@@ -334,16 +334,18 @@ TANK1FILLINGSTARTTIME = time.time()
 TANK2FILLINGSTARTTIME = time.time()
 
 
-def get_ip_address(interface="wlan1"):
-	"""Get the IP address of a given network interface."""
+def get_ip_address(ifname):
 	try:
-		result = subprocess.run(["ip", "-4", "addr", "show", interface], capture_output=True, text=True)
-		for line in result.stdout.split("\n"):
+		output = subprocess.check_output("ifconfig {}".format(ifname), shell=True).decode()
+		for line in output.split("\n"):
 			if "inet " in line:
-				return line.split()[1].split("/")[0]  # Extract IP address
+				return line.split()[1]  # Extracts IP address
+		return "Disconnected"
 	except Exception as e:
 		error_handler(get_ip_address.__name__, str(e))
 	return "Disconnected"
+
+
 
 def is_connected():
 	"""Check internet connectivity by connecting to a known server."""
