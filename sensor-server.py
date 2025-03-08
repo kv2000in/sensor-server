@@ -139,7 +139,8 @@ PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
 pending_segments = {}
 
 # Initialize a global variable to track LED state
-led_state = False  # False means OFF, True means ON
+esp32_status_led_state = False  # False means OFF, True means ON
+LoRa_status_led_state = False  # False means OFF, True means ON
 
 #global Switch for using ESP01 via serial vs Direct Pi Zero Wifi Packet injection to connect with ESP nodes
 ESP01 = False # True means using Serial, False means using raw socket packet injection
@@ -159,9 +160,31 @@ ser = None
 sensortotankattachmentdict={}
 # Define the dictionary with actuator addresses
 actuatoraddressdict = {
-    "ACTUATOR_1_ADDRESS": '\xAA',
-    "ACTUATOR_2_ADDRESS": '\xBB',
-    "ACTUATOR_3_ADDRESS": '\xCC'
+	"ACTUATOR_1_ADDRESS": '\xAA',
+	"ACTUATOR_2_ADDRESS": '\xBB',
+	"ACTUATOR_3_ADDRESS": '\xCC'
+}
+
+# Global dictionary to track the STATUS LED state of each actuator
+actuator_status_led_state = {
+	"ACTUATOR_1": False,  # False means OFF, True means ON
+	"ACTUATOR_2": False,
+	"ACTUATOR_3": False
+}
+
+ACTUATOR_GPIO_OUTPUT_MAP = {
+	"SWTANK1": (1, 8),
+	"SWTANK1RELAY": (1, 7),
+	"STATUS_LED1": (1, 4),
+	"SWTANKB": (2, 5),
+	"SWTANKBRELAY": (2, 6),
+	"STATUS_LEDB": (2, 8)
+}
+
+ACTUATOR_STATUS_MAP = {
+	"STATUSTANK1": (1, 0),
+	"STATUSTANK2": (1, 1),
+	"STATUSTANK3": (2, 0)
 }
 
 #WebSocket OPCODES
@@ -184,8 +207,8 @@ GPIO_OUTPUT_MAP = {
 }
 GPIO_INPUT_MAP = {
 	"STATUSMODE": 13,
-	"STATUSTANK1": 14,
-	"STATUSTANK2": 36,
+	#"STATUSTANK1": 14,
+	#"STATUSTANK2": 36,
 }
 
 # Fixed sequence of ESP32 input GPIOs corresponding to bits in the received byte
@@ -309,6 +332,26 @@ TANK2TIMEDFULL = False
 
 TANK1FILLINGSTARTTIME = time.time()
 TANK2FILLINGSTARTTIME = time.time()
+
+
+def get_ip_address(interface="wlan1"):
+	"""Get the IP address of a given network interface."""
+	try:
+		result = subprocess.run(["ip", "-4", "addr", "show", interface], capture_output=True, text=True)
+		for line in result.stdout.split("\n"):
+			if "inet " in line:
+				return line.split()[1].split("/")[0]  # Extract IP address
+	except Exception as e:
+		error_handler(get_ip_address.__name__, str(e))
+	return "Disconnected"
+
+def is_connected():
+	"""Check internet connectivity by connecting to a known server."""
+	try:
+		socket.create_connection(("8.8.8.8", 53), timeout=2)
+		return True
+	except OSError:
+		return False
 
 
 #Read initial GPIO status
@@ -1282,12 +1325,12 @@ def process_esp32_heartbeat(payload):
 	#print("Channel 1 Data: {}".format(adc_channel_1.get_data()))
 
 def handlestatusbits(padding):
-	global led_state  # Use the global state variable
+	global esp32_status_led_state  # Use the global state variable
 	# Process padding bytes
 	#print("Handling status bits")
 
 	# Toggle LED state
-	if led_state:
+	if esp32_status_led_state:
 		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
 		#send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_OFF)
 		ESP32send("ESP32_STATUS_LED","LOW")
@@ -1296,7 +1339,7 @@ def handlestatusbits(padding):
 		#send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_ON)
 		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
 	# Update the LED state
-	led_state = not led_state
+	esp32_status_led_state = not esp32_status_led_state
 	#First byte of padding has ESP32 Input GPIOs statuses.
 	global STATUSMODE, STATUSTANK1, STATUSTANK2
 
@@ -1382,6 +1425,25 @@ def send_msg_to_ESP32(msg):
 			esp_uds_socket.send(msg)
 		except socket.error as e:
 			error_handler(send_msg_to_ESP32.__name__, str(e))
+
+def LoRasend(GPIO, STATUS):
+	if GPIO in ACTUATOR_GPIO_OUTPUT_MAP:
+		actuator_number, gpio_pin = ACTUATOR_GPIO_OUTPUT_MAP[GPIO]
+
+		address = actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_number))
+		if not address:
+			print("Unknown actuator number:", actuator_number)
+			return
+
+		cmd_value = gpio_pin * 10 + (1 if STATUS == "HIGH" else 0)
+		msg = address + chr(cmd_value)
+
+		print("Sending to LoRa:", repr(msg))
+		send_msg_to_LoRaNode(msg)
+
+#LoRasend("SWTANK1", "HIGH")  # Sends '\xAA\x51' (81 in decimal)
+#LoRasend("SWTANKB", "LOW")   # Sends '\xBB\x50' (80 in decimal)
+
 def send_msg_to_LoRaNode(msg):
 	try:
 		lora_uds_socket.send(msg)
@@ -1433,16 +1495,45 @@ def receive_data_from_c_plus_program():
 			pass
 		print("Exiting receive_data_from_c_plus_program")
 
+
+
 def handlepacket(packet):
 	"""
 	Handles the processing of a received packet.
 	Processes ESP32 packets and hands over non-ESP32 packets for further handling.
 	"""
+	global STATUSTANK1, STATUSTANK2
 	if len(packet) == 2:
 		first_byte = packet[0]
 		if first_byte in actuatoraddressdict.values():
 			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
-			#send_msg_to_LoRaNode('\xAA\x22')
+
+			# Identify which actuator sent the packet
+			actuator_name = None
+			for key, value in actuatoraddressdict.items():
+				if value == first_byte:
+					actuator_name = key.replace("_ADDRESS", "")  # Extract actuator name
+					break
+
+			if actuator_name:
+				# Toggle the corresponding STATUS LED
+				actuator_status_led_state[actuator_name] = not actuator_status_led_state[actuator_name]
+
+				# Send updated LED status via LoRa
+				led_status = "HIGH" if actuator_status_led_state[actuator_name] else "LOW"
+				LoRasend(f"STATUS_{actuator_name}", led_status)
+
+				print(f"Toggled STATUS LED of {actuator_name} to {led_status}")
+
+			# Process second byte as one's complement of status bits
+			raw_status = ord(packet[1])
+			decoded_status = ~raw_status & 0xFF  # Convert back from one's complement
+
+			for status_name, (actuator_id, bit_pos) in ACTUATOR_STATUS_MAP.items():
+				if actuatoraddressdict.get(f"ACTUATOR_{actuator_id}_ADDRESS") == first_byte:
+					is_active = bool(decoded_status & (1 << bit_pos))
+					print("{} = {}".format(status_name, is_active))
+					tankswitch()
 		else:
 			print("Packet does not match any known actuator address.")
 	# Ensure the packet has at least 6 bytes for MAC address check
@@ -2177,6 +2268,15 @@ def lcdtickerthread():
 				lcd_string("SENSOR 2 DOWN", LCD_LINE_1)
 				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2)
 				time.sleep(LCD_REFRESH_INTERVAL)
+			# **Check and display network status**
+			if is_connected():
+				network_status = get_ip_address("wlan1")
+			else:
+				network_status = "Disconnected"
+
+			lcd_string("NETWORK STATUS", LCD_LINE_1)
+			lcd_string(network_status, LCD_LINE_2)
+			time.sleep(LCD_REFRESH_INTERVAL)
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
 			print("Exiting due to Error in lcdticker thread:", e)
