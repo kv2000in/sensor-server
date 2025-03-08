@@ -1429,10 +1429,10 @@ def send_msg_to_ESP32(msg):
 			error_handler(send_msg_to_ESP32.__name__, str(e))
 
 def LoRasend(GPIO, STATUS):
-	print("LoRasend called for GPIO: " + GPIO)
+	#print("LoRasend called for GPIO: " + GPIO)
 	if GPIO in ACTUATOR_GPIO_OUTPUT_MAP:
 		actuator_number, gpio_pin = ACTUATOR_GPIO_OUTPUT_MAP[GPIO]
-		print("GPIO in ACTUATOR_GPIO_OUTPUT_MAP")
+		#print("GPIO in ACTUATOR_GPIO_OUTPUT_MAP")
 		address = actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_number))
 		if not address:
 			print("Unknown actuator number:", actuator_number)
@@ -1508,7 +1508,7 @@ def handlepacket(packet):
 	if len(packet) == 2:
 		first_byte = packet[0]
 		if first_byte in actuatoraddressdict.values():
-			print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
+			#print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
 
 			# Identify which actuator sent the packet
 			actuator_name = None
@@ -1527,7 +1527,7 @@ def handlepacket(packet):
 				actuator_status_LED=actuator_name.replace("ACTUATOR_","LED")
 				LoRasend("STATUS_{}".format(actuator_status_LED), led_status)
 
-				print("Toggled STATUS LED of {} to {}".format(actuator_name, led_status))
+				#print("Toggled STATUS LED of {} to {}".format(actuator_name, led_status))
 
 			# Process second byte as one's complement of status bits
 			raw_status = ord(packet[1])
@@ -1536,7 +1536,7 @@ def handlepacket(packet):
 			for status_name, (actuator_id, bit_pos) in ACTUATOR_STATUS_MAP.items():
 				if actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_id)) == first_byte:
 					is_active = bool(decoded_status & (1 << bit_pos))
-					print("{} = {}".format(status_name, is_active))
+					#print("{} = {}".format(status_name, is_active))
 					tankswitch()
 		else:
 			print("Packet does not match any known actuator address.")
