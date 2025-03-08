@@ -1514,6 +1514,7 @@ def handlepacket(packet):
 
 			# Identify which actuator sent the packet
 			actuator_name = None
+			actuator_status_LED =None
 			for key, value in actuatoraddressdict.items():
 				if value == first_byte:
 					actuator_name = key.replace("_ADDRESS", "")  # Extract actuator name
@@ -1525,7 +1526,8 @@ def handlepacket(packet):
 
 				# Send updated LED status via LoRa
 				led_status = "HIGH" if actuator_status_led_state[actuator_name] else "LOW"
-				LoRasend("STATUS_{}".format(actuator_name.replace("ACTUATOR_","LED"), led_status)
+				actuator_status_LED=actuator_name.replace("ACTUATOR_","LED")
+				LoRasend("STATUS_{}".format(actuator_status_LED), led_status)
 
 				print("Toggled STATUS LED of {} to {}".format(actuator_name, led_status))
 
