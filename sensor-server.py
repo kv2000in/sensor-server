@@ -1449,6 +1449,7 @@ def LoRasend(GPIO, STATUS):
 def send_msg_to_LoRaNode(msg):
 	try:
 		lora_uds_socket.send(msg)
+		print(msg)
 	except socket.error as e:
 		error_handler(send_msg_to_LoRaNode.__name__, str(e))
 def receive_data_from_c_program():
