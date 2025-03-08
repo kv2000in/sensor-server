@@ -1429,9 +1429,10 @@ def send_msg_to_ESP32(msg):
 			error_handler(send_msg_to_ESP32.__name__, str(e))
 
 def LoRasend(GPIO, STATUS):
+	print("LoRasend called")
 	if GPIO in ACTUATOR_GPIO_OUTPUT_MAP:
 		actuator_number, gpio_pin = ACTUATOR_GPIO_OUTPUT_MAP[GPIO]
-
+		print("GPIO in ACTUATOR_GPIO_OUTPUT_MAP")
 		address = actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_number))
 		if not address:
 			print("Unknown actuator number:", actuator_number)
