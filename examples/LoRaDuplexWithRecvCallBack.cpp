@@ -118,7 +118,7 @@ void receiveUnixSocket() {
 		}
 		printf("\n");
 
-		sendMessage(buffer, bytesRead);
+		//sendMessage(buffer, bytesRead);
 	} else if (bytesRead == 0) {
 		printf("Python disconnected, waiting for reconnection...\n");
 		close(client_sock);
