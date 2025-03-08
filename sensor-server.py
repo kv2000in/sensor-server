@@ -1437,7 +1437,8 @@ def LoRasend(GPIO, STATUS):
 		if not address:
 			print("Unknown actuator number:", actuator_number)
 			return
-
+		print("ACTUATOR Address = "+address)
+		print("gpio_pin ="+gpio_pin)
 		cmd_value = gpio_pin * 10 + (1 if STATUS == "HIGH" else 0)
 		msg = address + chr(cmd_value)
 
@@ -1449,7 +1450,7 @@ def LoRasend(GPIO, STATUS):
 
 def send_msg_to_LoRaNode(msg):
 	try:
-		lora_uds_socket.send(msg)
+		#lora_uds_socket.send(msg)
 		print(msg)
 	except socket.error as e:
 		error_handler(send_msg_to_LoRaNode.__name__, str(e))

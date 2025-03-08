@@ -95,28 +95,44 @@ void onReceive(int packetSize) {
 }
 
 // Function to receive data from Unix socket and send via LoRa
-void receiveUnixSocket() {
-    uint8_t buffer[BUFFER_SIZE];
-    int bytesRead = recv(client_sock, buffer, BUFFER_SIZE, 0);
-    
-    if (bytesRead > 0) {
-        printf("Received %d bytes from Python, sending via LoRa\n", bytesRead);
-        sendMessage(buffer, bytesRead);
-    } else if (bytesRead == 0) {
-        printf("Python disconnected, waiting for reconnection...\n");
-        close(client_sock);
-        client_sock = accept(uds_sock, NULL, NULL);
-        if (client_sock == -1) {
-            perror("Accepting connection failed");
-            close(uds_sock);
-            exit(1);
-        }
-        printf("Python reconnected\n");
-    } else {
-        perror("Error receiving from Unix socket");
-    }
-}
 
+
+
+void receiveUnixSocket() {
+	uint8_t buffer[BUFFER_SIZE];
+	int bytesRead = recv(client_sock, buffer, BUFFER_SIZE, 0);
+
+	if (bytesRead > 0) {
+		printf("Received %d bytes from Python, sending via LoRa\n", bytesRead);
+
+		// Ensure buffer does not exceed LoRa packet limit
+		if (bytesRead > 255) {
+			printf("Error: Packet size exceeds LoRa limit\n");
+			return;
+		}
+
+		// Debug: Print received data
+		printf("Sending %d bytes over LoRa: ", bytesRead);
+		for (int i = 0; i < bytesRead; i++) {
+			printf("%02X ", buffer[i]);
+		}
+		printf("\n");
+
+		sendMessage(buffer, bytesRead);
+	} else if (bytesRead == 0) {
+		printf("Python disconnected, waiting for reconnection...\n");
+		close(client_sock);
+		client_sock = accept(uds_sock, NULL, NULL);
+		if (client_sock == -1) {
+			perror("Accepting connection failed");
+			close(uds_sock);
+			exit(1);
+		}
+		printf("Python reconnected\n");
+	} else {
+		perror("Error receiving from Unix socket");
+	}
+}
 
 
 
