@@ -1429,7 +1429,7 @@ def send_msg_to_ESP32(msg):
 			error_handler(send_msg_to_ESP32.__name__, str(e))
 
 def LoRasend(GPIO, STATUS):
-	print("LoRasend called")
+	print("LoRasend called for GPIO: " + GPIO)
 	if GPIO in ACTUATOR_GPIO_OUTPUT_MAP:
 		actuator_number, gpio_pin = ACTUATOR_GPIO_OUTPUT_MAP[GPIO]
 		print("GPIO in ACTUATOR_GPIO_OUTPUT_MAP")
