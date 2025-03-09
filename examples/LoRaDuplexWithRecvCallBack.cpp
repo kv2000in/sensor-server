@@ -28,9 +28,11 @@ const int irqPin = 7;          // change for your board; must be a hardware inte
 
 // Function to send data over LoRa
 void sendMessage(uint8_t *data, int len) {
-    LoRa.beginPacket();
-    LoRa.write(data, len);
-    LoRa.endPacket();
+	LoRa.idle();  // Stop receiving before sending
+	LoRa.beginPacket();
+	LoRa.write(data, len);
+	LoRa.endPacket(false);
+	LoRa.receive();  // Resume receiving after sending
 	printf("END of sendMessage");
 }
 
@@ -93,9 +95,7 @@ void onReceive(int packetSize) {
             perror("Sending LoRa packet to Unix socket failed");
 
         }
-		else{
-				printf("Sent LoRa packet to Unix successfully");
-		}
+
     }
 }
 
@@ -124,6 +124,7 @@ void receiveUnixSocket() {
 		printf("\n");
 
 		sendMessage(buffer, bytesRead);
+		usleep(100000);  // Wait 100ms after sending
 	} else if (bytesRead == 0) {
 		printf("Python disconnected, waiting for reconnection...\n");
 		close(client_sock);
