@@ -18,7 +18,8 @@ pi@raspberrypi:~/Downloads/playground/sensor-server $ g++ -Wall -o LoRaDuplexWit
 #include <sys/select.h>
 
 #define UDS_PATH "/tmp/raw_socket_uds_lora"
-#define BUFFER_SIZE 32
+#define SEND_BUFFER_SIZE 2
+#define RECV_BUFFER_SIZE 254
 
 int uds_sock, client_sock;
 
@@ -89,10 +90,10 @@ void setup_unix_socket() {
 void onReceive(int packetSize) {
     if (packetSize == 0) return;
     
-    uint8_t buffer[BUFFER_SIZE];
+    uint8_t buffer[RECV_BUFFER_SIZE];
     int index = 0;
     
-    while (LoRa.available() && index < BUFFER_SIZE - 1) {
+    while (LoRa.available() && index < RECV_BUFFER_SIZE - 1) {
         buffer[index++] = LoRa.read();
     }
     
@@ -111,8 +112,8 @@ void onReceive(int packetSize) {
 
 
 void receiveUnixSocket() {
-	uint8_t buffer[BUFFER_SIZE];
-	int bytesRead = recv(client_sock, buffer, BUFFER_SIZE, 0);
+	uint8_t buffer[SEND_BUFFER_SIZE];
+	int bytesRead = recv(client_sock, buffer, SEND_BUFFER_SIZE, 0);
 
 	if (bytesRead > 0) {
 		printf("Received %d bytes from Python, sending via LoRa\n", bytesRead);
