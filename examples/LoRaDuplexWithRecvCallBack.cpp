@@ -29,16 +29,17 @@ const int irqPin = 7;          // change for your board; must be a hardware inte
 // Function to send data over LoRa
 void sendMessage(uint8_t *data, int len) {
 	usleep(500000);
-	//LoRa.idle();  // Stop receiving before sending
+	LoRa.idle();  // Stop receiving before sending
 	usleep(500000);
 	printf("idle");
-	//LoRa.beginPacket();
+	LoRa.beginPacket();
 	printf("begin");
 	//LoRa.write(data, len);
+	LoRa.print(data,len)
 	printf("write");
-	//LoRa.endPacket(false);
+	LoRa.endPacket(false);
 	printf("END");
-	//LoRa.receive();  // Resume receiving after sending
+	LoRa.receive();  // Resume receiving after sending
 	printf("END of sendMessage");
 }
 
