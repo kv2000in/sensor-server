@@ -1440,7 +1440,7 @@ def LoRasend(GPIO, STATUS):
 		cmd_value = gpio_pin * 10 + (1 if STATUS == "HIGH" else 0)
 		msg = address + chr(cmd_value)
 
-		print("Sending to LoRa:", repr(msg))
+		#print("Sending to LoRa:", repr(msg))
 		send_msg_to_LoRaNode(msg)
 
 #LoRasend("SWTANK1", "HIGH")  # Sends '\xAA\x51' (81 in decimal)

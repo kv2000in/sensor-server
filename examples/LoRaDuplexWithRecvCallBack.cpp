@@ -31,6 +31,7 @@ void sendMessage(uint8_t *data, int len) {
     LoRa.beginPacket();
     LoRa.write(data, len);
     LoRa.endPacket();
+	printf("END of sendMessage");
 }
 
 // Function to set up Unix socket server
@@ -90,7 +91,11 @@ void onReceive(int packetSize) {
         buffer[index] = '\0'; // Null terminate for safety
         if (send(client_sock, buffer, index, 0) < 0) {
             perror("Sending LoRa packet to Unix socket failed");
+
         }
+		else{
+				printf("Sent LoRa packet to Unix successfully");
+		}
     }
 }
 
@@ -118,7 +123,7 @@ void receiveUnixSocket() {
 		}
 		printf("\n");
 
-		//sendMessage(buffer, bytesRead);
+		sendMessage(buffer, bytesRead);
 	} else if (bytesRead == 0) {
 		printf("Python disconnected, waiting for reconnection...\n");
 		close(client_sock);
