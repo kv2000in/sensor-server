@@ -18,7 +18,7 @@ pi@raspberrypi:~/Downloads/playground/sensor-server $ g++ -Wall -o LoRaDuplexWit
 #include <sys/select.h>
 
 #define UDS_PATH "/tmp/raw_socket_uds_lora"
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 32
 
 int uds_sock, client_sock;
 
@@ -34,8 +34,8 @@ void sendMessage(uint8_t *data, int len) {
 	printf("idle");
 	LoRa.beginPacket();
 	printf("begin");
-	//LoRa.write(data, len);
-	LoRa.print(data,len)
+	LoRa.write(data, len);
+	//LoRa.print(data,len)
 	printf("write");
 	LoRa.endPacket(false);
 	printf("END");
