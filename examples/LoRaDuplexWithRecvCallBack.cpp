@@ -32,19 +32,19 @@ void sendMessage(uint8_t *data, int len) {
 	printf("sendMessage() called\n");
 
 	// Reset SPI & LoRa
-	LoRa.end();  // Fully reset LoRa
+	//LoRa.end();  // Fully reset LoRa
 	usleep(100000);
-	LoRa.begin(439E6, 0);  // Reinitialize LoRa
+	//LoRa.begin(439E6, 0);  // Reinitialize LoRa
 	printf("Reinitialized LoRa\n");
 
 	usleep(500000);
-	LoRa.idle();
+	//LoRa.idle();
 	printf("After idle()\n");
 
-	LoRa.beginPacket();
-	LoRa.write(data, len);
-	LoRa.endPacket(false);
-	LoRa.receive();
+	//LoRa.beginPacket();
+	//LoRa.write(data, len);
+	//LoRa.endPacket(false);
+	//LoRa.receive();
 	printf("After receive()\n");
 }
 
