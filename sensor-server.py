@@ -1507,15 +1507,14 @@ def handlepacket(packet):
 	Handles the processing of a received packet.
 	Processes ESP32 packets and hands over non-ESP32 packets for further handling.
 	"""
-	global STATUSTANK1, STATUSTANK2
+	global STATUSTANK1, STATUSTANK2  # Ensure global scope for updates
+
 	if len(packet) == 2:
 		first_byte = packet[0]
-		if first_byte in actuatoraddressdict.values():
-			#print("Packet matches an actuator address: 0x{:02X}".format(ord(first_byte)))
 
+		if first_byte in actuatoraddressdict.values():
 			# Identify which actuator sent the packet
 			actuator_name = None
-			actuator_status_LED =None
 			for key, value in actuatoraddressdict.items():
 				if value == first_byte:
 					actuator_name = key.replace("_ADDRESS", "")  # Extract actuator name
@@ -1524,23 +1523,27 @@ def handlepacket(packet):
 			if actuator_name:
 				# Toggle the corresponding STATUS LED
 				actuator_status_led_state[actuator_name] = not actuator_status_led_state[actuator_name]
-
-				# Send updated LED status via LoRa
 				led_status = "HIGH" if actuator_status_led_state[actuator_name] else "LOW"
-				actuator_status_LED=actuator_name.replace("ACTUATOR_","LED")
+				actuator_status_LED = actuator_name.replace("ACTUATOR_", "LED")
 				LoRasend("STATUS_{}".format(actuator_status_LED), led_status)
 
-				#print("Toggled STATUS LED of {} to {}".format(actuator_name, led_status))
-
 			# Process second byte as one's complement of status bits
-			raw_status = ord(packet[1])
+			raw_status = ord(packet[1])  # ord() converts byte to integer
 			decoded_status = ~raw_status & 0xFF  # Convert back from one's complement
 
+			# Update status variables
 			for status_name, (actuator_id, bit_pos) in ACTUATOR_STATUS_MAP.items():
 				if actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_id)) == first_byte:
 					is_active = bool(decoded_status & (1 << bit_pos))
 					print("{} = {}".format(status_name, is_active))
-					tankswitch()
+
+					# Update STATUSTANK1 or STATUSTANK2 if applicable
+					if status_name == "STATUSTANK1":
+						STATUSTANK1 = is_active
+					elif status_name == "STATUSTANK2":
+						STATUSTANK2 = is_active
+
+			tankswitch()  # Call after updating values
 		else:
 			print("Packet does not match any known actuator address.")
 
