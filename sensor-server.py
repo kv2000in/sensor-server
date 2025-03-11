@@ -203,7 +203,9 @@ GPIO_OUTPUT_MAP = {
 	"SWSTOPPB": 22,
 	"SWTANK": 4,
 	"SWTANKRELAY": 23,
-	"ESP32_STATUS_LED": 5
+	"ESP32_STATUS_LED": 5,
+	"STATUSTANK1_LED":16,
+	"STATUSTANK2_LED":17
 }
 GPIO_INPUT_MAP = {
 	"STATUSMODE": 13,
@@ -392,14 +394,15 @@ def modeswitch():
 
 #Function called by change in STATUSTANK1 and STATUSTANK2 updated by heartbeat data from ESP32
 def tankswitch():
-	print("tankswitch called")
 	global TANK
 	if (STATUSTANK1):
 		TANK="Tank 1"
-		print("Tank 1")
+		ESP32send("STATUSTANK1_LED","HIGH")
+		ESP32send("STATUSTANK2_LED","LOW")
 	elif (STATUSTANK2):
 		TANK="Tank 2"
-		print("Tank 2")
+		ESP32send("STATUSTANK2_LED","HIGH")
+		ESP32send("STATUSTANK1_LED","LOW")
 	else:
 		TANK="undefined"
 	sendchangedstatus("TANK="+TANK)
@@ -1535,7 +1538,7 @@ def handlepacket(packet):
 			for status_name, (actuator_id, bit_pos) in ACTUATOR_STATUS_MAP.items():
 				if actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_id)) == first_byte:
 					is_active = bool(decoded_status & (1 << bit_pos))
-					print("{} = {}".format(status_name, is_active))
+					#print("{} = {}".format(status_name, is_active))
 
 					# Update STATUSTANK1 or STATUSTANK2 if applicable
 					if status_name == "STATUSTANK1":
