@@ -395,8 +395,10 @@ def tankswitch():
 	global TANK
 	if (STATUSTANK1):
 		TANK="Tank 1"
+		print("Tank 1")
 	elif (STATUSTANK2):
 		TANK="Tank 2"
+		print("Tank 2")
 	else:
 		TANK="undefined"
 	sendchangedstatus("TANK="+TANK)
