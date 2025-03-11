@@ -492,14 +492,14 @@ def commandhandler(command):
 		if (command.split("=")[0]=="TANK"):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
-					ESP32send("SWTANK","HIGH")
+					ESP32send("SWTANKRELAY","HIGH")
 					#send_msg_to_LoRaNode('/xAA,/xCC')
 					if (MOTOR=="ON"):
 						TANK1FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 2") #Using the statuschange of Tank instead to capture human mode actions
 			if (command.split("=")[1]=="Tank 1"):
 				if (TANK=="Tank 2"):
-					ESP32send("SWTANK","LOW")
+					ESP32send("SWTANKRELAY","LOW")
 					if (MOTOR=="ON"):
 						TANK2FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 1") #Using the statuschange of Tank instead to capture human mode actions
