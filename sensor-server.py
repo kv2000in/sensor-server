@@ -366,9 +366,9 @@ def init_status():
 	global SUMMER
 	TODAY = datetime.datetime.today()
 	if (STATUSMODE):
-		MODE="HUMAN"
-	else:
 		MODE="COMPUTER"
+	else:
+		MODE="HUMAN"
 	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
 	if (STATUSTANK1):
 		TANK="Tank 1"
@@ -385,9 +385,9 @@ def init_status():
 def modeswitch():
 	global MODE
 	if (STATUSMODE):
-		MODE="HUMAN"
-	else:
 		MODE="COMPUTER"
+	else:
+		MODE="HUMAN"
 	sendchangedstatus("MODE="+MODE)
 
 #Function called by change in STATUSTANK1 and STATUSTANK2 updated by heartbeat data from ESP32
@@ -1484,7 +1484,7 @@ def receive_data_from_c_plus_program():
 				data = lora_uds_socket.recv(2048)
 				if data:
 					handlepacket(data)
-					print_packet_hex(data)
+					#print_packet_hex(data)
 				time.sleep(0.1)
 			except socket.timeout:
 				pass  # Ignore timeout, just loop again to check running_flag
@@ -1536,7 +1536,7 @@ def handlepacket(packet):
 			for status_name, (actuator_id, bit_pos) in ACTUATOR_STATUS_MAP.items():
 				if actuatoraddressdict.get("ACTUATOR_{}_ADDRESS".format(actuator_id)) == first_byte:
 					is_active = bool(decoded_status & (1 << bit_pos))
-					#print("{} = {}".format(status_name, is_active))
+					print("{} = {}".format(status_name, is_active))
 					tankswitch()
 		else:
 			print("Packet does not match any known actuator address.")

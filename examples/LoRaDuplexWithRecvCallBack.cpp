@@ -29,23 +29,23 @@ const int irqPin = 7;          // change for your board; must be a hardware inte
 
 // Function to send data over LoRa
 void sendMessage(uint8_t *data, int len) {
-	printf("sendMessage() called\n");
+	//printf("sendMessage() called\n");
 
 	// Reset SPI & LoRa
 	//LoRa.end();  // Fully reset LoRa
-	usleep(100000);
+	//usleep(100000);
 	//LoRa.begin(439E6, 0);  // Reinitialize LoRa
-	printf("Reinitialized LoRa\n");
+	//printf("Reinitialized LoRa\n");
 
-	usleep(500000);
+	//usleep(500000);
 	//LoRa.idle();
-	printf("After idle()\n");
+	//printf("After idle()\n");
 
-	//LoRa.beginPacket();
-	//LoRa.write(data, len);
-	//LoRa.endPacket(false);
-	//LoRa.receive();
-	printf("After receive()\n");
+	LoRa.beginPacket();
+	LoRa.write(data, len);
+	LoRa.endPacket(false);
+	LoRa.receive();
+	//printf("After receive()\n");
 }
 
 // Function to set up Unix socket server
@@ -120,7 +120,7 @@ void receiveUnixSocket() {
 	int bytesRead = recv(client_sock, buffer, SEND_BUFFER_SIZE, 0);
 
 	if (bytesRead > 0) {
-		printf("Received %d bytes from Python, sending via LoRa\n", bytesRead);
+		//printf("Received %d bytes from Python, sending via LoRa\n", bytesRead);
 
 		// Ensure buffer does not exceed LoRa packet limit
 		if (bytesRead > 255) {
@@ -129,14 +129,15 @@ void receiveUnixSocket() {
 		}
 
 		// Debug: Print received data
-		printf("Sending %d bytes over LoRa: ", bytesRead);
-		for (int i = 0; i < bytesRead; i++) {
-			printf("%02X ", buffer[i]);
-		}
-		printf("\n");
+		//printf("Sending %d bytes over LoRa: ", bytesRead);
+		//for (int i = 0; i < bytesRead; i++) {
+		//	printf("%02X ", buffer[i]);
+		//}
+		//printf("\n");
 
-		sendMessage(buffer, bytesRead);
-		usleep(100000);  // Wait 100ms after sending
+		//sendMessage(buffer, bytesRead);
+		//CALLING SEND MESSAGE LEADS to SYSTEM HANG, USB HANG, WIFI HANG. USING Alternative means
+		//usleep(100000);  // Wait 100ms after sending
 	} else if (bytesRead == 0) {
 		printf("Python disconnected, waiting for reconnection...\n");
 		close(client_sock);
