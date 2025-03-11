@@ -392,6 +392,7 @@ def modeswitch():
 
 #Function called by change in STATUSTANK1 and STATUSTANK2 updated by heartbeat data from ESP32
 def tankswitch():
+	print("tankswitch called")
 	global TANK
 	if (STATUSTANK1):
 		TANK="Tank 1"
