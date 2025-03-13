@@ -338,17 +338,14 @@ TANK2FILLINGSTARTTIME = time.time()
 
 def get_ip_address(ifname):
 	try:
-		output = subprocess.check_output("ifconfig {}".format(ifname), shell=True).decode()
-		for line in output.split("\n"):
-			if "inet " in line:
-				return line.split()[1]  # Extracts IP address
-		return "Disconnected"
+		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		s.connect(("8.8.8.8", 80))  # Connect to an external server
+		ip = s.getsockname()[0]
+		s.close()
+		return ip
 	except Exception as e:
 		error_handler(get_ip_address.__name__, str(e))
 	return "Disconnected"
-
-
-
 def is_connected():
 	"""Check internet connectivity by connecting to a known server."""
 	try:
