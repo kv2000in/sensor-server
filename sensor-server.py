@@ -1277,10 +1277,15 @@ def process_esp32_heartbeat(payload):
 		adc_channel_0.add(sample)
 	for sample in sampleIArray:
 		adc_channel_1.add(sample)
+	# Calculate midpoint (zero-crossing reference) for each channel
+	midpoint_V = (max(adc_channel_0.get_data()) + min(adc_channel_0.get_data())) / 2.0
+	midpoint_I = (max(adc_channel_1.get_data()) + min(adc_channel_1.get_data())) / 2.0
 
-	# Calculate RMS for each channel
-	raw_RMS_Voltage_ADC = sqrt(sum(x**2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
-	raw_RMS_Current_ADC = sqrt(sum(x**2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
+	# Correct RMS calculation by removing DC offset (midpoint)
+	raw_RMS_Voltage_ADC = sqrt(sum((x - midpoint_V) ** 2 for x in adc_channel_0.get_data()) / BUFFER_SIZE)
+	raw_RMS_Current_ADC = sqrt(sum((x - midpoint_I) ** 2 for x in adc_channel_1.get_data()) / BUFFER_SIZE)
+
+
 
 	# Pass padding to the status bits handler
 	handlestatusbits(padding)
