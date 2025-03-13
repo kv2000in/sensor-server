@@ -25,7 +25,7 @@ int uds_sock, client_sock;
 
 const int csPin = 10;          // LoRa radio chip select
 const int resetPin = 3;        // LoRa radio reset
-const int irqPin = 7;          // change for your board; must be a hardware interrupt pin
+const int irqPin = 6;          // change for your board; must be a hardware interrupt pin
 
 // Function to send data over LoRa
 void sendMessage(uint8_t *data, int len) {

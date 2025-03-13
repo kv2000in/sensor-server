@@ -204,8 +204,8 @@ GPIO_OUTPUT_MAP = {
 	"SWTANK": 4,
 	"SWTANKRELAY": 23,
 	"ESP32_STATUS_LED": 5,
-	"STATUSTANK1_LED":16,
-	"STATUSTANK2_LED":17
+	"STATUSTANK1_LED":26,
+	"STATUSTANK2_LED":27
 }
 GPIO_INPUT_MAP = {
 	"STATUSMODE": 13,
@@ -492,14 +492,14 @@ def commandhandler(command):
 		if (command.split("=")[0]=="TANK"):
 			if (command.split("=")[1]=="Tank 2"):
 				if (TANK=="Tank 1"):
-					ESP32send("SWTANKRELAY","HIGH")
+					ESP32send("SWTANK","LOW")
 					#send_msg_to_LoRaNode('/xAA,/xCC')
 					if (MOTOR=="ON"):
 						TANK1FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 2") #Using the statuschange of Tank instead to capture human mode actions
 			if (command.split("=")[1]=="Tank 1"):
 				if (TANK=="Tank 2"):
-					ESP32send("SWTANKRELAY","LOW")
+					ESP32send("SWTANK","HIGH")
 					if (MOTOR=="ON"):
 						TANK2FILLINGSTARTTIME = time.time()
 					#activity_handler("Tank 1") #Using the statuschange of Tank instead to capture human mode actions
