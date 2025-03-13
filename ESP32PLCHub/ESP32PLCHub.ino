@@ -30,9 +30,9 @@ int inputPins[TOTAL_I_PINS] = {13,14,25,36,39};
 
 //uint8_t piMacAddr[] = {0x84, 0xCC, 0xA8, 0xA9, 0xE1, 0xE8}; // Replace with receiver's MAC [b8:27:eb:f9:9f:40 for pi Zero W DUT]
 
-//uint8_t piMacAddr[] = {0xB8, 0x27, 0xEB, 0xF9, 0x9F, 0x40}; // Replace with receiver's MAC [b8:27:eb:f9:9f:40 for pi Zero W DUT]
+uint8_t piMacAddr[] = {0xB8, 0x27, 0xEB, 0xF9, 0x9F, 0x40}; // Replace with receiver's MAC [b8:27:eb:f9:9f:40 for pi Zero W DUT]
 
-uint8_t piMacAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // Better to send it to broadcast - that way - this sketch becomes independent of the receiver.
+//uint8_t piMacAddr[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; // Better to send it to broadcast - that way - this sketch becomes independent of the receiver.
 int16_t circularBuffer[ADC_CHANNELS][BUFFER_SIZE];
 
 volatile size_t bufferIndex = 0; // Circular buffer index

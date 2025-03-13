@@ -472,7 +472,7 @@ def commandhandler(command):
 				if (command.split("=")[1]=="OFF"):
 					if (MOTOR=="ON"):
 						ESP32send("SWSTOPPB","HIGH") #Press STOP PB
-						time.sleep(3) # Wait for 3 seconds
+						time.sleep(6) # Wait for 3 seconds
 						if (MOTOR=="OFF"): # If Motor turned off
 							ESP32send("SWSTOPPB","LOW") # Release STOP PB
 							activity_handler("Motor Off")
@@ -1426,8 +1426,8 @@ def ESP32send(GPIO, STATUS):
 		return
 
 	# Send the encoded byte
-	send_msg_to_ESP32(BROADCAST_MAC_ADDR + chr(encoded_byte))
-
+	#send_msg_to_ESP32(BROADCAST_MAC_ADDR + chr(encoded_byte))
+	send_msg_to_ESP32(ESP32_MAC_ADDR + chr(encoded_byte))
 
 def send_msg_to_ESP32(msg):
 	if ESP01:
