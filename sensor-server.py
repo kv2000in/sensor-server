@@ -1295,10 +1295,10 @@ def process_esp32_heartbeat(payload):
 	ACVOLTAGE = round((VoltCalibrate/VadcValue)*raw_RMS_Voltage_ADC) # root of the mean of the squared values.
 	MOTORCURRENT = round((CurrentCalibrate/CadcValue)*raw_RMS_Current_ADC)
 
-	print("Midpoint Voltage:", midpoint_V)
-	print("Raw RMS Voltage ADC:", raw_RMS_Voltage_ADC)
-	print("Scaling Factor:", VoltCalibrate / VadcValue)
-	print("Final AC Voltage:", ACVOLTAGE)
+	#print("Midpoint Voltage:", midpoint_V)
+	#print("Raw RMS Voltage ADC:", raw_RMS_Voltage_ADC)
+	#print("Scaling Factor:", VoltCalibrate / VadcValue)
+	#print("Final AC Voltage:", ACVOLTAGE)
 
 	#############################################
 	# BACK UP AC/MOTOR STATUS DETECTION SECTION # 
