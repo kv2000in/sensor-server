@@ -1071,8 +1071,8 @@ def watchdoghandler(param,timeout):
 			time.sleep(timeout)
 			#Then reassess the tank levels
 			if not ((TANK1LEVEL>myTANK1AVERAGELEVEL) or (TANK2LEVEL>myTANK2AVERAGELEVEL)):
-				commandQ.append("MOTOR=OFF")
-				sendchangedstatus("ERROR=NOWATERDRAW")
+				#commandQ.append("MOTOR=OFF")
+				#sendchangedstatus("ERROR=NOWATERDRAW")
 				error_handler(watchdoghandler.__name__,"NOWATERDRAW")
 				watchdog_flag=False
 			else:
