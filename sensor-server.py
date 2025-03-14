@@ -390,19 +390,32 @@ def modeswitch():
 	sendchangedstatus("MODE="+MODE)
 
 #Function called by change in STATUSTANK1 and STATUSTANK2 updated by heartbeat data from ESP32
+# Store previous states globally
+prev_STATUSTANK1 = None
+prev_STATUSTANK2 = None
+
 def tankswitch():
-	global TANK
-	if (STATUSTANK1):
-		TANK="Tank 1"
-		ESP32send("STATUSTANK1_LED","HIGH")
-		ESP32send("STATUSTANK2_LED","LOW")
-	elif (STATUSTANK2):
-		TANK="Tank 2"
-		ESP32send("STATUSTANK2_LED","HIGH")
-		ESP32send("STATUSTANK1_LED","LOW")
-	else:
-		TANK="undefined"
-	sendchangedstatus("TANK="+TANK)
+	global TANK, prev_STATUSTANK1, prev_STATUSTANK2
+
+	# Check if state has changed
+	if STATUSTANK1 != prev_STATUSTANK1 or STATUSTANK2 != prev_STATUSTANK2:
+		if STATUSTANK1:
+			TANK = "Tank 1"
+			ESP32send("STATUSTANK1_LED", "HIGH")
+			ESP32send("STATUSTANK2_LED", "LOW")
+		elif STATUSTANK2:
+			TANK = "Tank 2"
+			ESP32send("STATUSTANK2_LED", "HIGH")
+			ESP32send("STATUSTANK1_LED", "LOW")
+		else:
+			TANK = "undefined"
+
+		# Update previous state
+		prev_STATUSTANK1 = STATUSTANK1
+		prev_STATUSTANK2 = STATUSTANK2
+
+		sendchangedstatus("TANK=" + TANK)
+
 #Function used to send the changed statuses to the client via Websocket
 def sendchangedstatus(mymsg):
 	try:
