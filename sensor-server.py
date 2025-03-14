@@ -285,7 +285,7 @@ myTANK2AVERAGELEVEL = sum(TANK2AVERAGINGLIST)/len(TANK2AVERAGINGLIST)
 timebetweensensordata = 20 # Time in seconds - if the same sensor sends data with less than this much time gap from previous data - ignore that data
 SENSORTIMEOUT=120 # Time in seconds - for which if the sensor hasn't posted data - it will be considered to be "Down"
 
-WATERDRAWTIMELIMIT=90 # Time is seconds before watchdog is triggerred - if no increase in either tank levels and motor has been on for this long.
+WATERDRAWTIMELIMIT=130 # Time is seconds before watchdog is triggerred - if no increase in either tank levels and motor has been on for this long.
 MOTORONTIMELIMIT=8*60 # 8 minutes maximum time for motor to be on in Auto mode regardless of tank level.
 
 #SENSOR1TIME=time.time()-SENSORTIMEOUT # Define initial update time for the sensors#
@@ -449,7 +449,7 @@ def commandhandler(command):
 						finalACVOLTAGE=ACVOLTAGE
 						if ((HVLVL>finalACVOLTAGE>LVLVL) and ((finalACVOLTAGE-initialACVOLTAGE)<abs(20))):
 							ESP32send("SWSTARTPB","HIGH") 
-							time.sleep(3)
+							time.sleep(6)
 							activity_handler("Motor On")
 							if (MOTOR=="ON"): #wait 3 seconds for Motor status to change to ON
 								ESP32send("SWSTARTPB","LOW") # then release the STARTPB 
@@ -464,7 +464,7 @@ def commandhandler(command):
 									if (SOFTMODE=="Auto"):
 										SOFTMODE="Manual"
 										sendchangedstatus("SOFTMODE="+SOFTMODE)
-									time.sleep(3) # Wait for 3 seconds
+									time.sleep(10) # Wait for 3 seconds
 									if (MOTOR=="OFF"): # If motor turned off
 										ESP32send("SWSTOPPB","LOW") # Release STOP PB
 								#Motor has been turned ON successfully. Set the motoroontimestamp
@@ -2206,12 +2206,12 @@ def watchdogthread():
 						#Log an error with timestamp
 						if not watchdog_flag:
 							watchdog_flag=True
-							watchdoghandler("voltage",10)
+							watchdoghandler("voltage",30)
 					if (MOTORCURRENT>HMCURR):
 						#Motor drawing too much current??
 						if not watchdog_flag:
 							watchdog_flag=True
-							watchdoghandler("current",5)
+							watchdoghandler("current",30)
 					if (TANK == "Tank 1"):
 						if ((time.time()-TANK1FILLINGSTARTTIME)>WATERDRAWTIMELIMIT):
 						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
@@ -2220,7 +2220,7 @@ def watchdogthread():
 							##### PROBLEM SCENARIO IF TANK IS FULL### THE LEVEL WILL NOT?CAN NOT RISE### 
 								if not watchdog_flag:
 									watchdog_flag=True
-									watchdoghandler("NoWaterDraw",40)
+									watchdoghandler("NoWaterDraw",120)
 					if (TANK == "Tank 2"):
 						if ((time.time()-TANK2FILLINGSTARTTIME)>WATERDRAWTIMELIMIT):
 						#MOTOR has been ON for more than a minute - check if either tank levels have changed. If not - turn off motor
@@ -2229,7 +2229,7 @@ def watchdogthread():
 							##### PROBLEM SCENARIO IF TANK IS FULL### THE LEVEL WILL NOT?CAN NOT RISE### 
 								if not watchdog_flag:
 									watchdog_flag=True
-									watchdoghandler("NoWaterDraw",40)
+									watchdoghandler("NoWaterDraw",120)
 					
 			#Irrespective of Motor on/off or Mode - monitor the status and accuracy of sensors 
 			# First - check if the sensors have n't sent data in last SENSORTIMEOUT seconds
