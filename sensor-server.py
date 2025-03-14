@@ -371,10 +371,16 @@ def init_status():
 	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
 	if (STATUSTANK1):
 		TANK="Tank 1"
+		ESP32send("STATUSTANK1_LED", "HIGH")
+		ESP32send("STATUSTANK2_LED", "LOW")
 	elif (STATUSTANK2):
 		TANK="Tank 2"
+		ESP32send("STATUSTANK2_LED", "HIGH")
+		ESP32send("STATUSTANK1_LED", "LOW")
 	else:
 		TANK="undefined"
+		ESP32send("STATUSTANK2_LED", "LOW")
+		ESP32send("STATUSTANK1_LED", "LOW")
 	Month = TODAY.month
 	if (3<Month<9):
 		SUMMER=True
@@ -409,6 +415,8 @@ def tankswitch():
 			ESP32send("STATUSTANK1_LED", "LOW")
 		else:
 			TANK = "undefined"
+			ESP32send("STATUSTANK2_LED", "LOW")
+			ESP32send("STATUSTANK1_LED", "LOW")
 
 		# Update previous state
 		prev_STATUSTANK1 = STATUSTANK1
