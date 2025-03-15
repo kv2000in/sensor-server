@@ -335,6 +335,11 @@ TANK2TIMEDFULL = False
 TANK1FILLINGSTARTTIME = time.time()
 TANK2FILLINGSTARTTIME = time.time()
 
+def reboot_system():
+	"""Reboots the system in case of an error."""
+	print("System will reboot in 5 seconds due to an error...")
+	time.sleep(5)  # Wait before rebooting
+	os.system("sudo reboot")
 
 def get_ip_address(ifname):
 	try:
@@ -2322,6 +2327,7 @@ def lcdtickerthread():
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
 			print("Exiting due to Error in lcdticker thread:", e)
+			reboot_system()
 			return
 		finally:
 			#Wipe the LCD screen
