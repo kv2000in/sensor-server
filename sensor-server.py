@@ -339,6 +339,10 @@ def reboot_system():
 	"""Reboots the system in case of an error."""
 	print("System will reboot in 5 seconds due to an error...")
 	time.sleep(5)  # Wait before rebooting
+	#Turn of pump if it is on.
+	if (MOTOR=="ON"):
+		ESP32send("SWSTOPPB","HIGH") #Press STOP PB
+		time.sleep(6) # Wait for 3 seconds
 	os.system("sudo reboot")
 
 def get_ip_address(ifname):
