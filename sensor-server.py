@@ -363,31 +363,38 @@ def is_connected():
 	except OSError:
 		return False
 
+# Store previous states globally
+prev_STATUSTANK1 = None
+prev_STATUSTANK2 = None
+prev_MODE = None
 
 #Read initial GPIO status
 def init_status():
 	#since we are MODIFYING global variables - need to use "global" keyword
-	global MODE
+	global MODE,prev_MODE
 	global ACPOWER
 	global MOTOR
-	global TANK
+	global TANK,prev_STATUSTANK1, prev_STATUSTANK2
 	global SUMMER
 	TODAY = datetime.datetime.today()
 	if (STATUSMODE):
 		MODE="COMPUTER"
 	else:
 		MODE="HUMAN"
+	prev_MODE = STATUSMODE
 	#1/7/18 - With optocoupler - logic is reversed - On signal, output goes to ground
 	if STATUSTANK1:
 		TANK = "Tank 1"
+		ESP32send("STATUSTANK1_LED", "HIGH")
+		ESP32send("STATUSTANK2_LED", "LOW")
 	elif STATUSTANK2:
 		TANK = "Tank 2"
+		ESP32send("STATUSTANK2_LED", "HIGH")
+		ESP32send("STATUSTANK1_LED", "LOW")
 	else:
 		TANK = "undefined"
-
-	# Set initial LED states
-	ESP32send("STATUSTANK1_LED", "HIGH" if STATUSTANK1 else "LOW")
-	ESP32send("STATUSTANK2_LED", "HIGH" if STATUSTANK2 else "LOW")
+		ESP32send("STATUSTANK2_LED", "LOW")
+		ESP32send("STATUSTANK1_LED", "LOW")
 
 	# Store initial states to prevent unnecessary first-time detection in tankswitch()
 	prev_STATUSTANK1 = STATUSTANK1
@@ -400,10 +407,7 @@ def init_status():
 		SUMMER=True
 	else:
 		SUMMER=False
-# Store previous states globally
-prev_STATUSTANK1 = None
-prev_STATUSTANK2 = None
-prev_MODE = None
+
 
 #Function called by change in STATUSMODE updated by heartbeat data from ESP32
 def modeswitch():
