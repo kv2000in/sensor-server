@@ -400,19 +400,23 @@ def init_status():
 		SUMMER=True
 	else:
 		SUMMER=False
+# Store previous states globally
+prev_STATUSTANK1 = None
+prev_STATUSTANK2 = None
+prev_MODE = None
+
 #Function called by change in STATUSMODE updated by heartbeat data from ESP32
 def modeswitch():
-	global MODE
+	global MODE,prev_MODE
 	if (STATUSMODE):
 		MODE="COMPUTER"
 	else:
 		MODE="HUMAN"
-	sendchangedstatus("MODE="+MODE)
-
+	if STATUSMODE!=prev_MODE:
+		sendchangedstatus("MODE="+MODE)
+		prev_MODE = STATUSMODE
 #Function called by change in STATUSTANK1 and STATUSTANK2 updated by heartbeat data from ESP32
-# Store previous states globally
-prev_STATUSTANK1 = None
-prev_STATUSTANK2 = None
+
 
 def tankswitch():
 	global TANK, prev_STATUSTANK1, prev_STATUSTANK2
