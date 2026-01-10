@@ -72,6 +72,14 @@ GPIO	High (1)	Low (0)
 32	0x41	0x40
 33	0x43	0x42
 
+To send commands directly to ESP32 - first kill the python program. the socket can only listen to one connection at a time.
+sudo ./mysendrecv.o mon0
+in one terminal tab.
+echo -ne '\x58\xBF\x25\x82\x8E\xD8\x2C' | sudo socat - UNIX-CONNECT:/tmp/raw_socket_uds_esp
+in another.
+similarly sudo ./LoRaDuplexWithRecvCallBack
+echo -ne '\xAA\x28' | sudo socat -u - UNIX-CONNECT:/tmp/raw_socket_uds_lora
+
 
 	'''
 
@@ -2422,6 +2430,7 @@ if __name__ == '__main__':
 				if not ESP01:
 					mysendrecv_proc.wait()
 				lora_proc.wait()
+				#Jan 2026 - getting Error [Errno 9] Bad file descriptor /tmp/raw_socket_uds_esp and /tmp/raw_socket_uds (who is opening this?) stay open
 				websocketservarthread.server.close()
 				t3.join() #websocketservarthread - has runningflag but has serveforever() infinite loop which runs independent.hence calling server.close
 				print "exited gracefully"
