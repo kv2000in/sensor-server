@@ -52,7 +52,7 @@ void sendMessage(uint8_t *data, int len) {
 	
 		// send packet
 	LoRa.beginPacket();
-	LoRa.print("hello ");
+	LoRa.print(data, len);
 	//LoRa.print(counter);
 	LoRa.endPacket();
 	
