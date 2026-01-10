@@ -52,9 +52,9 @@ void sendMessage(uint8_t *data, int len) {
 	
 		// send packet
 	LoRa.beginPacket();
-	LoRa.print(data, len);
+	LoRa.write(data, len);
 	//LoRa.print(counter);
-	LoRa.endPacket();
+	LoRa.endPacket(true); // true = async / non-blocking mode
 	
 }
 
