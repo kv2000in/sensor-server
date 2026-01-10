@@ -43,7 +43,7 @@ void sendMessage(uint8_t *data, int len) {
 
 	LoRa.beginPacket();
 	LoRa.write(data, len);
-	LoRa.endPacket(false);
+	LoRa.endPacket(true);
 	LoRa.receive();
 	//printf("After receive()\n");
 }
@@ -129,13 +129,13 @@ void receiveUnixSocket() {
 		}
 
 		// Debug: Print received data
-		//printf("Sending %d bytes over LoRa: ", bytesRead);
-		//for (int i = 0; i < bytesRead; i++) {
-		//	printf("%02X ", buffer[i]);
-		//}
-		//printf("\n");
+		printf("Sending %d bytes over LoRa: ", bytesRead);
+		for (int i = 0; i < bytesRead; i++) {
+			printf("%02X ", buffer[i]);
+		}
+		printf("\n");
 
-		//sendMessage(buffer, bytesRead);
+		sendMessage(buffer, bytesRead);
 		//CALLING SEND MESSAGE LEADS to SYSTEM HANG, USB HANG, WIFI HANG. USING Alternative means
 		//usleep(100000);  // Wait 100ms after sending
 	} else if (bytesRead == 0) {
