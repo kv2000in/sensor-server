@@ -48,7 +48,7 @@ void sendMessage(uint8_t *data, int len) {
 	
 	
 	printf("Sending packet: ");
-	printf("%d\n",counter);
+	//printf("%d\n",counter);
 	
 		// send packet
 	LoRa.beginPacket();
@@ -118,7 +118,7 @@ void receiveUnixSocket() {
 			return;
 		}
 		
-			 Debug: Print received data
+			 //Debug: Print received data
 			printf("Sending %d bytes over LoRa: ", bytesRead);
 			for (int i = 0; i < bytesRead; i++) {
 				printf("%02X ", buffer[i]);
