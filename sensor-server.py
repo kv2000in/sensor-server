@@ -2352,6 +2352,7 @@ def lcdtickerthread():
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
 			print("Exiting due to Error in lcdticker thread:", e)
+			time.sleep(30)
 			reboot_system()
 			return
 		finally:
