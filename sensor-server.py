@@ -351,7 +351,7 @@ def reboot_system():
 	if (MOTOR=="ON"):
 		ESP32send("SWSTOPPB","HIGH") #Press STOP PB
 		time.sleep(6) # Wait for 3 seconds
-	os.system("sudo reboot")
+	#os.system("sudo reboot")
 
 def get_ip_address(ifname):
 	try:
@@ -2352,7 +2352,6 @@ def lcdtickerthread():
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
 			print("Exiting due to Error in lcdticker thread:", e)
-			time.sleep(30)
 			reboot_system()
 			return
 		finally:
