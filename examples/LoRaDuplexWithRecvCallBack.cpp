@@ -130,10 +130,10 @@ void receiveUnixSocket() {
 
 		// Debug: Print received data
 		//printf("Sending %d bytes over LoRa: ", bytesRead);
-		for (int i = 0; i < bytesRead; i++) {
-			printf("%02X ", buffer[i]);
-		}
-		printf("\n");
+		//for (int i = 0; i < bytesRead; i++) {
+		//	printf("%02X ", buffer[i]);
+		//}
+		//printf("\n");
 
 		sendMessage(buffer, bytesRead);
 		//CALLING SEND MESSAGE LEADS to SYSTEM HANG, USB HANG, WIFI HANG. USING Alternative means
