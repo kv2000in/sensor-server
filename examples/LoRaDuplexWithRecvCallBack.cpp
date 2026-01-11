@@ -129,7 +129,7 @@ void receiveUnixSocket() {
 		}
 
 		// Debug: Print received data
-		printf("Sending %d bytes over LoRa: ", bytesRead);
+		//printf("Sending %d bytes over LoRa: ", bytesRead);
 		for (int i = 0; i < bytesRead; i++) {
 			printf("%02X ", buffer[i]);
 		}
