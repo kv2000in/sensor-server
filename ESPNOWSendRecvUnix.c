@@ -231,12 +231,13 @@ int main(int argc, char **argv)
 						0xfe, 0x34, 0xa2, 0x03, 0x92, 0xb0, 0xdd, 0x06,
 						0x18, 0xfe, 0x34, 0x04
 					};
-					uint8_t body_len = payload_len;   // 1, 3, N...
-					uint8_t element_len = 3 + 1 + 1 + 1 + body_len;
-						data[ESPNOW_LEN_OFFSET] = element_len;
+					
 					
 					memcpy(data, base_data, BASE_DATA_LEN);
-
+					
+					uint8_t body_len = payload_len;   // 1, 3, N...
+					uint8_t element_len = 3 + 1 + 1 + 1 + body_len;
+					data[ESPNOW_LEN_OFFSET] = element_len;
 
 					for (int i = 0; i < 6; i++) {
 						data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
