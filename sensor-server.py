@@ -57,6 +57,17 @@ ESP32PLCHUB programmed with
 int outputPins[TOTAL_O_PINS] = {4, 5, 16, 17, 18, 19, 21, 22, 23, 26,27, 32, 33 };
 int inputPins[TOTAL_I_PINS] = {13,14,25,36,39};
 
+heartbeat packet sent by ESP32PLC hub is 
+Data Type : 1 byte , 
+ADC Pin 34 read  : 50 samples x 2 bytes = 100 bytes, 
+ADC pin 35 read : 50 samples x 2 bytes = 100 bytes,
+Input GPIO Status : 1 byte
+Output GPIO Status (0 to 7): 1 byte
+Output GPIO Status (8 to 12) : 1 byte
+AA padding.
+
+
+
 GPIO	High (1)	Low (0)
 4	0x09	0x08
 5	0x0B	0x0A
@@ -223,10 +234,31 @@ GPIO_INPUT_MAP = {
 
 # Fixed sequence of ESP32 input GPIOs corresponding to bits in the received byte
 INPUT_PINS_SEQUENCE = [13, 14, 25, 36, 39]
+OUTPUT_PINS_SEQUENCE = [4, 5, 16, 17, 18, 19, 21, 22, 23, 26, 27, 32, 33]
 
 STATUSMODE = False
 STATUSTANK1 = False
 STATUSTANK2 = False
+
+# ---- Global output ESP32 GPIO state ----
+# True = HIGH, False = LOW
+GPIO_OUTPUT_STATE = {
+	4:  False,
+	5:  False,
+	16: False,
+	17: False,
+	18: False,
+	19: False,
+	21: False,
+	22: False,
+	23: False,
+	26: False,
+	27: False,
+	32: False,
+	33: False
+}
+
+
 
 #STATUSMODE=23 # Computer vs Human (High = Human). THis is a hardware switch on the board
 #STATUSTANK1=21 
@@ -1431,6 +1463,11 @@ def handlestatusbits(padding):
 	modeswitch()
 	tankswitch()
 	#print("Updated Input GPIO States:", updated_states)
+	# ---- Extract OUTPUT GPIO bytes ----
+	if len(padding) >= 3:
+		output_byte_1 = ord(padding[1])  # Outputs 0–7
+		output_byte_2 = ord(padding[2])  # Outputs 8–12
+		GPIO_sync(output_byte_1, output_byte_2)
 
 def process_esp32_adc_data(payload):
 	print("ADC data")
@@ -1459,7 +1496,7 @@ def ESP32send(GPIO, STATUS):
 
 	gpio_number = GPIO_OUTPUT_MAP[GPIO]
 
-	if not (0 <= gpio_number <= 39):  # Ensure GPIO fits within 6 bits
+	if not (0 <= gpio_number <= 39):
 		print("Error: GPIO number {} out of range (0-39)".format(gpio_number))
 		return
 
@@ -1468,17 +1505,57 @@ def ESP32send(GPIO, STATUS):
 		print("Error: Invalid status '{}', expected 'HIGH' or 'LOW'".format(STATUS))
 		return
 
-	# Encode into a single byte: (GPIO << 1) | state_bit
+	# ---- UPDATE GLOBAL STATE (new, non-invasive) ----
+	if gpio_number in GPIO_OUTPUT_STATE:
+		GPIO_OUTPUT_STATE[gpio_number] = bool(state_bit)
+
+	# Encode into a single byte
 	encoded_byte = (gpio_number << 1) | state_bit
 
-	# Ensure we don’t overlap with reserved commands
 	if encoded_byte >= 0xA0:
 		print("Error: Encoded byte {} conflicts with reserved commands!".format(encoded_byte))
 		return
 
-	# Send the encoded byte
-	#send_msg_to_ESP32(BROADCAST_MAC_ADDR + chr(encoded_byte))
 	send_msg_to_ESP32(ESP32_MAC_ADDR + chr(encoded_byte))
+
+#Called by handlestatusbits to process OutputGPIO bits.
+def GPIO_sync(output_byte_1, output_byte_2):
+	global GPIO_OUTPUT_STATE
+
+	desync = False
+
+	for i, gpio in enumerate(OUTPUT_PINS_SEQUENCE):
+		if i < 8:
+			esp_state = bool((output_byte_1 >> i) & 1)
+		else:
+			esp_state = bool((output_byte_2 >> (i - 8)) & 1)
+
+		local_state = GPIO_OUTPUT_STATE.get(gpio, False)
+
+		if esp_state != local_state:
+			desync = True
+			break
+
+	if desync:
+		ESP32_GPIO_sync()
+
+
+def ESP32_GPIO_sync():
+	out_byte_1 = 0
+	out_byte_2 = 0
+
+	for i, gpio in enumerate(OUTPUT_PINS_SEQUENCE):
+		state = GPIO_OUTPUT_STATE.get(gpio, False)
+
+		if i < 8:
+			out_byte_1 |= (1 << i) if state else 0
+		else:
+			out_byte_2 |= (1 << (i - 8)) if state else 0
+
+	packet = chr(0xDD) + chr(out_byte_1) + chr(out_byte_2)
+	send_msg_to_ESP32(ESP32_MAC_ADDR + packet)
+
+
 
 def send_msg_to_ESP32(msg):
 	if ESP01:

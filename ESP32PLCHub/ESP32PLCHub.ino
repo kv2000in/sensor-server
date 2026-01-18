@@ -143,8 +143,35 @@ void sendHeartbeat() {
     size_t adcDataSize = ADC_CHANNELS * BUFFER_SIZE * sizeof(uint16_t);
     payload[1 + adcDataSize] = inputStatus;
 
-    // **Add padding after ADC data + inputStatus byte**
-    memset(&payload[2 + adcDataSize], 0xAA, MAX_PAYLOAD_SIZE - (2 + adcDataSize));
+
+
+// **Read output pins 0 to 7 and pack into 1 byte**
+uint8_t outputStatus = 0;
+for (int i = 0; i < TOTAL_O_PINS && i < 8; i++) {
+    if (digitalRead(outputPins[i])) {
+        outputStatus |= (1 << i);
+    }
+}
+
+// **Insert outputStatus after inputStatus**
+payload[2 + adcDataSize] = outputStatus;
+
+// **Read remaining output pins (pins 8–12) and pack into 3rd byte**
+uint8_t outputStatus2 = 0;
+for (int i = 8; i < TOTAL_O_PINS && i < 13; i++) {
+    if (digitalRead(outputPins[i])) {
+        outputStatus2 |= (1 << (i - 8));
+    }
+}
+
+// **Insert second output status byte**
+payload[3 + adcDataSize] = outputStatus2;
+
+// **Update padding start offset**
+memset(&payload[4 + adcDataSize], 0xAA,
+       MAX_PAYLOAD_SIZE - (4 + adcDataSize));
+
+
 
     // **Create packet ID and send**
     uint16_t packetId = random(0, 65536); // Generate a random Packet ID
@@ -321,10 +348,36 @@ void processReceivedDataTask(void *param) {
                         continue;
                     case 0xBB:
                     case 0xCC:
-                    case 0xDD:
-                        ESP_LOGD(TAG, "Reserved Command received: %X", command);
-                        future_reserved();
-                        continue;
+                   case 0xDD:
+{
+    ESP_LOGD(TAG, "GPIO SYNC command received");
+
+    if (packet.length < 3) {
+        ESP_LOGD(TAG, "GPIO SYNC packet too short");
+        continue;
+    }
+
+    uint8_t out1 = packet.data[1];  // Outputs 0–7
+    uint8_t out2 = packet.data[2];  // Outputs 8–12
+
+    for (int i = 0; i < TOTAL_O_PINS; i++) {
+        uint8_t desiredState;
+
+        if (i < 8) {
+            desiredState = (out1 >> i) & 0x01;
+        } else {
+            desiredState = (out2 >> (i - 8)) & 0x01;
+        }
+
+        int gpio = outputPins[i];
+
+        pinMode(gpio, OUTPUT);
+        digitalWrite(gpio, desiredState);
+    }
+
+    ESP_LOGD(TAG, "GPIO SYNC applied");
+    continue;
+}
                     case 0xEE:
                         ESP_LOGD(TAG, "Restart command received. Restarting ESP...");
                         ESP.restart();
