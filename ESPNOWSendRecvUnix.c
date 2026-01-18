@@ -236,7 +236,8 @@ int main(int argc, char **argv)
 					memcpy(data, base_data, BASE_DATA_LEN);
 					
 					uint8_t body_len = payload_len;   // 1, 3, N...
-					uint8_t element_len = 3 + 1 + 1 + 1 + body_len;
+					//uint8_t element_len = 3 + 1 + 1 + 1 + body_len; //This is what should be acoording to datasheet/docs but it doesn't work. Wireshark capture shows it should be 1 less byte.
+					uint8_t element_len = 3 + 1 + 1 + body_len;
 					data[ESPNOW_LEN_OFFSET] = element_len;
 
 					for (int i = 0; i < 6; i++) {
