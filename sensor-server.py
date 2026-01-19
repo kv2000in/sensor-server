@@ -1755,6 +1755,17 @@ def receive_data_from_serial():
 			pass
 		print("Exiting receive_data_from_serial")
 
+lcd_alive = True
+
+def safe_lcd(fn, *args):
+	global lcd_alive
+	if not lcd_alive:
+		return
+	try:
+		fn(*args)
+	except Exception as e:
+		lcd_alive = False
+		error_handler("LCD disabled", str(e))
 
 
 ######################################
@@ -2384,44 +2395,44 @@ def lcdtickerthread():
 		time.sleep(1)
 		try:
 			#print("Python lcdticker called")
-			lcd_string("MODE = " + MODE, LCD_LINE_1)
-			lcd_string("AC POWER = " + ACPOWER, LCD_LINE_2)
+			safe_lcd(lcd_string("MODE = " + MODE, LCD_LINE_1))
+			safe_lcd(lcd_string("AC POWER = " + ACPOWER, LCD_LINE_2))
 			time.sleep(LCD_REFRESH_INTERVAL)
 
-			lcd_string("MOTOR = " + MOTOR, LCD_LINE_1)
-			lcd_string("TANK = " + TANK, LCD_LINE_2)
+			safe_lcd(lcd_string("MOTOR = " + MOTOR, LCD_LINE_1))
+			safe_lcd(lcd_string("TANK = " + TANK, LCD_LINE_2))
 			time.sleep(LCD_REFRESH_INTERVAL)
 
 			if MOTOR == "ON":
-				lcd_string("Motor V = " + str(ACVOLTAGE), LCD_LINE_1)
-				lcd_string("Current(A) = " + str(MOTORCURRENT), LCD_LINE_2)
+				safe_lcd(lcd_string("Motor V = " + str(ACVOLTAGE), LCD_LINE_1))
+				safe_lcd(lcd_string("Current(A) = " + str(MOTORCURRENT), LCD_LINE_2))
 				time.sleep(LCD_REFRESH_INTERVAL)
 
 			if IsSENSOR1UP:
-				lcd_string("TANK 1 Level = ", LCD_LINE_1)
-				lcd_string(str(TANK1LEVEL) + "%", LCD_LINE_2)
+				safe_lcd(lcd_string("TANK 1 Level = ", LCD_LINE_1))
+				safe_lcd(lcd_string(str(TANK1LEVEL) + "%", LCD_LINE_2))
 				time.sleep(LCD_REFRESH_INTERVAL)
 			else:
-				lcd_string("SENSOR 1 DOWN", LCD_LINE_1)
-				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR1TIME)), LCD_LINE_2)
+				safe_lcd(lcd_string("SENSOR 1 DOWN", LCD_LINE_1))
+				safe_lcd(lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR1TIME)), LCD_LINE_2))
 				time.sleep(LCD_REFRESH_INTERVAL)
 			
 			if IsSENSOR2UP:
-				lcd_string("TANK 2 Level = ", LCD_LINE_1)
-				lcd_string(str(TANK2LEVEL) + "%", LCD_LINE_2)
+				safe_lcd(lcd_string("TANK 2 Level = ", LCD_LINE_1))
+				safe_lcd(lcd_string(str(TANK2LEVEL) + "%", LCD_LINE_2))
 				time.sleep(LCD_REFRESH_INTERVAL)
 			else:
-				lcd_string("SENSOR 2 DOWN", LCD_LINE_1)
-				lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2)
+				safe_lcd(lcd_string("SENSOR 2 DOWN", LCD_LINE_1))
+				safe_lcd(lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2))
 				time.sleep(LCD_REFRESH_INTERVAL)
 			# **Check and display network status**
 			if is_connected():
-				network_status = get_ip_address("wlan1")
+				safe_lcd(network_status = get_ip_address("wlan1"))
 			else:
 				network_status = "Disconnected"
 
-			lcd_string("NETWORK STATUS", LCD_LINE_1)
-			lcd_string(network_status, LCD_LINE_2)
+			safe_lcd(lcd_string("NETWORK STATUS", LCD_LINE_1))
+			safe_lcd(lcd_string(network_status, LCD_LINE_2))
 			time.sleep(LCD_REFRESH_INTERVAL)
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
