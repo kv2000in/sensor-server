@@ -203,16 +203,17 @@ int main(int argc, char **argv)
 			break;
 		}
 		
-			// Handle data from UNIX socket
+			// Handle data from UNIX socket - 6 bytes of destination MAC, 6 bytes of source MAC, followed by command/data/payload bytes
 		if (FD_ISSET(uds_conn, &readfds)) {
 			int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
 			if (bytes_read > 0) {
 				//printf("Received data on UNIX socket: %d bytes\n", bytes_read);
-				if (bytes_read >= 7 && bytes_read <= (6 + 239)) {
+				if (bytes_read >= 13 && bytes_read <= (6 + 239)) {
 						// Forward to raw socket
 					memcpy(destinationMAC, buffer, 6);
-					uint8_t payload_len = bytes_read - 6;
-					uint8_t *payload = &buffer[6];
+					memcpy(senderMAC, buffer+6, 6);
+					uint8_t payload_len = bytes_read - 12;
+					uint8_t *payload = &buffer[12];
 					#define BASE_DATA_LEN 77   // everything before payload 
 					#define MAX_PAYLOAD_LEN 239
 					#define ESPNOW_LEN_OFFSET 71
@@ -243,7 +244,9 @@ int main(int argc, char **argv)
 					for (int i = 0; i < 6; i++) {
 						data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
 						data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
+						data[48 + i] = senderMAC[i]; //Replace senderMAC in data[48] to data[53]
 					}
+					
 					memcpy(&data[BASE_DATA_LEN], payload, payload_len);
 					//printf("Sending to ESP32\n");
 					sendto(sock_fd, data, BASE_DATA_LEN + payload_len, 0, NULL, 0);
