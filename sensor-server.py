@@ -149,7 +149,7 @@ LORA_UDS_PATH = "/tmp/raw_socket_uds_lora"
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 BROADCAST_MAC_ADDR = '\xFF\xFF\xFF\xFF\xFF\xFF'
-
+SENDER_MAC_ADDR= '\xB8\x27\xEB\F9\x9F\x40' # Pi Mac Address
 
 # Set to track received Packet IDs
 PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
@@ -1429,13 +1429,9 @@ def handlestatusbits(padding):
 
 	# Toggle LED state
 	if esp32_status_led_state:
-		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_OFF)
-		#send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_OFF)
 		ESP32send("ESP32_STATUS_LED","LOW")
 	else:
 		ESP32send("ESP32_STATUS_LED","HIGH")
-		#send_msg_to_ESP32(BROADCAST_MAC_ADDR+LED_ON)
-		#send_msg_to_ESP32(ESP32_MAC_ADDR+LED_ON)
 	# Update the LED state
 	esp32_status_led_state = not esp32_status_led_state
 	#First byte of padding has ESP32 Input GPIOs statuses.
@@ -1516,7 +1512,7 @@ def ESP32send(GPIO, STATUS):
 		print("Error: Encoded byte {} conflicts with reserved commands!".format(encoded_byte))
 		return
 
-	send_msg_to_ESP32(ESP32_MAC_ADDR + chr(encoded_byte))
+	send_msg_to_ESP32(ESP32_MAC_ADDR + SENDER_MAC_ADDR + chr(encoded_byte))
 
 #Called by handlestatusbits to process OutputGPIO bits.
 def GPIO_sync(output_byte_1, output_byte_2):
