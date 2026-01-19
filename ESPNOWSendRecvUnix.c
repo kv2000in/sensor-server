@@ -203,12 +203,12 @@ int main(int argc, char **argv)
 			break;
 		}
 		
-			// Handle data from UNIX socket - 6 bytes of destination MAC, 6 bytes of source MAC, followed by command/data/payload bytes
+			// Handle data from UNIX socket - 6 bytes of destination MAC, 6 bytes of sender MAC, followed by command/data/payload bytes
 		if (FD_ISSET(uds_conn, &readfds)) {
 			int bytes_read = read(uds_conn, buffer, BUFFER_SIZE);
 			if (bytes_read > 0) {
 				//printf("Received data on UNIX socket: %d bytes\n", bytes_read);
-				if (bytes_read >= 13 && bytes_read <= (6 + 239)) {
+				if (bytes_read >= 13 && bytes_read <= (12 + 239)) {
 						// Forward to raw socket
 					memcpy(destinationMAC, buffer, 6);
 					memcpy(senderMAC, buffer+6, 6);
