@@ -149,7 +149,7 @@ LORA_UDS_PATH = "/tmp/raw_socket_uds_lora"
 # ESP32 MAC address for identification
 ESP32_MAC_ADDR = '\x58\xBF\x25\x82\x8E\xD8'  # Replace with the actual MAC address
 BROADCAST_MAC_ADDR = '\xFF\xFF\xFF\xFF\xFF\xFF'
-SENDER_MAC_ADDR= '\xB8\x27\xEB\F9\x9F\x40' # Pi Mac Address
+SENDER_MAC_ADDR= '\xB8\x27\xEB\xF9\x9F\x40' # Pi Mac Address
 
 # Set to track received Packet IDs
 PACKET_ID_TRACKER = deque(maxlen=50)  # FIFO queue with a max size of 50
@@ -1549,7 +1549,7 @@ def ESP32_GPIO_sync():
 			out_byte_2 |= (1 << (i - 8)) if state else 0
 
 	packet = chr(0xDD) + chr(out_byte_1) + chr(out_byte_2)
-	send_msg_to_ESP32(ESP32_MAC_ADDR + packet)
+	send_msg_to_ESP32(ESP32_MAC_ADDR + SENDER_MAC_ADDR + packet)
 
 
 

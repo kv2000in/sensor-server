@@ -244,7 +244,7 @@ int main(int argc, char **argv)
 					for (int i = 0; i < 6; i++) {
 						data[42 + i] = destinationMAC[i]; // Replace destinationMAC in data[42] to data[47]
 						data[54 + i] = destinationMAC[i]; // Replace destinationMAC in data[54] to data[59]
-						//data[48 + i] = senderMAC[i]; //Replace senderMAC in data[48] to data[53]
+						data[48 + i] = senderMAC[i]; //Replace senderMAC in data[48] to data[53]
 					}
 					
 					memcpy(&data[BASE_DATA_LEN], payload, payload_len);
