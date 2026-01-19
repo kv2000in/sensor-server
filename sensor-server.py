@@ -1513,7 +1513,7 @@ def ESP32send(GPIO, STATUS):
 		return
 	#Instead of sending the commands - ESP32send just sets the global GPIO statuses, and calls ESP32_GPIO_sync.
 	#send_msg_to_ESP32(ESP32_MAC_ADDR + SENDER_MAC_ADDR + chr(encoded_byte))
-	ESP32_GPIO_sync()
+	#ESP32_GPIO_sync()
 
 #Called by handlestatusbits to process OutputGPIO bits.
 def GPIO_sync(output_byte_1, output_byte_2):
