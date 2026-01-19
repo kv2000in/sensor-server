@@ -2432,7 +2432,7 @@ def lcdtickerthread():
 				network_status = "Disconnected"
 
 			safe_lcd(lcd_string("NETWORK STATUS", LCD_LINE_1))
-			safe_lcd(lcd_string(network_status, LCD_LINE_2))
+			lcd_string(network_status, LCD_LINE_2)
 			time.sleep(LCD_REFRESH_INTERVAL)
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
