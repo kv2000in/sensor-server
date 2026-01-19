@@ -2427,7 +2427,7 @@ def lcdtickerthread():
 				time.sleep(LCD_REFRESH_INTERVAL)
 			# **Check and display network status**
 			if is_connected():
-				safe_lcd(network_status = get_ip_address("wlan1"))
+				network_status = safe_lcd(get_ip_address("wlan1"))
 			else:
 				network_status = "Disconnected"
 
