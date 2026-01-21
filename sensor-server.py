@@ -2425,7 +2425,8 @@ def lcdtickerthread():
 				safe_lcd(lcd_string("SENSOR 2 DOWN", LCD_LINE_1))
 				safe_lcd(lcd_string(time.strftime('%d-%b %H:%M:%S', time.localtime(SENSOR2TIME)), LCD_LINE_2))
 				time.sleep(LCD_REFRESH_INTERVAL)
-			# **Check and display network status**
+			# **Check and display network status** Jan 2026 - I think this is causing time out leading to killing the lcdtickerthread. So disabling it
+			'''
 			if is_connected():
 				network_status = get_ip_address("wlan1")
 			else:
@@ -2434,6 +2435,7 @@ def lcdtickerthread():
 			safe_lcd(lcd_string("NETWORK STATUS", LCD_LINE_1))
 			lcd_string(network_status, LCD_LINE_2)
 			time.sleep(LCD_REFRESH_INTERVAL)
+			'''
 		except Exception as e:
 			error_handler(lcdtickerthread.__name__, str(e))
 			print("Exiting due to Error in lcdticker thread:", e)
