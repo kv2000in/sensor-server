@@ -2441,11 +2441,6 @@ def lcdtickerthread():
 			print("Exiting due to Error in lcdticker thread:", e)
 			reboot_system()
 			return
-		finally:
-			#Wipe the LCD screen
-			lcd_byte(0x01, LCD_CMD)
-			#print("Exiting lcdtickerthread")
-
 
 	
 
